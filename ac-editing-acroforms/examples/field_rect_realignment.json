@@ -1,0 +1,33 @@
+{
+  "description": "Sanitized example: move two named widgets and two unnamed widgets back onto the correct underlines in a split row layout.",
+  "pdfs": [
+    {
+      "pdf": "/path/to/project/templates/template.pdf",
+      "page": 1,
+      "updates": [
+        {
+          "description": "Move column 1 named field onto its underline",
+          "name": "section/0/exampleField",
+          "rect": [141.76, 121.305, 315.487, 133.267]
+        },
+        {
+          "description": "Move column 2 named field onto its underline",
+          "name": "section/1/exampleField",
+          "rect": [359.125, 121.305, 532.852, 133.267]
+        },
+        {
+          "description": "Move column 1 unnamed widget matched by its old rect",
+          "name": "",
+          "match_rect": [141.76, 93.1, 315.487, 105.1],
+          "rect": [141.76, 107.129, 315.487, 119.091]
+        },
+        {
+          "description": "Move column 2 unnamed widget matched by its old rect",
+          "name": "",
+          "match_rect": [359.125, 93.1, 532.853, 105.1],
+          "rect": [359.125, 107.129, 532.853, 119.092]
+        }
+      ]
+    }
+  ]
+}

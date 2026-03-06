@@ -1,0 +1,31 @@
+{
+  "description": "Sanitized example: move a single text operator in two related templates using literal content-stream replacements.",
+  "pdfs": [
+    {
+      "pdf": "/path/to/project/templates/template-a.pdf",
+      "page": 1,
+      "replacements": [
+        {
+          "description": "Lower a single marker by 3 points",
+          "match": "0.009 Tc 532.515 111.967 Td",
+          "replace": "0.009 Tc 532.515 108.801 Td",
+          "count": 1,
+          "expected_matches": 1
+        }
+      ]
+    },
+    {
+      "pdf": "/path/to/project/templates/template-b.pdf",
+      "page": 1,
+      "replacements": [
+        {
+          "description": "Lower a single marker by 3 points",
+          "match": "0.009 Tc 532.515 111.967 Td",
+          "replace": "0.009 Tc 532.515 108.801 Td",
+          "count": 1,
+          "expected_matches": 1
+        }
+      ]
+    }
+  ]
+}

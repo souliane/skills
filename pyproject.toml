@@ -1,0 +1,162 @@
+[project]
+name = "skills"
+version = "0.0.1"
+requires-python = ">=3.12"
+
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[dependency-groups]
+dev = [ "pytest>=9.0.2", "ty>=0.0.18", "typer>=0.12" ]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+fix = true
+lint.select = [ "ALL" ]
+# Project-specific rule exclusions.
+lint.ignore = [
+  # Copyright headers: not used in this repo.
+  "CPY001", # missing-copyright-notice
+  # Docstrings: optional in this scripts-focused repo.
+  "D100",   # undocumented-public-module
+  "D101",   # undocumented-public-class
+  "D102",   # undocumented-public-method
+  "D103",   # undocumented-public-function
+  "D104",   # undocumented-public-package
+  "D105",   # undocumented-magic-method
+  "D106",   # undocumented-public-nested-class
+  "D107",   # undocumented-public-init
+  "D203",   # incorrect-blank-line-before-class
+  "D213",   # multi-line-summary-second-line
+  "DOC201", # docstring-missing-returns (we don't require docstrings)
+  "DOC402", # docstring-missing-yields
+  "DOC501", # docstring-missing-exception
+  # Namespace packages are intentional under skills/.
+  "INP001", # implicit-namespace-package
+  "ISC002", # multi-line-implicit-string-concatenation
+]
+# Formatter-conflicting rules — must be disabled when using ruff format.
+# Reference: https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+lint.extend-ignore = [
+  "COM812", # missing-trailing-comma
+  "COM819", # prohibited-trailing-comma
+  "D206",   # docstring-tab-indentation
+  "D300",   # triple-single-quotes
+  "E111",   # indentation-with-invalid-multiple
+  "E114",   # indentation-with-invalid-multiple-comment
+  "E117",   # over-indented
+  "Q000",   # bad-quotes-inline-string
+  "Q001",   # bad-quotes-multiline-string
+  "Q002",   # bad-quotes-docstring
+  "Q003",   # avoidable-escaped-quote
+  "Q004",   # unnecessary-escaped-quote
+  "W191",   # tab-indentation
+]
+# CLI scripts: print() is the UI, subprocess is the mechanism, post-init imports by design.
+# typer: B008 (function-call-in-default-arg) and FBT (boolean-typed args) are inherent to typer's API.
+lint.per-file-ignores."**/scripts/**/*.py" = [
+  "B008",    # function-call-in-default-argument (typer.Argument/Option pattern)
+  "E402",    # module-import-not-at-top-of-file (uv script headers)
+  "FBT001",  # boolean-typed-positional-argument (typer.Option(False, ...) pattern)
+  "FBT003",  # boolean-positional-value-in-function-call (typer.Option(False, ...) pattern)
+  "PLC0415", # import-outside-top-level (lazy imports after init)
+  "PLC2701", # import-private-name (importing _-prefixed functions from lib modules)
+  "PLW1510", # subprocess-run-without-check
+  "S404",    # suspicious-subprocess-import (subprocess is the mechanism)
+  "S603",    # subprocess-without-shell-equals-true
+  "S607",    # start-process-with-partial-path
+  "T201",    # print (print is the CLI UI)
+]
+# PDF manipulation scripts: magic coordinate values, complex content stream parsing, and
+# deeply nested block structures are inherent to PDF editing. assert used for invariants.
+lint.per-file-ignores."ac-editing-acroforms/scripts/*.py" = [
+  "ANN",     # annotations (pikepdf types not installed in this repo)
+  "B007",    # unused-loop-control-variable (iteration patterns in PDF parsing)
+  "C901",    # too-complex (content stream parsing is inherently complex)
+  "E501",    # line-too-long (long PDF content stream strings)
+  "E701",    # multiple-statements-on-one-line (compact PDF ops)
+  "E702",    # multiple-statements-on-one-line-semicolon
+  "F841",    # local-variable-is-assigned-but-never-used (debug/reference vars)
+  "N806",    # non-lowercase-variable-in-function (PDF constants like TM)
+  "PLR0912", # too-many-branches
+  "PLR0913", # too-many-arguments (typer CLI functions)
+  "PLR0914", # too-many-locals
+  "PLR0915", # too-many-statements
+  "PLR0917", # too-many-positional-arguments
+  "PLR1702", # too-many-nested-blocks (BT/ET > font > condition > match)
+  "PLR2004", # magic-value-comparison (PDF coordinates and thresholds)
+  "S101",    # assert (invariant checks in content stream editing)
+  "SIM102",  # collapsible-if (readability in multi-condition PDF checks)
+  "SIM118",  # in-dict-keys (pikepdf dict iteration)
+  "SLF001",  # private-member-access (pypdf _add_object/_root_object have no public API)
+]
+# Tests: assert, private-member access, mock paths, and magic values are inherent to testing.
+lint.per-file-ignores."tests/**/*.py" = [
+  "ANN",     # annotations (tests don't need return type annotations)
+  "ARG002",  # unused-method-argument (pytest fixtures inject tmp_path even if unused)
+  "PLC1901", # compare-to-empty-string (explicit == "" is clearer in assertions)
+  "PLC2701", # import-private-name (testing internal functions with _ prefix)
+  "PLR0904", # too-many-public-methods (test classes naturally have many test methods)
+  "PLR2004", # magic-value-comparison
+  "PLR6301", # no-self-use (test classes group tests, methods don't need self)
+  "S101",    # assert (pytest uses assert)
+  "S108",    # hardcoded-temp-file
+  "S404",    # suspicious-subprocess-import (tests mock subprocess)
+  "SIM201",  # use-not-equal (pytest skipif with `not X == []` is more readable)
+  "SLF001",  # private-member-access
+  "T201",    # print (fixture generation scripts use print)
+]
+lint.fixable = [ "ALL" ]
+lint.flake8-implicit-str-concat.allow-multiline = false
+# Target is Python 3.12+ — use native type union syntax (X | Y), not PEP 563.
+lint.flake8-tidy-imports.banned-api."__future__.annotations" = { msg = "Use native 3.10+ syntax (X | Y) instead of from __future__ import annotations" }
+# Complexity and structure limits — keep functions small, focused, and testable.
+lint.pylint.max-args = 5
+lint.pylint.max-bool-expr = 5
+lint.pylint.max-branches = 12
+lint.pylint.max-locals = 15
+lint.pylint.max-nested-blocks = 5
+lint.pylint.max-returns = 6
+lint.pylint.max-statements = 50
+lint.preview = true
+
+[tool.codespell]
+
+[tool.pytest.ini_options]
+addopts = """
+--color=yes --doctest-modules --exitfirst --failed-first
+--ignore-glob=tests/**/fixtures/*.py
+--strict-config --strict-markers --verbose --log-cli-level=INFO
+"""
+filterwarnings = [ "error" ]
+python_files = [ "test_*.py" ]
+testpaths = [ "tests" ]
+xfail_strict = true
+
+[tool.ty.analysis]
+# External deps from uv script headers (not installed in the skill repo)
+allowed-unresolved-imports = [
+  "golden_diff",
+  "requests",
+  "typer",
+  "pytest",
+  "tomlkit",
+  "pypdf",
+  "pypdf.generic",
+]
+
+[tool.ty]
+terminal = { error-on-warning = true }
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.rules]
+division-by-zero = "error"
+possibly-unresolved-reference = "error"
+unused-ignore-comment = "error"
+no-matching-overload = "error"

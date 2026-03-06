@@ -1,0 +1,40 @@
+# Contributor Guidelines
+
+## Repo Structure
+
+```text
+ac-*/SKILL.md          Skill definitions
+ac-*/references/       Skill-specific reference docs (one level deep)
+ac-*/scripts/          Skill-specific scripts
+scripts/               Shared repo-level scripts and hooks
+tests/                 Tests for scripts
+```
+
+## Skill Files
+
+- `SKILL.md` is the entry point. Keep it focused on workflow and rules.
+- Move detailed content to `references/` — one level deep only.
+- Never change `version:` in YAML frontmatter — auto-managed.
+- Skill naming: gerund form with `ac-` prefix (e.g., `ac-editing-acroforms`, `ac-adopting-ruff`). Domain skills keep plain names (`ac-django`, `ac-python`).
+
+## Python Scripts
+
+All scripts must follow these conventions:
+
+1. **uv shebang:** `#!/usr/bin/env -S uv run --script`
+2. **Inline metadata:** `# /// script` block with `dependencies` list (even if empty)
+3. **Typer for CLI:** `typer>=0.12` in inline deps — no raw `sys.argv` or `argparse`
+4. **Type annotations:** `ty-check` runs on all files — use `str | None` not `Optional[str]`
+5. **4-space indentation** everywhere (matches `.editorconfig`)
+6. **Make executable:** `chmod +x` the script file
+
+## Testing
+
+- Run: `uv run pytest`
+- Pre-commit: `prek run --all-files`
+- Frontmatter validation: `uv run ac-reviewing-skills/scripts/check_frontmatter.py`
+
+## Information Boundaries
+
+- Generic/framework skills (`ac-django`, `ac-python`) must **not** contain project-specific or proprietary details.
+- Project-specific skills (in overlay repos) may reference their project freely but must not leak into generic skills.
