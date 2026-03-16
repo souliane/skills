@@ -4,17 +4,7 @@ Templates for scaffolding a new skill repo. Referenced from the main SKILL.md.
 
 ## SKILL.md Template
 
-Every skill must have YAML frontmatter. The `name` and `description` fields are required by the [Agent Skills open standard](https://agentskills.io); additional fields are optional extensions.
-
-### Frontmatter Spec
-
-| Field | Required | Constraints |
-|-------|----------|-------------|
-| `name` | Yes | Max 64 chars, lowercase + numbers + hyphens only. No "anthropic" or "claude". Use gerund form for action skills (`adopting-ruff`), plain noun for domain skills (`django`). |
-| `description` | Yes | Max 1024 chars, third person ("Scaffolds a new skill repo..."). Must include **what** the skill does and **when** to use it. End with trigger phrases: `Use when user says "..."`. |
-| `compatibility` | No | Platforms and requirements (e.g., `macOS/Linux, Python 3.12+, uv, git`). |
-| `metadata.version` | No | SemVer string (e.g., `0.0.1`). |
-| `metadata.subagent_safe` | No | `true` only if the skill is pure methodology with no shell/MCP/env deps. |
+Every skill must have YAML frontmatter. See [`ac-reviewing-skills/references/skill-authoring-best-practices.md`](../../ac-reviewing-skills/references/skill-authoring-best-practices.md) § Frontmatter Spec for the full field reference (constraints, naming conventions, required fields).
 
 ### Template
 

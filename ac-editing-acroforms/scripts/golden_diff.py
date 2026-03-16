@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["typer>=0.9"]
+# dependencies = ["typer>=0.12"]
 # ///
 """Compare golden PDFs between a git base ref and the current branch.
 
@@ -141,8 +141,12 @@ def create_side_by_side(master_png: Path, branch_png: Path, out: Path, page_num:
     montage = shutil.which("montage")
     if not montage:
         return False
+
+    font = _find_montage_font()
+    font_args = ["-font", font] if font else []
     cmd = [
         montage,
+        *font_args,
         "-label",
         f"master (p{page_num})",
         str(master_png),
@@ -156,6 +160,22 @@ def create_side_by_side(master_png: Path, branch_png: Path, out: Path, page_num:
         str(out),
     ]
     r = subprocess.run(cmd, capture_output=True)
+    if r.returncode == 0 and out.exists():
+        return True
+
+    # Retry without labels if font rendering failed
+    out.unlink(missing_ok=True)
+    cmd_no_labels = [
+        montage,
+        str(master_png),
+        str(branch_png),
+        "-tile",
+        "2x1",
+        "-geometry",
+        "+10+0",
+        str(out),
+    ]
+    r = subprocess.run(cmd_no_labels, capture_output=True)
     return r.returncode == 0 and out.exists()
 
 
@@ -216,6 +236,19 @@ def _find_gs() -> str | None:
     for candidate in ["/opt/homebrew/bin/gs", "gs"]:
         if shutil.which(candidate):
             return candidate
+    return None
+
+
+def _find_montage_font() -> str | None:
+    """Find a usable font for ImageMagick montage labels."""
+    candidates = [
+        "/System/Library/Fonts/Helvetica.ttc",  # macOS
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Debian/Ubuntu
+        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",  # Fedora/RHEL
+    ]
+    for path in candidates:
+        if Path(path).exists():
+            return path
     return None
 
 

@@ -1,0 +1,260 @@
+# Reference GitHub Actions workflow for publishing to dev.to.
+#
+# Copy this file to .github/workflows/publish-devto.yml in your blog repo
+# and replace <user> with your GitHub username.
+#
+# Prerequisites:
+#   - A public <user>/blog-assets repo (for image hosting)
+#   - DEVTO_TOKEN secret (dev.to API key)
+#   - BLOG_ASSETS_TOKEN secret (GitHub PAT with repo scope on blog-assets)
+#   - npm project with @mermaid-js/mermaid-cli if using mermaid diagrams
+#
+# Check for newer approaches before adopting — dev.to may have added an
+# image upload API, or better actions may exist.
+
+name: Publish to dev.to
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "posts/**"
+      - "assets-manifest.json"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (preview changes without publishing)"
+        required: false
+        default: "false"
+        type: boolean
+      publish:
+        description: "Also publish to dev.to (not just sync assets)"
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  sync-assets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Clone blog-assets
+        env:
+          ASSETS_TOKEN: ${{ secrets.BLOG_ASSETS_TOKEN }}
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${ASSETS_TOKEN}@github.com/<user>/blog-assets.git" \
+            /tmp/blog-assets
+
+      # Render mermaid diagrams to PNG. Remove this step if you don't use mermaid.
+      - name: Render mermaid
+        run: |
+          mkdir -p /tmp/rendered
+          for file in posts/*.md; do
+            [ -f "$file" ] || continue
+            base=$(basename "$file" .md)
+            if grep -q '```mermaid' "$file"; then
+              npx mmdc -i "$file" -o "/tmp/rendered/$base.md" -e png -q
+            fi
+          done
+
+      # Hash-compare and sync only changed images to blog-assets.
+      - name: Sync images
+        run: |
+          set -euo pipefail
+
+          MANIFEST="assets-manifest.json"
+          # TODO: replace <user> with your GitHub username.
+          ASSETS_REPO="<user>/blog-assets"
+          ASSETS_BRANCH="main"
+
+          if [ -f "$MANIFEST" ]; then
+            PREV_MANIFEST=$(cat "$MANIFEST")
+          else
+            PREV_MANIFEST="{}"
+          fi
+
+          NEW_MANIFEST="{}"
+
+          sync_image() {
+            local src="$1" key="$2"
+            local hash prev_hash url
+            hash=$(sha256sum "$src" | cut -d' ' -f1)
+            prev_hash=$(echo "$PREV_MANIFEST" | jq -r --arg k "$key" '.[$k].sha256 // ""')
+            url="https://raw.githubusercontent.com/${ASSETS_REPO}/${ASSETS_BRANCH}/${key}"
+
+            if [ "$hash" != "$prev_hash" ]; then
+              echo "UPLOAD: $key"
+              mkdir -p "/tmp/blog-assets/$(dirname "$key")"
+              cp "$src" "/tmp/blog-assets/$key"
+            else
+              echo "SKIP:   $key (unchanged)"
+            fi
+
+            NEW_MANIFEST=$(echo "$NEW_MANIFEST" | jq \
+              --arg k "$key" --arg h "$hash" --arg u "$url" \
+              '. + {($k): {sha256: $h, url: $u}}')
+          }
+
+          # Static assets.
+          for img in posts/assets/*; do
+            [ -f "$img" ] || continue
+            sync_image "$img" "assets/$(basename "$img")"
+          done
+
+          # Generated mermaid PNGs (skip if not using mermaid).
+          for img in /tmp/rendered/*.png; do
+            [ -f "$img" ] || continue
+            sync_image "$img" "generated/$(basename "$img")"
+          done
+
+          echo "$NEW_MANIFEST" | jq --sort-keys '.' > "$MANIFEST"
+
+      # Push changed images to blog-assets.
+      - name: Push to blog-assets
+        working-directory: /tmp/blog-assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes in blog-assets."
+          else
+            git commit -m "sync: update images from blog repo"
+            git push
+          fi
+
+      # Commit updated manifest back to blog repo.
+      - name: Commit manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets-manifest.json
+          if git diff --cached --quiet; then
+            echo "Manifest unchanged."
+          else
+            git commit -m "ci: update assets manifest"
+            git push
+          fi
+
+  publish:
+    needs: sync-assets
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publish == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # Pick up manifest commit from sync-assets.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      # Generate publish-ready markdown in output/devto/.
+      - name: Generate devto markdown
+        run: |
+          set -euo pipefail
+          MANIFEST="assets-manifest.json"
+          mkdir -p output/devto
+
+          for file in posts/*.md; do
+            [ -f "$file" ] || continue
+            base=$(basename "$file" .md)
+            target="output/devto/$base.md"
+
+            # Render mermaid if needed, otherwise copy.
+            if grep -q '```mermaid' "$file"; then
+              npx mmdc -i "$file" -o "$target" -e png -q
+              rm -f output/devto/*.png
+              sed -i -E "s|\(\.*/[^)]*($base-[0-9]+\.png)\)|(./\1)|g" "$target"
+            else
+              cp "$file" "$target"
+            fi
+
+            # Rewrite static asset paths.
+            while IFS= read -r key; do
+              url=$(jq -r --arg k "$key" '.[$k].url' "$MANIFEST")
+              fname=$(basename "$key")
+              sed -i -E "s|([ \"(])assets/${fname}|\1${url}|g" "$target"
+            done < <(jq -r 'keys[] | select(startswith("assets/"))' "$MANIFEST")
+
+            # Rewrite generated image paths.
+            while IFS= read -r key; do
+              url=$(jq -r --arg k "$key" '.[$k].url' "$MANIFEST")
+              fname=$(basename "$key")
+              escaped=$(printf '%s' "$fname" | sed 's/[.[\*^$()+?{|]/\\&/g')
+              sed -i -E "s|\\./${escaped}|${url}|g" "$target"
+            done < <(jq -r 'keys[] | select(startswith("generated/"))' "$MANIFEST")
+          done
+
+      # Publish to dev.to via devto-cli.
+      - name: Publish
+        env:
+          DEVTO_TOKEN: ${{ secrets.DEVTO_TOKEN }}
+        run: |
+          npx devto-cli push output/devto/*.md \
+            --devto-key "$DEVTO_TOKEN" \
+            ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+      # Write article IDs back to both posts/ and output/devto/.
+      - name: Write article IDs back
+        if: inputs.dry_run != 'true'
+        run: |
+          set -euo pipefail
+          CHANGED=false
+
+          for published in output/devto/*.md; do
+            [ -f "$published" ] || continue
+            base=$(basename "$published")
+            source="posts/$base"
+            [ -f "$source" ] || continue
+
+            new_id=$(grep -m1 '^id:' "$published" | sed 's/^id: *//' || true)
+            [ -z "$new_id" ] && continue
+
+            existing_id=$(grep -m1 '^id:' "$source" | sed 's/^id: *//' || true)
+            if [ "$new_id" != "$existing_id" ]; then
+              if [ -n "$existing_id" ]; then
+                sed -i "s/^id: .*/id: $new_id/" "$source"
+              else
+                sed -i "0,/^---$/{s/^---$/---\nid: $new_id/}" "$source"
+              fi
+              echo "Updated $source with id: $new_id"
+              CHANGED=true
+            fi
+          done
+
+          if [ "$CHANGED" = true ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add posts/ output/devto/
+            git commit -m "ci: update dev.to article IDs"
+            git push
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add output/devto/
+            if git diff --cached --quiet; then
+              echo "No changes."
+            else
+              git commit -m "ci: update dev.to output"
+              git push
+            fi
+          fi

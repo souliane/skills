@@ -10,7 +10,7 @@ It intentionally checks just the structural fields that every skill should
 have: `name`, `description`, and `metadata.version`.
 """
 
-import argparse
+import argparse  # Intentionally not typer — this script has zero dependencies.
 import re
 import subprocess
 import sys

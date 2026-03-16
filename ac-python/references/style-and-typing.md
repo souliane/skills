@@ -154,6 +154,8 @@ def render(obj: Labeled | str) -> str:
 
 ### `TYPE_CHECKING` guard for import cycles
 
+`from __future__ import annotations` is the one valid exception to the `__future__` ban — it's required inside `TYPE_CHECKING` guards to avoid circular imports at runtime.
+
 ```python
 from __future__ import annotations
 from typing import TYPE_CHECKING

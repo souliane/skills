@@ -1,0 +1,38 @@
+# OpenClaw Docker Compose Template
+# Copy to server: ~/.openclaw/docker-compose.yml
+# Start: docker compose up -d
+# Logs: docker compose logs -f
+
+services:
+  signal-cli:
+    image: bbernhard/signal-cli-rest-api:latest
+    container_name: signal-cli
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - signal-data:/home/.local/share/signal-cli
+    environment:
+      - MODE=native
+
+  # Add more services as needed:
+  #
+  # whisper:
+  #   image: onerahmet/openai-whisper-asr-webservice:latest
+  #   container_name: whisper
+  #   restart: unless-stopped
+  #   ports:
+  #     - "127.0.0.1:9000:9000"
+  #
+  # chromium:
+  #   image: browserless/chromium:latest
+  #   container_name: chromium
+  #   restart: unless-stopped
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
+  #   environment:
+  #     - MAX_CONCURRENT_SESSIONS=2
+
+volumes:
+  signal-data:
+    driver: local

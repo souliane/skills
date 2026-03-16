@@ -249,7 +249,7 @@ Compare hooks against the template in § 5:
 - **Python scripts targeting uv** should use `#!/usr/bin/env -S uv run --script` with inline metadata.
 - **100% test coverage** is required for Python code.
 - **Pre-commit hooks run on every commit** — never bypass with `--no-verify`.
-- **No project-specific terms** in generic skills. Use `T3_BANNED_TERMS` in `~/.teatree` for enforcement.
+- **No project-specific terms** in generic skills. Use `BANNED_TERMS` in the per-repo user config (e.g., `~/.skills`) for enforcement.
 
 ## References
 

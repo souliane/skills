@@ -18,15 +18,29 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.+?)\n---", re.DOTALL)
 
 
 def _parse_frontmatter(path: Path) -> dict[str, str]:
-    """Extract YAML-ish key: value pairs from SKILL.md frontmatter."""
+    """Extract YAML-ish key: value pairs from SKILL.md frontmatter.
+
+    Handles YAML folded (``>``) and literal (``|``) scalar indicators by
+    collecting indented continuation lines into the previous key's value.
+    """
     m = FRONTMATTER_RE.match(path.read_text(encoding="utf-8"))
     if not m:
         return {}
-    meta = {}
+    meta: dict[str, str] = {}
+    current_key: str | None = None
     for line in m.group(1).splitlines():
-        if ":" in line:
+        stripped = line.strip()
+        if ":" in line and not line[0].isspace():
             k, v = line.split(":", 1)
-            meta[k.strip()] = v.strip().strip('"').strip("'")
+            current_key = k.strip()
+            v_clean = v.strip().strip('"').strip("'")
+            if v_clean in {">", "|", ">-", "|-"}:
+                meta[current_key] = ""
+            else:
+                meta[current_key] = v_clean
+        elif current_key is not None and line[0:1].isspace() and stripped:
+            existing = meta.get(current_key, "")
+            meta[current_key] = f"{existing} {stripped}".strip() if existing else stripped
     return meta
 
 
@@ -37,8 +51,11 @@ def _build_table() -> str:
         meta = _parse_frontmatter(skill_md)
         name = meta.get("name", skill_md.parent.name)
         desc = meta.get("description", "")
-        # Truncate at trigger words
-        short = desc.split(". Use when")[0].split(". Use this")[0]
+        # Truncate at trigger words (skip if description starts with them).
+        short = desc
+        for sep in (". Triggers:", ". Use when", ". Use this"):
+            if sep in short and not short.startswith(sep.lstrip(". ")):
+                short = short.split(sep)[0]
         version = meta.get("version", "—")
         skills.append((name, version, short))
 

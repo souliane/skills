@@ -26,7 +26,7 @@ Compare and harmonize `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfi
 
 - Should trigger:
   - "Compare pre-commit configs across all skill repos."
-  - "Align pyproject.toml between teatree and oper-skills."
+  - "Align pyproject.toml between teatree and my-project-skills."
   - "Check if python-boilerplate's editorconfig matches the standard."
   - "Propagate ruff version bump to all repos."
 - Should NOT trigger:

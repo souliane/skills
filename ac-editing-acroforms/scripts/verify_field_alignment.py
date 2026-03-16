@@ -14,7 +14,7 @@ Usage:
     uv run verify_field_alignment.py templates/nl_broker/.../template.pdf --page 1
     uv run verify_field_alignment.py templates/**/*.pdf --page 1 --cross
     uv run verify_field_alignment.py templates/**/*.pdf --page 1 \\
-        --golden-dir src/test/resources/eu/oper/docGen/ --pixel
+        --golden-dir src/test/resources/com/example/docGen/ --pixel
 """
 
 import argparse
@@ -742,7 +742,7 @@ Examples:
 
     # Include pixel-level checks
     uv run verify_field_alignment.py 'templates/**/*.pdf' --page 2 \\
-        --golden-dir src/test/resources/eu/oper/docGen/ --pixel
+        --golden-dir src/test/resources/com/example/docGen/ --pixel
 
     # Focus on income section with custom tolerance
     uv run verify_field_alignment.py template.pdf --page 2 --section income --tolerance 2.0

@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pikepdf>=9.0"]
+# dependencies = ["pikepdf>=9.0", "typer>=0.12"]
 # ///
 r"""Apply AcroForm widget rect updates from a JSON spec.
 
@@ -12,11 +12,11 @@ Usage:
     uv run scripts/apply_rect_updates.py spec.json
 """
 
-import argparse
 import json
 from pathlib import Path
 
 import pikepdf  # ty: ignore[unresolved-import]
+import typer
 
 
 def _rect_tuple(obj: pikepdf.Dictionary) -> tuple[float, float, float, float]:
@@ -74,12 +74,9 @@ def apply_spec(spec_path: Path) -> None:
             print(f"  - {item}")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("spec", type=Path, help="Path to JSON spec")
-    args = parser.parse_args()
-    apply_spec(args.spec)
+def main(spec: Path = typer.Argument(help="Path to JSON spec")) -> None:
+    apply_spec(spec)
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

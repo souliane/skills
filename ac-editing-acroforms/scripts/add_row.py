@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pypdf>=4.0", "typer>=0.9"]
+# dependencies = ["pypdf>=4.0", "typer>=0.12"]
 # ///
 """Add a field row to an AcroForm PDF template.
 

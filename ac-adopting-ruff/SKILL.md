@@ -22,8 +22,7 @@ Replace legacy Python linting (black, isort, flake8, pylint) with ruff as the **
 - **ALL rules enabled** including preview — whitelist what we disable, not what we enable
 - **Clean break by default** — no compatibility shims unless the team explicitly opts in (see [Black/isort-Compatible Formatting](#blackisort-compatible-formatting))
 - **Every disabled rule has a comment** with its human-readable name
-- **One worktree per MR** — `ruff-bootstrap` for Phase 1, `ruff-<CODE>` for each rule in Phase 2
-- **One MR per rule** for clean git history and easy review
+- **One worktree per MR** — `ruff-bootstrap` for Phase 1, `ruff-<CODES>` for each MR in Phase 2
 - **Auto-fix first** — if ruff can fix it, let it; manual fix only when needed
 - **prek everywhere** — same hooks locally (pre-commit) and in CI
 
@@ -97,8 +96,13 @@ fix = true
 lint.select = ["ALL"]
 lint.preview = true
 
-# --- Project-specific exclusions (populated in step 5) ---
+# --- To enforce: Phase 2 queue (enable one MR at a time) ---
 lint.ignore = []
+
+# --- Permanently disabled (not applicable to this project) ---
+# lint.ignore is additive — rules here stay disabled forever.
+# Example:
+#   "CPY001", # missing-copyright-notice
 
 # --- Formatter-conflicting rules (always disabled with ruff format) ---
 # Ref: https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
@@ -137,7 +141,11 @@ Run prek — it uses its own pinned ruff version, so there's no version mismatch
 prek run --all-files
 ```
 
-It will fail with violations. Extract the failing rule codes, add them to `lint.ignore` with their human-readable name as a comment (use `ruff rule --all --output-format json` to build a code→name lookup). Repeat until prek passes clean.
+It will fail with violations. Extract the failing rule codes and add them to the
+`# --- To enforce: Phase 2 queue` section of `lint.ignore`, each with its
+human-readable name as a comment (use `ruff rule --all --output-format json` to
+build a code→name lookup). Move rules that will never apply (e.g., `CPY001`) to
+the `# --- Permanently disabled` section instead. Repeat until prek passes clean.
 
 The helper script can parse ruff JSON output to generate a ready-to-paste block:
 
@@ -269,41 +277,181 @@ git push -f
 
 **Why `git add` during rebase:** After `git checkout --ours`, the files are still marked as conflicting. `git add .` marks them resolved so `git rebase --continue` can proceed.
 
-## Phase 2: Rule-by-Rule Enforcement
+## Phase 2: Progressive Rule Enforcement
 
-After bootstrap MR is merged. **One worktree and one MR per rule.**
+After bootstrap MR is merged.
 
-### Workflow per rule
+### 0. Ask the user
 
-```bash
-# 0. Create worktree from main (bootstrap MR must be merged first)
-git worktree add <project>-ruff-<CODE> -b ruff-<CODE> origin/main
-cd <project>-ruff-<CODE>
+Before starting Phase 2, ask the user these questions (one at a time):
+
+1. **Which repo?** — the project directory containing `pyproject.toml` with the ruff config.
+
+2. **MR strategy?**
+   - **One MR per rule** — clean git history, easy review, easy to revert. Best for high-risk or manual-fix rules.
+   - **Grouped rules (Recommended)** — batch multiple rules into one MR until a change threshold is reached. Reduces MR overhead for low-risk auto-fixable rules.
+
+3. **Change threshold?** (only if grouped)
+   - Default: **50** changed lines per MR.
+   - The agent enables rules one at a time, running `prek run --all-files` after each. If the cumulative number of changed lines stays below the threshold, the next rule is added to the same MR. Once the threshold is reached (or exceeded), the MR is finalized and a new one starts.
+
+### 1. Scan and prioritize
+
+Run a violation scan to build the enforcement queue. The scan **only reads
+rules from the Phase 2 queue section** — it ignores permanently disabled rules
+and formatter-conflicting rules in `lint.extend-ignore`.
+
+Phase 1 creates this structure in `pyproject.toml`:
+
+```toml
+# --- To enforce: Phase 2 queue (enable one MR at a time) ---
+lint.ignore = [
+  "C401",   # unnecessary-generator-set
+  "B904",   # raise-without-from-inside-except
+  ...
+]
+
+# --- Permanently disabled (not applicable to this project) ---
+# lint.ignore is additive — rules here stay disabled forever.
+#   "CPY001", # missing-copyright-notice
+
+# --- Formatter-conflicting rules (always disabled with ruff format) ---
+lint.extend-ignore = [
+  "COM812", # missing-trailing-comma
+  ...
+]
 ```
 
+The two section markers (`# --- To enforce:` and `# --- Permanently disabled`)
+are the contract between Phase 1 and Phase 2. The scan reads only between them.
+
+Scan script:
+
 ```bash
-# 1. Remove the first rule from lint.ignore in pyproject.toml
+ruff check --select ALL --preview --output-format json <path> 2>/dev/null \
+  | python3 -c "
+import json, sys, collections, re
 
-# 2. Run prek — it auto-fixes what it can (--fix is in the hook config)
+data = json.load(sys.stdin)
+counts = collections.Counter(d['code'] for d in data)
+fixable = collections.Counter(d['code'] for d in data if d.get('fix'))
+manual = collections.Counter(d['code'] for d in data if not d.get('fix'))
+
+with open('pyproject.toml') as f:
+    content = f.read()
+
+# Only read rules between the two markers
+QUEUE_START = '# --- To enforce:'
+QUEUE_END = '# --- Permanently disabled'
+
+if QUEUE_START not in content:
+    sys.exit('ERROR: missing queue marker in pyproject.toml — expected: ' + QUEUE_START)
+
+queue_section = content.split(QUEUE_START)[1]
+if QUEUE_END in queue_section:
+    queue_section = queue_section[:queue_section.index(QUEUE_END)]
+
+queue = set(re.findall(r'\"([A-Z]+\d+)\"', queue_section))
+
+print(f'Enforceable rules in queue: {len(queue)}')
+
+# Zero-violation rules
+zero = sorted(queue - set(counts.keys()))
+print(f'Zero-violation rules: {len(zero)}')
+
+# Auto-fixable only (no manual violations)
+auto_only = sorted(
+    [c for c in queue if c in fixable and c not in manual],
+    key=lambda c: fixable[c]
+)
+print(f'Auto-fixable-only rules: {len(auto_only)}')
+for c in auto_only:
+    print(f'  {fixable[c]:5d}  {c}')
+"
+```
+
+Prioritization order:
+
+1. **Zero-violation rules** — config-only, no code changes. Always batch into one MR.
+2. **Auto-fixable rules** (sorted by violation count ascending) — fast, low risk.
+3. **Partially auto-fixable rules** — auto-fix first, then manual cleanup.
+4. **Manual-only rules** — one per MR unless very low count.
+5. **High-value rules** (bug detection, security) — worth the effort even if high count.
+
+### 2. Create worktree
+
+```bash
+# For single-rule MRs:
+git worktree add <project>-ruff-<CODE> -b ruff-<CODE> origin/main
+cd <project>-ruff-<CODE>
+
+# For grouped MRs (use batch number):
+git worktree add <project>-ruff-batch-<N> -b ruff-batch-<N> origin/main
+cd <project>-ruff-batch-<N>
+```
+
+### 3. Enforce rules (single or grouped)
+
+**Single-rule workflow:**
+
+```bash
+# 1. Remove the rule from lint.ignore in pyproject.toml
+# 2. Run prek — auto-fixes what it can
 prek run --all-files
-
 # 3. Fix remaining violations manually
-
 # 4. Verify
 prek run --all-files
 ```
 
+**Grouped-rule workflow (greedy fill):**
+
+```bash
+# Start with the first rule in the queue
+# 1. Remove the rule from lint.ignore in pyproject.toml
+# 2. Run prek — auto-fixes what it can
+prek run --all-files
+# 3. Fix remaining violations manually if needed
+# 4. Run prek again to verify
+prek run --all-files
+# 5. Check cumulative changed lines:
+git diff --stat | tail -1   # e.g. "8 files changed, 23 insertions(+), 19 deletions(-)"
+# 6. If total changes < threshold → go back to step 1 with the next rule
+# 7. If total changes >= threshold → stop adding rules, finalize this MR
+```
+
+The goal is to fill each MR up to (but not far over) the threshold. If adding a
+rule would push the MR well past the threshold, include it anyway — the threshold
+is a soft target, not a hard limit.
+
 ### Commit format
 
 ```text
+# Single rule:
 refactor: enforce ruff <CODE> (<rule-name>)
+
+# Grouped rules:
+refactor: enforce ruff <CODE1>, <CODE2>, <CODE3>
+```
+
+For grouped MRs, the commit body should list each rule with its name:
+
+```text
+refactor: enforce ruff C401, PIE810, RUF027, FLY002, FURB171
+
+- C401 (unnecessary-generator-set)
+- PIE810 (multiple-starts-ends-with)
+- RUF027 (missing-f-string-syntax)
+- FLY002 (static-join-to-f-string)
+- FURB171 (single-item-membership-test)
 ```
 
 ### Prioritization
 
-1. **Auto-fixable rules** — fast, low risk
-2. **Low violation count** — quick to resolve
-3. **High-value rules** (bug detection, security) — worth the effort
+1. **Zero-violation rules** — config-only, always first, always grouped into one MR
+2. **Auto-fixable rules** (sorted by violation count ascending) — fast, low risk
+3. **Partially auto-fixable rules** — auto-fix then manual cleanup
+4. **Manual-only rules** — higher effort, review carefully
+5. **High-value rules** (bug detection, security) — worth the effort
 
 ### Per-file ignores
 
@@ -327,14 +475,20 @@ When using per-file-ignores, the rule IS enforced globally — it's just relaxed
 
 ### Permanently disabled rules
 
-Some rules will never apply. Keep them in a clearly labeled section:
+Some rules will never apply. Move them from the Phase 2 queue to the
+permanently disabled section. The Phase 2 scan ignores everything below
+this marker:
 
 ```toml
 # --- Permanently disabled (not applicable to this project) ---
-lint.ignore = [
-  "CPY001", # missing-copyright-notice
-]
+# lint.ignore is additive — rules here stay disabled forever.
+#   "CPY001", # missing-copyright-notice
 ```
+
+Keep them commented out (they're already in `lint.ignore` above if needed)
+or in a second `lint.ignore` assignment — TOML merges arrays. The key point
+is they must be **below** the `# --- Permanently disabled` marker so the
+scan excludes them.
 
 ## Quick Reference
 
@@ -476,7 +630,7 @@ These differences are cosmetic and small on a codebase already formatted by blac
 
 ## Common Mistakes
 
-- **Enabling multiple rules in one MR** — harder to review, useless for git bisect
+- **Grouping unrelated high-risk rules** — only group auto-fixable, low-count rules; keep manual-fix or high-count rules in their own MR
 - **Missing rule name comment** — `"D100",` alone is meaningless; always add `# undocumented-public-module`
 - **Disabling globally when per-file-ignores suffice** — `S101` (assert) should only be ignored in tests, not everywhere
 - **Not running `prek run --all-files`** — always use prek, never call ruff directly

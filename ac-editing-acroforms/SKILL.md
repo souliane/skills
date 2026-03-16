@@ -13,6 +13,10 @@ Generic toolkit for repairing and inspecting AcroForm-based PDF templates.
 
 This skill is intentionally narrow: it focuses on deterministic PDF mechanics that are reusable across projects. It is not a home for document-family playbooks, customer-specific layouts, or repo-specific field schemas.
 
+## Dependencies
+
+Standalone. No dependencies on other skills.
+
 ## Layer Contract
 
 This skill is **layer 1 only**.

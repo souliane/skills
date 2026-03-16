@@ -86,115 +86,7 @@ This enables integration with pre-commit hooks and CI pipelines that rely on exi
 
 ## Quality Principles
 
-These principles apply to all skill reviews. Every skill must be evaluated against them.
-
-```mermaid
-mindmap
-  root((Quality<br/>Principles))
-    Reliability
-      No implicit prerequisites
-      No ambiguous wording
-      Fail fast, fail loud
-      Single source of truth
-    Robustness
-      Document failure modes
-      Time-box troubleshooting
-      Environment isolation
-      Idempotent setup
-    Platform Independence
-      Workflow in skills
-      Recipes in references
-      Match fix to layer
-    Automation & Escalation
-      Daily: fully autonomous
-      Skill-building: human in loop
-      Failure = skill bug
-    Agent Agnosticism
-      No platform-specific language
-      Generic tool references
-      Platform details in examples only
-    Self-Improvement
-      Every failure → skill fix
-      Retro is mandatory
-      User corrections → skill bugs
-    Skill vs Model Balance
-      Domain knowledge is permanent
-      Orchestration decays with model progress
-      Tools over prose
-      Don't relax prematurely
-```
-
-### Reliability
-
-Skills must produce **deterministic, repeatable outcomes**. If following a skill's instructions can lead to different results depending on undocumented state, the skill is broken.
-
-- **No implicit prerequisites.** Every dependency must be explicitly listed. "It works if you already ran X" is a bug.
-- **No ambiguous wording.** Use "required", "must", "non-negotiable" for things that matter. "Suggested" and "recommended" get ignored.
-- **Fail fast, fail loud.** Detect missing prerequisites early with clear messages — don't silently produce wrong results.
-- **Single source of truth.** Every piece of operational knowledge lives in exactly one place. Duplicated rules **always diverge over time**. Fix: one canonical location, cross-references from consumers. During review, grep for distinctive phrases across files — if the same concept appears in 2+ places, consolidate.
-
-### Robustness
-
-Skills must handle real-world conditions, not just the happy path.
-
-- **Document failure modes.** For every workflow, ask: "What goes wrong?" Common failures must have documented recovery steps.
-- **Time-box troubleshooting.** "If X doesn't work after 2 minutes, stop and do Y" prevents spiraling.
-- **Environment isolation.** Pair every "never mix A with B" rule with "here's how to verify you're in the right environment".
-- **Idempotent setup.** Running setup twice = same result as once. If not, document the cleanup step.
-
-### Platform Independence
-
-Separate **what to do** (workflow logic) from **how to do it on a specific platform** (API recipes, CLI commands).
-
-- **Workflow stays in the skill** — platform-neutral steps, decisions, rules, and ordering.
-- **Platform recipes go in reference files** — API commands, auth patterns, URL formats, MCP tool names.
-- **Match the fix to the layer.** Prose coupling → extract to reference files. Don't build Python abstractions for content the agent reads as text.
-- **Don't over-abstract.** One reference file per platform that exists today. No empty placeholders.
-- **Detect coupling during review.** Grep for: API URLs, tokens, platform-specific CLI/MCP tool names, platform concepts (labels, draft notes). >10 lines of platform-specific commands inline = coupled.
-- **Verify after extraction.** The skill body should read as "do X, do Y, verify Z" without platform knowledge.
-
-### Automation & Escalation
-
-```mermaid
-flowchart TD
-    A{Context?} -->|Daily workflow| B["Fully autonomous<br/>Agent follows skill, delivers results<br/>No user interaction needed"]
-    A -->|Skill-building / review| C["Human in the loop<br/>Ask early & often — user decides"]
-    B -->|Unexpected failure| D["STOP — ask user immediately<br/>This is a skill bug — retro"]
-```
-
-**Review for both modes:** (1) Can the agent complete the workflow end-to-end without asking? If not, the skill has gaps. (2) Does the skill tell the agent to escalate quickly on failure? No time-box = hours of wasted effort.
-
-### Agent Agnosticism
-
-Skills should work with **any agent platform**, not just the one the author uses.
-
-- **No platform-specific language in skill bodies.** Don't say "use the image-reading tool" or "use the shell tool" — say "read the file" or "run the command". The agent knows its own tools.
-- **Generic tool references.** Instead of naming a specific tool, describe the action: "ask the user". If a platform example helps, keep it in a separate platform-specific reference rather than the main rule.
-- **Platform details in examples, not rules.** Rules must be universal: "ask the user for confirmation". Examples can show platform-specific invocations.
-- **Config file references.** Don't hardcode agent-specific filenames or home-directory paths — use generic terms like "the agent's personal config file" with platform examples in a dedicated reference when needed.
-- **Exception: platform integration skills.** Skills whose entire purpose is platform setup (e.g., a setup wizard for a specific agent) may reference that platform freely. But lifecycle and domain skills must stay generic.
-- **Detection during review.** Grep for platform-specific terms such as agent brand names, agent-home paths, agent config filenames, and explicit tool names. Each hit in a non-platform skill must be justified or generalized. **Ask the user if a reference should stay or be generalized** — some platform-specific mentions are intentional (e.g., documenting actual file paths in a setup guide).
-
-### Self-Improvement
-
-- **Every failure is a skill bug.** Missing knowledge goes into the skill — not chat history. Knowledge that stays in a conversation dies with the context window.
-- **Retro is mandatory.** Skills should reference the retro skill in their "after completion" steps.
-- **Measure skill coverage.** "Could an agent complete this workflow using only the skills?" If not, fill the gaps.
-- **User corrections are skill bugs.** Trace back to a skill deficiency and fix. Same mistake must never happen twice.
-- **Hook and loading reliability.** Verify loading mechanisms work with sample prompts. If keyword-based, verify keywords cover real-world phrasing.
-
-### Skill vs Model Balance
-
-Skills exist to encode knowledge the model lacks. As models improve, the boundary shifts — but not uniformly. The reviewer must distinguish what is permanently valuable from what compensates for temporary model limitations, and resist both over-engineering and premature simplification.
-
-- **Domain knowledge is permanent.** Project infrastructure (repo layout, credentials, CLI tool pitfalls, migration ordering, environment isolation rules), team conventions, and integration-specific sequences will never appear in training data. Skills encoding this knowledge are irreplaceable regardless of model capability. A brilliant new hire would need the same information.
-- **Orchestration scaffolding decays.** Step-by-step workflow ordering, troubleshooting decision trees, and verification checklists compensate for the model's current inability to figure these out alone. Each model generation reduces the need — but **never assume the current model has caught up.** Only relax orchestration after observing the model consistently succeeding without it.
-- **Prefer callable tools over prose instructions.** A script the model calls (`setup_environment`, `run_tests`) is more robust than a 15-step procedure in a skill file. Scripts handle complexity internally; the model just needs to know the tool exists and when to call it. When reviewing a long inline procedure, ask: "Should this be a script instead?"
-- **Don't give context upfront — give tools to fetch it.** A 200-line skill loaded into context wastes tokens on sections irrelevant to the current task. Prefer a slim main file (goals, rules, available tools) with detailed references the model pulls when needed. The existing pattern of `SKILL.md` + `references/` is the right structure — during review, check that the split is effective and main files aren't bloated.
-- **Don't relax guardrails prematurely.** The model confidently uses outdated CLI syntax, skips verification steps, and spirals on complex multi-tool setups. These are observed, current failures — not theoretical risks. The § 2.8 classification (domain vs model-limitation) provides the framework: domain guardrails are permanent, model-limitation guardrails are reviewed only when a new model generation ships and only after testing.
-- **Watch for productive deviations.** When the model deviates from a skill's instructions and the result is correct, that's signal — the skill may be over-constraining. But in practice, most deviations in complex domain workflows (multi-repo setup, E2E testing, CI interaction) are errors, not insights. **Default to treating deviations as failures** and only reclassify after repeated evidence.
-- **Watch for counterproductive guidance.** User-written instructions, helper scripts, and workflow prescriptions sometimes **reduce the agent's effectiveness** by narrowing its approach to one rigid path. During review, evaluate each piece of explicit guidance: "Does this help the agent succeed, or does it constrain the agent into a less efficient approach than it would find on its own?" If the guidance appears counterproductive, **do not delete it** — it may exist for a reason the reviewer doesn't see. Instead, flag it as a question for the user: "This instruction appears to constrain the agent — is it still needed, or was it a workaround for an older model's limitations?" As models improve, previously necessary hand-holding becomes unnecessary scaffolding.
-- **The Bitter Lesson has limits.** In general AI, more general models outperform specialized scaffolding over time. But skills aren't competing with the model — they provide knowledge the model structurally cannot have (private infrastructure, unpublished tool quirks, team-specific conventions). The lesson applies to *how* the model executes (don't micro-manage its reasoning), not to *what* it knows (always provide domain context).
+Read [`references/quality-principles.md`](references/quality-principles.md) before starting any review. It defines the 7 principles every skill is evaluated against: Reliability, Robustness, Platform Independence, Automation & Escalation, Agent Agnosticism, Self-Improvement, and Skill vs Model Balance.
 
 ---
 
@@ -216,13 +108,17 @@ flowchart LR
 Before starting the review:
 
 1. **Verify git-tracked source repos.** For each repo in scope (which may be multiple — see step 4), confirm the skill directories are git-tracked sources, not symlink targets. For each repo root, verify: `git rev-parse --git-dir >/dev/null 2>&1` — if this fails, **STOP** for that repo: skill files not in a git repository would lose changes. When the user's cwd is a parent of multiple skill repos (not itself a repo), that's expected — verify each child repo individually.
-2. **Symlink health check.** Scan the agent's skills directories (e.g., `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, `~/.copilot/skills/` — adapt paths for your agent platform) for skills that are **managed installs instead of live clone symlinks** when a git-backed source exists. This catches stale consumer installs where edits to the repo will not affect the active skill.
+2. **Symlink health check.** Scan the agent's skills directories (e.g., `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/`, `~/.cursor/skills/`, `~/.copilot/skills/` — adapt paths for your agent platform) for **maintained skills** (matching `MAINTAINED_SKILLS` regex) that are managed installs instead of live clone symlinks when a git-backed source exists. This catches stale consumer installs where edits to the repo will not affect the active skill. **Only report on skills within the user's maintained scope** — skip non-matching skills silently.
 
    ```bash
+   maintained_re="${MAINTAINED_SKILLS:-}"  # from ~/.ac-reviewing-skills
    for root in ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.cursor/skills ~/.copilot/skills; do
      [ -d "$root" ] || continue
      for entry in "$root"/*/; do
        [ -e "$entry" ] || continue
+       real_path=$(cd "$entry" && pwd -P 2>/dev/null || readlink -f "${entry%/}" 2>/dev/null)
+       # Skip skills outside the maintained scope
+       [ -n "$maintained_re" ] && ! echo "$real_path" | grep -qE "$maintained_re" && continue
        skill=$(basename "$entry")
        [ -L "${entry%/}" ] && continue  # already a symlink — OK
        # Check if a source exists in any known skill repo
@@ -474,7 +370,7 @@ Scripts are production code — they must be maintainable, not just functional.
 - **Test quality.** Don't just check that tests exist — verify they cover the important paths. A test that only checks the happy path on a script with complex error handling is insufficient. Flag gaps, but **ask before writing new tests** — the user may prefer to defer.
 - **Simplification with safety.** When simplifying, ensure no features are lost and no behavior changes. Run existing tests before AND after refactoring. If no tests exist, **ask the user** whether to add tests first or skip simplification.
 - **Readability.** Meaningful variable names, consistent naming conventions, clear function signatures. Code that requires a comment to explain what it does should be rewritten to be self-explanatory instead.
-- **Prose → script candidates.** When a skill contains a deterministic, multi-step workflow in prose (e.g., "run X, check Y, if Z then run W"), evaluate whether it should be a callable script instead. Scripts are faster (no LLM reasoning overhead), cheaper (no token cost), and more reliable (no model deviation). Flag good candidates and suggest the user convert them — a script the agent calls beats a procedure the agent interprets every time.
+- **Prose → script candidates.** For every inline multi-step procedure (3+ steps), apply the script-vs-prose decision flowchart from [`references/quality-principles.md`](references/quality-principles.md) § Skill vs Model Balance. Scripts are more reliable but cost maintenance. The sweet spot: script what the model gets wrong (deterministic, exact, tool-quirk-heavy), leave as prose what the model handles well (judgment calls, well-known domains, frequently changing steps). **Always ask the user before converting** — they know the maintenance cost.
 
 ### 3.6 Security Review
 
@@ -606,14 +502,11 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 - Group changes by skill and by type (architecture, content, technical, quality).
 - For each change, state: what, why, and the specific files affected.
 
-### 5.2 Progressive Clarification
+### 5.2 Progressive Clarification (Non-Negotiable)
 
-- Per Rule 4: ask the user **now** for any judgment call (merge vs. split, keep vs. remove). Present options with trade-offs, not just questions.
-
-### 5.3 User Approval
-
-- Present the full change plan to the user.
-- Get explicit approval before implementing.
+- Present the change plan with non-ambiguous items as "will do" (no question needed).
+- For each ambiguous item (merge vs. split, keep vs. remove, design choices), ask the user **one question at a time** using the agent's native question tool. Wait for the answer before asking the next.
+- **Never dump a wall of questions or ask for batch approval.** This overwhelms the user and leads to missed answers.
 
 ### 5.4 Implementation
 
@@ -629,6 +522,7 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 
 - **Always commit after implementation** — do not wait for the user to ask. If unsure about the commit scope, ask; but never leave changes uncommitted without at least offering.
 - Commit all changes with a clear conventional commit message summarizing the review scope.
+- **Suggest squashing fixup commits** when multiple small review commits accumulate before pushing. But **never rewrite commits already pushed to origin (Non-Negotiable).** Before any squash, check `git log origin/<branch>..HEAD` — only rewrite commits in that local-only range.
 
 ### 6.2 Second Pass
 

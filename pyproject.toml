@@ -49,6 +49,7 @@ lint.extend-ignore = [
   "E111",   # indentation-with-invalid-multiple
   "E114",   # indentation-with-invalid-multiple-comment
   "E117",   # over-indented
+  "ISC001", # single-line-implicit-string-concatenation
   "Q000",   # bad-quotes-inline-string
   "Q001",   # bad-quotes-multiline-string
   "Q002",   # bad-quotes-docstring
