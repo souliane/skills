@@ -153,33 +153,42 @@ After the user is happy with the draft (or after publishing), ask:
 
 If the user says yes:
 
-1. **Load the config file** `~/.ac-writing-blog-posts.yml`. If it doesn't exist:
+1. **Check article publication status first (Non-Negotiable).** If the article has a dev.to `id` in its frontmatter and a dev.to API key is available in `pass`, query the dev.to API (`GET /api/articles/{id}`) to confirm actual publication status and retrieve the live URL. Do NOT assume publication status from local frontmatter fields — the local `published` field may not reflect the actual dev.to state.
+
+2. **Load the config file** `~/.ac-writing-blog-posts.yml`. If it doesn't exist:
    - Suggest common outlets (PyCoder's Weekly, Django News, Hacker News, Reddit, LinkedIn, dev.to).
    - Ask the user which ones they care about and any extras they want to add.
    - Create the config file with their selections. See [`references/promotion.md`](references/promotion.md) for the full format.
 
-2. **Filter outlets by article topic.** Match the article's tags/topic against each outlet's `tags` field. Present only relevant outlets.
+3. **Ask about outlet info freshness.** Ask the user whether to re-verify outlet submission methods (by fetching each outlet's page) or proceed with what `references/promotion.md` already knows. Re-verification is recommended if the info is more than a month old (check the "verified on" date at the top of the reference file). If re-verifying, fetch each outlet's submission page, confirm the method is still accurate, and update the reference file with any changes found.
 
-3. **Dry-run first (Non-Negotiable).** For each relevant outlet, show the user exactly what will be sent and where:
-   - **Email outlets:** Draft the full email (to, subject, body). Display it. Do NOT send.
+4. **Filter outlets by article topic.** Match the article's tags/topic against each outlet's `tags` field. Present only relevant outlets.
+
+5. **Dry-run first (Non-Negotiable).** For each relevant outlet, show the user exactly what will be sent and where:
    - **Form outlets:** Draft the text fields. Show the submission URL. Let the user copy-paste or open the form.
    - **GitHub PR outlets:** Draft the PR description and show the target repo.
    - **Social media:** Draft the post text per platform (see Social Media Generation below).
    - **Cross-posting platforms:** Generate platform-ready markdown if applicable.
 
-4. **Wait for explicit approval** before taking any action. The user must confirm each outlet individually or approve all at once.
+6. **No AI-generated content where banned (Non-Negotiable).** Some platforms explicitly prohibit AI-generated content (e.g., Hacker News bans AI-generated comments). Check `references/promotion.md` for per-outlet restrictions. For these platforms, only draft titles/URLs — the user must write any accompanying text themselves.
 
-5. **Credentials via `pass`.** If an outlet requires authentication (API key, login):
+7. **Wait for explicit approval** before taking any action. The user must confirm each outlet individually or approve all at once.
+
+8. **Credentials via `pass`.** If an outlet requires authentication (API key, login):
    - Check the `credentials` section of the config file for a `pass` entry name.
    - Read it with `pass show <entry>`. Never store credentials in plain text, in the config file, or in memory.
    - If no `pass` entry exists, ask the user: "I need a credential for X. Do you have it in `pass`? What's the entry name?"
 
-6. **Automated actions** (only after explicit approval):
-   - **dev.to:** If the user has a dev.to API key in `pass`, the agent can push via the dev.to API or the CI workflow from [`references/devto-publishing.md`](references/devto-publishing.md).
-   - **Hacker News:** The agent can submit via the HN submission form if credentials are available — but always show the title first and get approval.
-   - **Everything else:** Present the draft and URL; the user submits manually.
+9. **Present all pending outlets at once (Non-Negotiable).** Display a single list/table of all pending outlets with:
+   - Outlet name
+   - Submission URL (clickable)
+   - Draft text (ready to copy-paste)
 
-7. **Track what was submitted.** After promotion, list what was sent and what's still pending so the user can follow up.
+   Do NOT open the browser or walk through outlets one by one. The user works through submissions at their own pace. If a draft needs clipboard copying, offer it on request — don't push it.
+
+   **dev.to** is the exception: if the user has a dev.to API key in `pass`, the agent can push via the dev.to API or the CI workflow from [`references/devto-publishing.md`](references/devto-publishing.md).
+
+10. **Track what was submitted.** After the user confirms which outlets they submitted to, update the cache file status lines. List remaining pending outlets so the user can resume later.
 
 ## Social Media Generation
 
@@ -210,6 +219,47 @@ On first social media generation, ask:
 - "Any platforms where you prefer a specific tone?"
 
 Save answers to the agent's memory file for future use.
+
+## Promotion Cache
+
+Approved promotion drafts are cached in `${XDG_DATA_HOME:-$HOME/.local/share}/ac-writing-blog-posts/` with one file per article:
+
+- `promotion-<post-filename>.md` — mirrors the post's filename (e.g., `promotion-20260309-introducing-teatree.md` for `posts/20260309-introducing-teatree.md`). Contains all outlet drafts for that article, plus metadata (dev.to ID, URLs, tags, generation date).
+
+### When to use the cache
+
+- Before drafting new promotion content, check if a cache file already exists for the article.
+- If cached drafts exist, present them instead of regenerating.
+- Update the cache when drafts are revised after user feedback.
+
+### Cache file format
+
+```markdown
+# Promotion Drafts: <Article Title>
+
+source: posts/<filename>.md
+devto_id: <id>
+devto_url: <url>
+github_url: <url>
+tags: [<tags>]
+generated: <YYYY-MM-DD>
+
+## <Outlet Name>
+
+status: pending | submitted (<YYYY-MM-DD>) | skipped (<reason>)
+
+<draft content per outlet>
+```
+
+### Tracking submissions
+
+Each outlet section has a `status:` line:
+
+- `pending` — not yet submitted (default)
+- `submitted (YYYY-MM-DD)` — user confirmed they submitted on that date
+- `skipped (reason)` — intentionally skipped (e.g., "no account", "not relevant")
+
+After the user submits (or skips) an outlet, update the status line in the cache file. When resuming promotion in a future session, read the cache to show only pending outlets.
 
 ## File Conventions
 

@@ -3,8 +3,11 @@
 Per-outlet submission guide. Each entry describes the submission method, what
 to include, and how the agent can help (or must defer to the user).
 
-> **URLs were verified in March 2026.** Before submitting, confirm that forms
+> **URLs were verified on 2026-03-16.** Before submitting, confirm that forms
 > and email addresses still work — newsletters change processes without notice.
+> **Verify before drafting (Non-Negotiable).** Before drafting a pitch for any
+> outlet, fetch its submission page and confirm the method is still accurate.
+> Do not trust cached info from this file — outlets change without notice.
 
 ## Config File
 
@@ -34,11 +37,12 @@ See the "Config Format" section below for the full schema.
 
 | Field | Value |
 |-------|-------|
-| **Method** | Web form (Google Form) |
-| **URL** | <https://pycoders.com/submissions> |
+| **Method** | Web form (Google Form behind a landing page) |
+| **URL** | <https://pycoders.com/submissions> → "Submit Your Link" button → Google Form at `https://goo.gl/forms/aue40zIzE9jzetUa2` |
 | **What to include** | Article URL, short description, contact info |
-| **Agent can** | Open the URL for the user, draft the description |
+| **Agent can** | Draft the description; user fills in the Google Form |
 | **Tags** | python |
+| **Notes** | Not every submission is featured. Accepts projects, conferences, and articles. |
 
 ### Django News
 
@@ -46,41 +50,51 @@ See the "Config Format" section below for the full schema.
 |-------|-------|
 | **Method** | Web form |
 | **URL** | <https://django.news/submit_post/> |
-| **What to include** | Name, email, link URL |
-| **Agent can** | Open the URL, draft the submission text |
+| **Form fields** | Your Name ("How you'd like to be credited"), Email Address ("We'll only use this to contact you if needed"), Link URL ("The full URL of the article or resource") |
+| **What to include** | Name, email, link URL. Content should relate to Django or Python web development and be recent (within the last few weeks). |
+| **Agent can** | Draft the form field values; user submits |
 | **Tags** | django, python |
 
-### TLDR AI
+### TLDR AI / TLDR Dev
 
 | Field | Value |
 |-------|-------|
-| **Method** | Email pitch to curators |
-| **Email** | <dan@tldr.tech> |
-| **What to include** | Article link, 2-3 sentence pitch explaining why it's relevant to AI practitioners |
-| **Agent can** | Draft the email body; user sends manually |
-| **Tags** | ai |
-| **Notes** | No public submission form. Curators select content independently. Paid sponsorship available at <https://advertise.tldr.tech/> |
-
-### TLDR Dev (Software Engineering)
-
-| Field | Value |
-|-------|-------|
-| **Method** | Email pitch to curators |
-| **Email** | <dan@tldr.tech> |
-| **What to include** | Article link, 2-3 sentence pitch focused on dev tooling / workflow |
-| **Agent can** | Draft the email body; user sends manually |
-| **Tags** | software-engineering |
-| **Notes** | Same process as TLDR AI. Full list of TLDR newsletters: <https://tldr.tech/newsletters> |
+| **Method** | Paid advertising only |
+| **URL** | <https://advertise.tldr.tech/> |
+| **Tags** | ai, software-engineering |
+| **Notes** | No free submission form or email pitch option. All newsletter placements (Quick Links, Secondary, Primary) are paid. 12 newsletters, 6M+ subscribers. As of March 2026, the only way to get content into TLDR is through paid sponsorship. |
 
 ### The Rundown AI
 
 | Field | Value |
 |-------|-------|
-| **Method** | Web form (embedded Tally form) |
+| **Method** | Web form — "Recommend a Tool" (embedded Tally form) |
 | **URL** | <https://www.rundown.ai/submit> |
-| **What to include** | Tool/article details |
-| **Agent can** | Open the URL, draft the description |
+| **What to include** | Tool name, description, link, blog post URL |
+| **Agent can** | Draft the form fields; user pastes into the Tally form |
 | **Tags** | ai |
+| **Notes** | Two paths: (1) "Recommend a Tool" form for free submissions, (2) "Newsletter Feature" via separate Typeform for broader visibility. Use path 1 for organic promotion. |
+
+### The Pragmatic Engineer
+
+| Field | Value |
+|-------|-------|
+| **Method** | Google Form (topic/question suggestion) |
+| **URL** | <https://docs.google.com/forms/d/e/1FAIpQLSeBJIIBqe2aHZaZU2AVE_lWNlSO2EDOy4VsDL7yGf7T8tu5VA/viewform> |
+| **Form fields** | Topic suggestion (required, long text), Position (IC or Manager), Name (required, not published), Email (optional), Subscriber status (yes/no — paying subscribers prioritized), Additional comments (optional) |
+| **Agent can** | Draft the topic suggestion text; user fills in the form |
+| **Tags** | software-engineering, ai |
+| **Notes** | This is a topic suggestion form, not a link submission. Frame submissions as "here's a topic that might interest your readers" with context, not as self-promotion. Gergely Orosz explicitly does not accept guest posts or sponsored content. Also reachable at <hello@pragmaticengineer.com>. |
+
+### Python Weekly
+
+| Field | Value |
+|-------|-------|
+| **Method** | Unknown — no public submission form found as of 2026-03-16 |
+| **URL** | <https://www.pythonweekly.com/> |
+| **Agent can** | Nothing automated |
+| **Tags** | python |
+| **Notes** | No submission form, email, or contact method found. The newsletter is curated editorially. May need to contact via social media or other channels. |
 
 ### Awesome Python (GitHub)
 
@@ -102,9 +116,9 @@ See the "Config Format" section below for the full schema.
 |-------|-------|
 | **Method** | Web form (login required) |
 | **URL** | <https://news.ycombinator.com/submit> |
-| **What to include** | Title and URL. Use "Show HN:" prefix only for interactive projects, not blog posts. |
-| **Agent can** | Draft the title; user submits |
-| **Tips** | Factual titles only (mods edit clickbait). Best posting: 8-10am US Eastern, weekdays. Don't ask for upvotes. Be present in comments. |
+| **What to include** | Title and URL only. Use "Show HN:" prefix only for interactive projects, not blog posts. |
+| **Agent can** | Draft the title only. **Never draft HN comments** — HN explicitly prohibits AI-generated comments ("Don't post generated comments or AI-edited comments. HN is for conversation between humans."). The user must write all comments themselves. |
+| **Tips** | Factual titles only (mods edit clickbait). Best posting: 8-10am US Eastern, weekdays. Don't ask for upvotes. Be present in comments (written by you, not AI). |
 | **Guidelines** | <https://news.ycombinator.com/newsguidelines.html> |
 
 ### Reddit
@@ -129,7 +143,17 @@ No single submission process — post directly to relevant subreddits.
 |-------|-------|
 | **Method** | Direct post on profile |
 | **Agent can** | Draft the post text with hashtags |
-| **Tips** | Put the blog link in the **first comment** (not the post body) — LinkedIn deprioritizes external links. Write a compelling opening hook (first 2-3 lines visible before "see more"). Use 3-5 hashtags: #Python, #Django, #AI, #MachineLearning, #SoftwareEngineering. Post Tue-Thu mornings. |
+| **Tips** | Include the blog link directly in the post body. Write a compelling opening hook (first 2-3 lines visible before "see more"). Use 3-5 hashtags: #Python, #Django, #AI, #MachineLearning, #SoftwareEngineering. Post Tue-Thu mornings. |
+
+### Mastodon
+
+| Field | Value |
+|-------|-------|
+| **Method** | Direct post on instance |
+| **URL** | Instance-specific compose page (e.g., `https://fosstodon.org/publish` for Fosstodon) — check the user's config for their instance URL |
+| **Agent can** | Draft the post text (under 500 chars), copy to clipboard, open the compose URL |
+| **Tips** | Include 3-5 hashtags. Link directly to the article. Technical, community-focused tone. Fosstodon is a popular instance for open-source/tech content. |
+| **Tags** | any |
 
 ### Lobste.rs
 
@@ -137,8 +161,8 @@ No single submission process — post directly to relevant subreddits.
 |-------|-------|
 | **Method** | Web form (invite-only) |
 | **URL** | <https://lobste.rs> |
-| **Agent can** | Draft the submission; user posts if they have an account |
-| **Notes** | Invite-only. Self-promotion must be < 25% of submissions. New accounts restricted for 70 days. High-quality, small community. |
+| **Agent can** | Draft the title; user posts if they have an account |
+| **Notes** | Invite-only (invitation tree is public). Self-promotion must be < 25% of stories and comments. New accounts ("green" for 70 days) cannot: submit to previously unseen domains, send invitations, flag, suggest edits, or post in certain tags (meta, rant, show, announce, satire, job, interview, ask, culture, vibecoding, merkle-trees). |
 | **About** | <https://lobste.rs/about> |
 
 ## Cross-Posting Platforms
@@ -181,15 +205,7 @@ outlets:
     url: "https://django.news/submit_post/"
     tags: [django, python]
 
-  - name: "TLDR AI"
-    type: email
-    email: "dan@tldr.tech"
-    tags: [ai]
-
-  - name: "TLDR Dev"
-    type: email
-    email: "dan@tldr.tech"
-    tags: [software-engineering]
+  # TLDR AI / TLDR Dev — paid advertising only (no free submission).
 
   - name: "The Rundown AI"
     type: form
