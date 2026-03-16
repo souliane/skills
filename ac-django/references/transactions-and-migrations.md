@@ -69,14 +69,15 @@ class Order(models.Model):
 
 ## 7. Migrations: safety + zero-drama ops
 
-### 7.1 Non-negotiable CI checks
+### 7.1 Non-negotiable checks
 
-- Enforce linear migrations: `django-linear-migrations`
-- Pending migrations check:
+- Pending migrations check (CI):
 
 ```bash
 python manage.py makemigrations --check
 ```
+
+- Linear migrations: [`django-linear-migrations`](https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/) enforces one leaf migration per app at dev time via `max_migration.txt` files and Django system checks (`dlm.E001`–`dlm.E004`). Not a CI step — it prevents conflicts locally before they reach CI.
 
 ### 7.2 Migration merge conflicts (Non-Negotiable)
 

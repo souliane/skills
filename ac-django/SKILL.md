@@ -216,7 +216,7 @@ Expose domain methods that: validate state → perform mutation → persist chan
 
 ### Migrations
 
-- [ ] linear migrations enforced
+- [ ] linear migrations enforced (one leaf per app — `django-linear-migrations` or manual review)
 - [ ] `makemigrations --check` passes
 - [ ] migration safe/reviewable
 
