@@ -241,6 +241,56 @@ cleanly.
 
 **Note on merge strategy:** During `git merge origin/main`, **ours** = the colleague's branch, **theirs** = main (with ruff reformatting). `git checkout --ours .` keeps the colleague's code as-is. The pre-commit hook reformats it on the first commit attempt, and it goes through on the second.
 
+## Minimizing Merge Conflicts with Parallel Worktrees
+
+When creating multiple enforcement MRs in parallel (multiple worktrees at once),
+conflicts are inevitable on `pyproject.toml` (every MR removes rules from
+`lint.ignore`). The goal is to minimize **code file conflicts** — i.e., two MRs
+touching the same `.py` file.
+
+### Strategy
+
+1. **Scan with `lint.ignore` cleared.** The default scan (`ruff check --select ALL`)
+   respects `lint.ignore`, so disabled rules report zero violations. To get real
+   counts, temporarily empty `lint.ignore` before scanning, then restore it:
+
+   ```python
+   # In pyproject.toml, temporarily set: lint.ignore = []
+   # Then run: ruff check --select <CODES> --preview --no-fix --output-format json .
+   # Restore pyproject.toml after scanning.
+   ```
+
+2. **Group rules by file footprint.** After scanning, collect the set of files
+   each rule touches. Pick rules for the same MR when their file sets are
+   **disjoint or nearly disjoint** from rules in other MRs.
+
+3. **Isolate high-churn files.** Some files (large utility modules, base classes)
+   attract violations from many rules. When a file appears in >3 candidate rules,
+   accept that it will overlap and put the rules touching it in the **same** MR
+   rather than spreading the conflict across MRs.
+
+4. **pyproject.toml conflicts are trivial.** Every MR removes different lines from
+   `lint.ignore`. After one MR merges, the others resolve via:
+
+   ```bash
+   git fetch && git merge origin/main
+   # Accept main's pyproject.toml (it already removed the merged MR's rules):
+   git checkout --theirs pyproject.toml
+   # Re-apply this MR's rule removals (the script removes by code, idempotent):
+   python3 /tmp/ruff_batch.py <CODES_FOR_THIS_MR>
+   prek run --all-files
+   git add -A && git commit
+   ```
+
+5. **Merge order: smallest MR first.** Fewer files = fewer downstream conflicts.
+
+### Unsolvable overlap
+
+Different rules often apply to the same line (e.g., a function with a lambda
+default hits both `B006` and `E731`). When two MRs fix the same line differently,
+the second MR to merge gets a conflict on that file. This is harmless — `prek run
+--all-files` after merging main will re-apply the correct fix.
+
 ## Syncing with Main
 
 Before requesting final review, bring the latest changes from main into your branch. This is straightforward but the ours/theirs semantics flip between merge and rebase — follow the steps exactly.
@@ -327,52 +377,86 @@ are the contract between Phase 1 and Phase 2. The scan reads only between them.
 
 Scan script:
 
-```bash
-ruff check --select ALL --preview --output-format json <path> 2>/dev/null \
-  | python3 -c "
-import json, sys, collections, re
+**Important:** `ruff check` respects `lint.ignore` even when `--select` is passed.
+Rules in `lint.ignore` report zero violations regardless of actual codebase state.
+The scan below temporarily empties `lint.ignore` to get real counts, then restores
+the original file.
 
-data = json.load(sys.stdin)
-counts = collections.Counter(d['code'] for d in data)
-fixable = collections.Counter(d['code'] for d in data if d.get('fix'))
-manual = collections.Counter(d['code'] for d in data if not d.get('fix'))
+```python
+#!/usr/bin/env python3
+"""Scan enforceable rules for real violation counts."""
+import json, subprocess, collections, re, sys, shutil
 
-with open('pyproject.toml') as f:
-    content = f.read()
+path = sys.argv[1] if len(sys.argv) > 1 else "."
 
-# Only read rules between the two markers
-QUEUE_START = '# --- To enforce:'
-QUEUE_END = '# --- Permanently disabled'
+with open("pyproject.toml") as f:
+    original = f.read()
 
-if QUEUE_START not in content:
-    sys.exit('ERROR: missing queue marker in pyproject.toml — expected: ' + QUEUE_START)
-
-queue_section = content.split(QUEUE_START)[1]
+# Extract queue rules between markers
+QUEUE_START = "# --- To enforce:"
+QUEUE_END = "# --- Permanently disabled"
+if QUEUE_START not in original:
+    sys.exit("ERROR: missing queue marker — expected: " + QUEUE_START)
+queue_section = original.split(QUEUE_START)[1]
 if QUEUE_END in queue_section:
-    queue_section = queue_section[:queue_section.index(QUEUE_END)]
+    queue_section = queue_section[: queue_section.index(QUEUE_END)]
+queue = sorted(set(re.findall(r'"([A-Z]+\d+)"', queue_section)))
 
-queue = set(re.findall(r'\"([A-Z]+\d+)\"', queue_section))
+# Temporarily clear lint.ignore to get real violation counts
+lines = original.split("\n")
+new_lines, in_ignore = [], False
+for line in lines:
+    if "lint.ignore" in line and "=" in line and "extend" not in line and "per-file" not in line:
+        new_lines.append("lint.ignore = []")
+        in_ignore = True
+        continue
+    if in_ignore:
+        if line.strip() == "]":
+            in_ignore = False
+        continue
+    new_lines.append(line)
+with open("pyproject.toml", "w") as f:
+    f.write("\n".join(new_lines))
 
-print(f'Enforceable rules in queue: {len(queue)}')
+try:
+    select_str = ",".join(queue)
+    proc = subprocess.run(
+        ["ruff", "check", "--select", select_str, "--preview", "--no-fix",
+         "--output-format", "json", path],
+        capture_output=True, text=True,
+    )
+    data = json.loads(proc.stdout)
+finally:
+    # Always restore original
+    with open("pyproject.toml", "w") as f:
+        f.write(original)
 
-# Zero-violation rules
-zero = sorted(queue - set(counts.keys()))
-print(f'Zero-violation rules: {len(zero)}')
+counts = collections.Counter(d["code"] for d in data)
+fixable = collections.Counter(d["code"] for d in data if d.get("fix"))
+manual = collections.Counter(d["code"] for d in data if not d.get("fix"))
+files_per_rule = collections.defaultdict(set)
+for d in data:
+    files_per_rule[d["code"]].add(d["filename"])
 
-# Auto-fixable only (no manual violations)
+print(f"Enforceable rules in queue: {len(queue)}")
+
+zero = sorted(set(queue) - set(counts.keys()))
+print(f"Zero-violation rules: {len(zero)}")
+for c in zero:
+    print(f"  {c}")
+
 auto_only = sorted(
     [c for c in queue if c in fixable and c not in manual],
-    key=lambda c: fixable[c]
+    key=lambda c: fixable[c],
 )
-print(f'Auto-fixable-only rules: {len(auto_only)}')
+print(f"\nAuto-fixable-only rules: {len(auto_only)}")
 for c in auto_only:
-    print(f'  {fixable[c]:5d}  {c}')
-"
+    print(f"  {fixable[c]:5d} violations, {len(files_per_rule[c]):4d} files  {c}")
 ```
 
 Prioritization order:
 
-1. **Zero-violation rules** — config-only, no code changes. Always batch into one MR.
+1. **Zero-violation rules** — config-only if truly zero (verified with cleared `lint.ignore`). Always batch into one MR.
 2. **Auto-fixable rules** (sorted by violation count ascending) — fast, low risk.
 3. **Partially auto-fixable rules** — auto-fix first, then manual cleanup.
 4. **Manual-only rules** — one per MR unless very low count.
@@ -398,10 +482,17 @@ cd <project>-ruff-batch-<N>
 # 1. Remove the rule from lint.ignore in pyproject.toml
 # 2. Run prek — auto-fixes what it can
 prek run --all-files
-# 3. Fix remaining violations manually
-# 4. Verify
+# 3. MANDATORY: review the diff for semantic correctness (see § Dangerous Auto-Fixes)
+git diff
+# 4. Fix remaining violations manually
+# 5. Verify
 prek run --all-files
 ```
+
+**Mandatory diff review (Non-Negotiable):** After every auto-fix run, review
+`git diff` for the patterns listed in § Dangerous Auto-Fixes. Do NOT commit
+auto-fixed code without reviewing the diff. This step catches semantic changes
+that pass linting but break runtime behavior.
 
 **Grouped-rule workflow (greedy fill):**
 
@@ -410,13 +501,15 @@ prek run --all-files
 # 1. Remove the rule from lint.ignore in pyproject.toml
 # 2. Run prek — auto-fixes what it can
 prek run --all-files
-# 3. Fix remaining violations manually if needed
-# 4. Run prek again to verify
+# 3. MANDATORY: review git diff for semantic correctness (see § Dangerous Auto-Fixes)
+git diff
+# 4. Fix remaining violations manually if needed
+# 5. Run prek again to verify
 prek run --all-files
-# 5. Check cumulative changed lines:
+# 6. Check cumulative changed lines:
 git diff --stat | tail -1   # e.g. "8 files changed, 23 insertions(+), 19 deletions(-)"
-# 6. If total changes < threshold → go back to step 1 with the next rule
-# 7. If total changes >= threshold → stop adding rules, finalize this MR
+# 7. If total changes < threshold → go back to step 1 with the next rule
+# 8. If total changes >= threshold → stop adding rules, finalize this MR
 ```
 
 The goal is to fill each MR up to (but not far over) the threshold. If adding a
@@ -518,118 +611,15 @@ git diff  # review what changed
 
 ## Black/isort-Compatible Formatting
 
-If the team wants to minimize reformatting churn, configure ruff to produce
-near-identical output to black + isort. Useful when:
+If the team wants to minimize reformatting churn, see [`references/compatible-formatting.md`](references/compatible-formatting.md) for the full configuration, settings mapping, and unavoidable differences.
 
-- The codebase is large and a full reformat creates painful merge conflicts
-- Colleagues have long-lived branches in flight
-- The team prefers incremental style changes over a clean break
+## Dangerous Auto-Fixes (Non-Negotiable Review Required)
 
-### How it works
-
-Ruff's formatter without `preview` mode tracks **black stable** output.
-Ruff's isort implementation defaults to **isort with `profile = "black"`** behavior.
-The remaining gap is closed with a handful of explicit settings.
-
-### Configuration
-
-Use this instead of the default step 4 configuration. The `lint.ignore`,
-`lint.extend-ignore`, and pre-commit setup remain identical.
-
-```toml
-[tool.ruff]
-target-version = "py312"       # match project's minimum Python
-line-length = 88               # match your old black line-length (black default is 88)
-fix = true
-lint.select = ["ALL"]
-lint.preview = true
-
-# lint.ignore = [...]          (populated in step 5, same as clean-break flow)
-# lint.extend-ignore = [...]   (formatter-conflicting rules, same as default flow)
-
-# --- Formatter: match black stable output ---
-[tool.ruff.format]
-
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-docstring-code-format = false
-preview = false                # critical — format.preview is independent of lint.preview
-
-# --- Import sorting: match isort with profile="black" ---
-[tool.ruff.lint.isort]
-combine-as-imports = true      # only if old isort config had combine_as_imports = True
-split-on-trailing-comma = true
-
-```
-
-**TOML ordering matters:** All inline `lint.*` keys (like `lint.ignore`, `lint.extend-ignore`)
-must appear under `[tool.ruff]` **before** any subsection headers (`[tool.ruff.format]`,
-`[tool.ruff.lint.isort]`, `[tool.ruff.lint.per-file-ignores]`). TOML assigns keys to the
-most recent section header, so placing `lint.ignore` after `[tool.ruff.lint.per-file-ignores]`
-will silently misparse it.
-
-### Settings explained
-
-| Setting | Why | Notes |
-|---------|-----|-------|
-| `line-length` | Must match old black config | Black default is 88. Mismatching this is the #1 source of unwanted reformatting. |
-| `format.preview = false` | Non-preview formatter tracks black stable | `lint.preview` and `format.preview` are **independent** — preview lint rules are fine. |
-| `format.exclude` | Replaces black's `extend-exclude` | Uses glob patterns (not regex like black). |
-| `format.skip-magic-trailing-comma = false` | Respects trailing commas (black default) | A trailing comma forces multi-line formatting. |
-| `format.docstring-code-format = false` | Black stable does not format code in docstrings | Set `true` only if you want ruff's extra feature. |
-| `isort.combine-as-imports` | Ruff defaults to `false` | Only set `true` if your old isort config explicitly had it. |
-| `isort.split-on-trailing-comma` | Matches black-profile trailing comma handling | Default is `true`; explicit for documentation. |
-
-### How to audit your old config
-
-Before configuring, extract the old settings from pyproject.toml / setup.cfg:
-
-```bash
-BASE=$(git merge-base HEAD origin/main)
-
-# Check what black was configured with
-git show "$BASE":pyproject.toml | grep -A 10 '\[tool.black\]'
-
-# Check what isort was configured with
-git show "$BASE":pyproject.toml | grep -A 10 '\[tool.isort\]'
-```
-
-Map each old setting to its ruff equivalent:
-
-| Old setting (black) | Ruff equivalent |
-|---------------------|-----------------|
-| `line-length = N` | `[tool.ruff] line-length = N` |
-| `target-version = ["py3X"]` | `[tool.ruff] target-version = "py3X"` |
-| `extend-exclude = "pattern"` | `[tool.ruff.format] exclude = ["pattern"]` |
-| `skip-magic-trailing-comma = true` | `[tool.ruff.format] skip-magic-trailing-comma = true` |
-
-| Old setting (isort) | Ruff equivalent |
-|---------------------|-----------------|
-| `profile = "black"` | Default behavior (no setting needed) |
-| `combine_as_imports = True` | `[tool.ruff.lint.isort] combine-as-imports = true` |
-| `extend_skip = [...]` | `[tool.ruff.lint.per-file-ignores]` |
-| `known_first_party = ["myapp"]` | `[tool.ruff.lint.isort] known-first-party = ["myapp"]` |
-| `known_third_party = ["django"]` | `[tool.ruff.lint.isort] known-third-party = ["django"]` |
-| `force_single_line = True` | `[tool.ruff.lint.isort] force-single-line = true` |
-| `sections = [...]` | `[tool.ruff.lint.isort] section-order = [...]` |
-
-### Unavoidable differences
-
-Even with full compatibility config, ruff produces slightly different output
-than black + isort. These are architectural and have no configuration toggle:
-
-- **F-string formatting** — ruff normalizes whitespace and quotes inside f-string expressions; black leaves them untouched
-- **Implicit string concatenation** — ruff joins implicit concatenations that fit on one line more aggressively
-- **Trailing comments** — minor differences in line-breaking decisions near trailing comments
-- **Import aliasing** — ruff groups non-aliased imports together then places aliased imports separately; isort interleaves them at each alias boundary
-- **Pragma comments** (`# type:`, `# noqa:`) — ruff ignores their width when computing line length
-
-These differences are cosmetic and small on a codebase already formatted by black + isort.
+Some ruff rules have auto-fixes that are **semantically incorrect** in specific contexts. See [`references/dangerous-auto-fixes.md`](references/dangerous-auto-fixes.md) for the full checklist covering PLR6104, N805, PIE794, FURB189, FURB192, PTH120, PTH1xx, F401, and UP006/UP007.
 
 ## Common Mistakes
 
+- **Trusting auto-fix without reviewing the diff** — EVERY auto-fix run requires `git diff` review. Rules like N805, PIE794, FURB189, FURB192, PTH1xx can silently change runtime behavior or break mocks. See [`references/dangerous-auto-fixes.md`](references/dangerous-auto-fixes.md) for the full checklist.
 - **Grouping unrelated high-risk rules** — only group auto-fixable, low-count rules; keep manual-fix or high-count rules in their own MR
 - **Missing rule name comment** — `"D100",` alone is meaningless; always add `# undocumented-public-module`
 - **Disabling globally when per-file-ignores suffice** — `S101` (assert) should only be ignored in tests, not everywhere
