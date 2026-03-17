@@ -267,6 +267,7 @@ Key conventions:
 - Use `sys.exit(return_code)` for exit codes — cleaner than `raise typer.Exit()` when the core function returns an int.
 - For passthrough args (e.g. pytest flags), use `context_settings={"allow_extra_args": True, "ignore_unknown_options": True}` and read `ctx.args`.
 - Add extra dependencies (e.g. `pyyaml>=6.0`, `requests>=2.31`) to the metadata block as needed.
+- **Table output: use `rich.Table`** (already a transitive dependency of `typer`). Never hand-format tables with f-string padding or manual column alignment — `rich.Table` handles alignment, borders, and terminal width automatically.
 
 ### Import linting: `import-linter`
 

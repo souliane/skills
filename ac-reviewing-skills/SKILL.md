@@ -332,7 +332,7 @@ Classify each Non-Negotiable rule and guardrail into one of two categories:
 - **Python script standards.** Python scripts should use:
   - **uv shebang** (`#!/usr/bin/env -S uv run --script`) for standalone executability without manual virtualenv activation.
   - **uv inline metadata** (`# /// script` block) to declare Python version and dependencies directly in the file — no separate `requirements.txt` needed.
-  - **Typer** (`typer[all]`) for CLI argument parsing — provides automatic `--help`, type validation, and shell completion with minimal boilerplate. Prefer Typer over `argparse`, `click`, or manual `sys.argv` parsing.
+  - **Typer** (`typer[all]`) for CLI argument parsing — provides automatic `--help`, type validation, and shell completion with minimal boilerplate. Prefer Typer over `argparse`, `click`, or manual `sys.argv` parsing. For table output, use `rich.Table` (transitive dependency of typer) — never hand-format tables with f-string padding.
   - **Ask before converting** existing scripts. When reviewing scripts that use `argparse`, `click`, or bare `sys.argv`, flag them as candidates for Typer conversion but get user approval first — the conversion may not be worth the churn for stable, rarely-edited scripts.
 - Check whether the repo defines additional script conventions (naming, logging, error handling). If so, verify all scripts conform.
 - If no conventions are documented, check the repo's pre-commit hooks and linter config — they often encode implicit standards.
