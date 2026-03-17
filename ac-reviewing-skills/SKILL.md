@@ -322,6 +322,28 @@ Classify each Non-Negotiable rule and guardrail into one of two categories:
 
 **Model obsolescence check:** If a guardrail classified as model-limitation appears to be **universally obvious to current models** (e.g., the model now consistently does it right without being told), flag it as a removal candidate. **Always ask the user before removing** — what seems obvious to the model today may regress in edge cases or under context pressure. Present the evidence ("this rule was violated 0 times in the last N sessions") and let the user decide.
 
+### 2.10 Multi-Layer Skill Overlap & Promotion
+
+When a skill ecosystem spans multiple layers — e.g., **team skills** (shared across all team members), **personal generic skills** (the user's own reusable skills), and **personal project overlays** (project-specific customizations) — content frequently migrates between layers over time. A rule born in a personal overlay may later be adopted as a team standard, or a team skill may incorporate content that originated in a personal skill.
+
+**Detection — during every review of a multi-layer system:**
+
+1. **Identify the layer hierarchy.** Typically: team skills (broadest audience) → personal generic skills (reusable across projects) → personal project overlays (project-specific). The correct flow of promotion is upward: overlay → generic → team.
+2. **Scan for content that has been promoted.** When a team skill contains content that originated in a personal skill (or vice versa), the personal copy is now redundant. Grep for distinctive phrases across layers to find duplicates.
+3. **Classify each overlap:**
+
+| Overlap location | Action |
+|---|---|
+| **Personal skill duplicates team skill** | Remove from personal skill. Add cross-reference: "Promoted to `<team-skill>`. See `<team-skill>` § `<section>`." Keep any extra detail the team skill doesn't cover. |
+| **Team skill duplicates personal skill** | The team skill is the new authority. Clean up the personal copy as above. |
+| **Personal overlay duplicates personal generic** | Remove from overlay if the generic skill covers it. Overlay should only add project-specific details on top. |
+| **Conflict between layers** | **Ask the user.** Present both versions and propose resolution: (a) align the personal skill to match the team standard, (b) promote the personal version to the team skill if it's better, or (c) document the intentional divergence with a rationale. |
+
+4. **Preserve attribution implicitly.** When removing content that has been promoted to a team skill, use the phrase "has been promoted to" rather than "was copied by" or "was taken from". The goal is accurate knowledge management, not credit assignment.
+5. **Check for information loss.** Before removing a personal copy, verify the team skill covers all the detail. If the personal skill has deeper examples, edge cases, or rationale that the team skill lacks, either promote those too (with user approval) or keep them as supplementary references that cross-reference the team skill for the base rule.
+
+**This check is especially important when the personal skill was the original source.** Content that flows from personal → team often loses nuance in the condensation. The reviewer must verify that critical details survived the promotion, and flag any gaps back to the team skill maintainer.
+
 ---
 
 ## Phase 3 — Technical Review

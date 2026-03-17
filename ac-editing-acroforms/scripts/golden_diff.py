@@ -15,6 +15,9 @@ Usage:
     uv run golden_diff.py --filter "fr_*broker*"   # filter by pattern
     uv run golden_diff.py --base origin/main       # compare against a specific ref
     uv run golden_diff.py --dpi 300                # higher resolution
+    uv run golden_diff.py --gitlab --mr 1030 --include-templates  # templates + golden
+    uv run golden_diff.py --gitlab --mr 1030 --update-note 12345  # update existing comment
+    uv run golden_diff.py --gitlab --mr 1030 --force              # render all, even no GS diff
 """
 
 import contextlib
@@ -297,37 +300,21 @@ def _close_viewers() -> None:
     _viewer_procs.clear()
 
 
-@app.command()
-def main(
-    filter_glob: str = typer.Option("", "--filter", "-f", help="Glob pattern to filter PDF names"),
-    base_ref: str | None = typer.Option(
-        None,
-        "--base",
-        "-b",
-        help="Git ref to compare against (defaults to the current branch upstream)",
-    ),
-    dpi: int = typer.Option(200, "--dpi", help="Render resolution for side-by-side"),
-    pdf_glob: str = typer.Option("src/test/resources/**/*.pdf", "--glob", "-g", help="Git diff glob for PDF paths"),
-) -> None:
-    """Compare golden PDFs between a git base ref and the current branch."""
-    resolved_base = resolve_base_ref(base_ref)
-    missing = check_dependencies()
-    if missing:
-        typer.echo(f"Missing dependencies: {', '.join(missing)}")
-        typer.echo("Install with: brew install " + " ".join(missing))
-        raise typer.Exit(1)
+def _render_all_diffs(
+    changed: list[str],
+    resolved_base: str,
+    dpi: int,
+    outdir: Path,
+    *,
+    force: bool = False,
+) -> list[tuple[str, list[Path]]]:
+    """Render side-by-side PNGs for all changed golden PDFs.
 
-    changed = find_changed_pdfs(resolved_base, pattern=pdf_glob, filter_glob=filter_glob)
-    if not changed:
-        typer.echo(f"No golden PDFs differ from {resolved_base}")
-        if filter_glob:
-            typer.echo(f"(filter: {filter_glob})")
-        raise typer.Exit(0)
-
-    typer.echo(f"Found {len(changed)} changed golden PDF(s).")
-    typer.echo("")
-
-    outdir = Path(tempfile.mkdtemp(prefix="pdf-golden-diff-"))
+    Returns a list of (document_name, [sbs_png_paths]).
+    When *force* is True, render all pages even if GhostScript sees no diff
+    (useful for AcroForm-only changes invisible to GhostScript).
+    """
+    results: list[tuple[str, list[Path]]] = []
     total = len(changed)
 
     for idx, pdf_path in enumerate(changed, 1):
@@ -335,7 +322,6 @@ def main(
 
         typer.echo(f"[{idx}/{total}] {name}")
 
-        # Extract master version
         master_pdf = outdir / f"{name}_master.pdf"
         if not extract_master_pdf(resolved_base, pdf_path, master_pdf):
             typer.echo("  New file (no master version) — skipping")
@@ -343,15 +329,19 @@ def main(
 
         branch_pdf = Path(pdf_path)
 
-        # Find differing pages
         diff_pages = find_differing_pages(master_pdf, branch_pdf, outdir)
         if not diff_pages:
-            typer.echo("  No visual differences (binary diff only) — skipping")
-            continue
+            if force:
+                # Render all pages even without visual diff
+                page_count = pdf_page_count(branch_pdf)
+                diff_pages = list(range(1, page_count + 1))
+                typer.echo(f"  No GS diff — force-rendering all {page_count} page(s)")
+            else:
+                typer.echo("  No visual differences (binary diff only) — skipping")
+                continue
+        else:
+            typer.echo(f"  Differing pages: {', '.join(str(p) for p in diff_pages)}")
 
-        typer.echo(f"  Differing pages: {', '.join(str(p) for p in diff_pages)}")
-
-        # Render side-by-side for each differing page
         sbs_files: list[Path] = []
         for page_num in diff_pages:
             mp_hq = outdir / f"{name}_master_p{page_num}.png"
@@ -364,23 +354,312 @@ def main(
             if mp_hq.exists() and bp_hq.exists() and create_side_by_side(mp_hq, bp_hq, sbs, page_num):
                 sbs_files.append(sbs)
 
-        # Open side-by-side images
+        if sbs_files:
+            results.append((name, sbs_files))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# GitLab posting
+# ---------------------------------------------------------------------------
+
+
+def _get_gitlab_token() -> str | None:
+    """Get GitLab token from glab CLI config."""
+    r = subprocess.run(
+        ["glab", "config", "get", "token", "--host", "gitlab.com"],
+        capture_output=True,
+        text=True,
+    )
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+
+
+def _detect_gitlab_project() -> str | None:
+    """Detect the GitLab project path from the git remote."""
+    r = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    url = r.stdout.strip()
+    # git@gitlab.com:org/repo.git or https://gitlab.com/org/repo.git
+    import re
+
+    m = re.search(r"gitlab\.com[:/](.+?)(?:\.git)?$", url)
+    return m.group(1).replace("/", "%2F") if m else None
+
+
+def _detect_mr_iid() -> str | None:
+    """Detect MR IID for the current branch."""
+    r = subprocess.run(["glab", "mr", "view", "--json", "iid"], capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    import json
+
+    try:
+        return str(json.loads(r.stdout)["iid"])
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def _upload_to_gitlab(png_path: Path, token: str, project_id: str) -> str | None:
+    """Upload a PNG to GitLab project uploads. Returns the markdown image ref."""
+    import json
+
+    url = f"https://gitlab.com/api/v4/projects/{project_id}/uploads"
+
+    # Use curl for multipart upload (urllib doesn't support it easily)
+    r = subprocess.run(
+        [
+            "curl",
+            "-s",
+            "--request",
+            "POST",
+            "--header",
+            f"PRIVATE-TOKEN: {token}",
+            "--form",
+            f"file=@{png_path}",
+            url,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        return None
+    try:
+        data = json.loads(r.stdout)
+        return data.get("markdown")
+    except json.JSONDecodeError:
+        return None
+
+
+def _post_mr_comment(body: str, token: str, project_id: str, mr_iid: str, *, note_id: str | None = None) -> int | None:
+    """Post or update a comment on a GitLab MR. Returns the note ID or None."""
+    import json
+    import urllib.request
+
+    payload = json.dumps({"body": body}).encode()
+    if note_id:
+        url = f"https://gitlab.com/api/v4/projects/{project_id}/merge_requests/{mr_iid}/notes/{note_id}"
+        method = "PUT"
+    else:
+        url = f"https://gitlab.com/api/v4/projects/{project_id}/merge_requests/{mr_iid}/notes"
+        method = "POST"
+    req = urllib.request.Request(  # noqa: S310 — URL is always https://gitlab.com
+        url,
+        data=payload,
+        headers={"PRIVATE-TOKEN": token, "Content-Type": "application/json"},
+        method=method,
+    )
+    try:
+        resp = urllib.request.urlopen(req)  # noqa: S310
+        return json.loads(resp.read()).get("id")
+    except Exception:  # noqa: BLE001 — catch-all for network/parse errors
+        return None
+
+
+def _render_template_diffs(
+    base_ref: str,
+    dpi: int,
+    outdir: Path,
+    *,
+    filter_glob: str = "",
+) -> list[tuple[str, list[Path]]]:
+    """Render side-by-side PNGs for changed template PDFs.
+
+    Returns a list of (template_name, [sbs_png_paths]).
+    """
+    changed = find_changed_pdfs(base_ref, pattern="templates/**/*.pdf", filter_glob=filter_glob)
+    if not changed:
+        typer.echo("No template PDFs differ from base.")
+        return []
+
+    typer.echo(f"Found {len(changed)} changed template(s).")
+    results: list[tuple[str, list[Path]]] = []
+    for idx, pdf_path in enumerate(changed, 1):
+        name = Path(pdf_path).stem
+        typer.echo(f"[tpl {idx}/{len(changed)}] {name}")
+
+        master_pdf = outdir / f"{name}_tpl_master.pdf"
+        if not extract_master_pdf(base_ref, pdf_path, master_pdf):
+            typer.echo("  New template — skipping")
+            continue
+
+        branch_pdf = Path(pdf_path)
+        diff_pages = find_differing_pages(master_pdf, branch_pdf, outdir)
+        if not diff_pages:
+            diff_pages = list(range(1, pdf_page_count(branch_pdf) + 1))
+        typer.echo(f"  Differing pages: {', '.join(str(p) for p in diff_pages)}")
+        sbs_files: list[Path] = []
+        for page_num in diff_pages:
+            mp = outdir / f"{name}_tpl_master_p{page_num}.png"
+            bp = outdir / f"{name}_tpl_branch_p{page_num}.png"
+            sbs = outdir / f"{name}_tpl_p{page_num}_sidebyside.png"
+
+            render_page(master_pdf, page_num, mp, dpi=dpi)
+            render_page(branch_pdf, page_num, bp, dpi=dpi)
+
+            if mp.exists() and bp.exists() and create_side_by_side(mp, bp, sbs, page_num):
+                sbs_files.append(sbs)
+
+        if sbs_files:
+            results.append((f"{name} (template)", sbs_files))
+
+    return results
+
+
+def _post_gitlab_comment(
+    results: list[tuple[str, list[Path]]],
+    token: str,
+    project_id: str,
+    mr_iid: str,
+    *,
+    update_note: str | None = None,
+) -> None:
+    """Upload all side-by-side images and post/update an MR comment."""
+    action = f"Updating note {update_note}" if update_note else "Posting"
+    typer.echo(f"{action} on MR !{mr_iid}...")
+
+    # Upload all images
+    rows: list[tuple[str, str]] = []  # (doc_name, markdown_img)
+    for doc_name, sbs_files in results:
         for sbs in sbs_files:
-            typer.echo(f"  Side-by-side: {sbs}")
-            _open_image(sbs)
+            md = _upload_to_gitlab(sbs, token, project_id)
+            if md:
+                rows.append((doc_name, md))
+                typer.echo(f"  Uploaded: {sbs.name}")
+            else:
+                typer.echo(f"  FAILED: {sbs.name}")
 
-        # Open overlay diff (interactive viewer)
-        typer.echo("  Overlay diff: diff-pdf --view")
-        _open_overlay_diff(master_pdf, branch_pdf)
+    if not rows:
+        typer.echo("No images uploaded — skipping comment.")
+        return
 
-        # Wait for user, then close viewers before next document
+    # Build comment body — first image of each doc shown, rest in <details>
+    body_parts = ["## Visual Diff — All Modified PDFs (Page 2)\n"]
+    body_parts.append("Side-by-side: master (left) → this MR (right).\n")
+    current_doc = ""
+    doc_images: list[str] = []
+
+    def flush_doc() -> None:
+        if not doc_images:
+            return
+        body_parts.append(f"### {current_doc}\n")
+        body_parts.append(f"{doc_images[0]}\n")
+        if len(doc_images) > 1:
+            body_parts.append(f"<details><summary>{len(doc_images) - 1} more page(s)</summary>\n")
+            body_parts.extend(f"{img}\n" for img in doc_images[1:])
+            body_parts.append("</details>\n")
+
+    for doc_name, md_img in rows:
+        if doc_name != current_doc:
+            flush_doc()
+            current_doc = doc_name
+            doc_images = []
+        doc_images.append(md_img)
+    flush_doc()
+
+    body = "\n".join(body_parts)
+    note_id = _post_mr_comment(body, token, project_id, mr_iid, note_id=update_note)
+    if note_id:
+        typer.echo(f"Posted note {note_id} on MR !{mr_iid}")
+    else:
+        typer.echo("ERROR: Failed to post comment")
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def main(
+    filter_glob: str = typer.Option("", "--filter", "-f", help="Glob pattern to filter PDF names"),
+    base_ref: str | None = typer.Option(
+        None,
+        "--base",
+        "-b",
+        help="Git ref to compare against (defaults to the current branch upstream)",
+    ),
+    dpi: int = typer.Option(200, "--dpi", help="Render resolution for side-by-side"),
+    pdf_glob: str = typer.Option("src/test/resources/**/*.pdf", "--glob", "-g", help="Git diff glob for PDF paths"),
+    gitlab: bool = typer.Option(False, "--gitlab", help="Upload images and post as GitLab MR comment"),
+    mr: str | None = typer.Option(None, "--mr", help="GitLab MR IID (auto-detected if omitted)"),
+    include_templates: bool = typer.Option(False, "--include-templates", help="Also render changed template PDFs"),
+    update_note: str | None = typer.Option(
+        None, "--update-note", help="Update an existing GitLab note instead of creating new"
+    ),
+    force: bool = typer.Option(False, "--force", help="Render all changed PDFs even without GhostScript visual diff"),
+) -> None:
+    """Compare golden PDFs between a git base ref and the current branch."""
+    resolved_base = resolve_base_ref(base_ref)
+    missing = check_dependencies()
+    if missing:
+        typer.echo(f"Missing dependencies: {', '.join(missing)}")
+        typer.echo("Install with: brew install " + " ".join(missing))
+        raise typer.Exit(1)
+
+    outdir = Path(tempfile.mkdtemp(prefix="pdf-golden-diff-"))
+    all_results: list[tuple[str, list[Path]]] = []
+
+    # Template diffs (if requested)
+    if include_templates:
+        tpl_results = _render_template_diffs(resolved_base, dpi, outdir, filter_glob=filter_glob)
+        all_results.extend(tpl_results)
         typer.echo("")
-        if idx < total:
-            input("  Press Enter for next document... ")
-        else:
-            input("  Press Enter to close viewers... ")
-        _close_viewers()
+
+    # Golden PDF diffs
+    changed = find_changed_pdfs(resolved_base, pattern=pdf_glob, filter_glob=filter_glob)
+    if changed:
+        typer.echo(f"Found {len(changed)} changed golden PDF(s).")
         typer.echo("")
+        golden_results = _render_all_diffs(changed, resolved_base, dpi, outdir, force=force)
+        all_results.extend(golden_results)
+    elif not include_templates:
+        typer.echo(f"No golden PDFs differ from {resolved_base}")
+        if filter_glob:
+            typer.echo(f"(filter: {filter_glob})")
+        raise typer.Exit(0)
+
+    if not all_results:
+        typer.echo("No visual diffs to show.")
+        raise typer.Exit(0)
+
+    if gitlab:
+        # GitLab mode: upload and post/update comment
+        token = _get_gitlab_token()
+        if not token:
+            typer.echo("ERROR: No GitLab token — run `glab auth login` first")
+            raise typer.Exit(1)
+        project_id = _detect_gitlab_project()
+        if not project_id:
+            typer.echo("ERROR: Cannot detect GitLab project from git remote")
+            raise typer.Exit(1)
+        mr_iid = mr or _detect_mr_iid()
+        if not mr_iid:
+            typer.echo("ERROR: No MR found for current branch — use --mr to specify")
+            raise typer.Exit(1)
+        _post_gitlab_comment(all_results, token, project_id, mr_iid, update_note=update_note)
+    else:
+        # Interactive mode: open viewers
+        for doc_name, sbs_files in all_results:
+            for sbs in sbs_files:
+                typer.echo(f"  Side-by-side: {sbs}")
+                _open_image(sbs)
+
+            # Find master PDF for overlay diff
+            master_pdf = outdir / f"{doc_name}_master.pdf"
+            branch_pdf_candidates = [p for p in (changed or []) if Path(p).stem == doc_name]
+            if master_pdf.exists() and branch_pdf_candidates:
+                typer.echo("  Overlay diff: diff-pdf --view")
+                _open_overlay_diff(master_pdf, Path(branch_pdf_candidates[0]))
+
+            typer.echo("")
+            if doc_name != all_results[-1][0]:
+                input("  Press Enter for next document... ")
+            else:
+                input("  Press Enter to close viewers... ")
+            _close_viewers()
+            typer.echo("")
 
     typer.echo(f"All done. Output in {outdir}")
 

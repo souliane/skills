@@ -193,6 +193,16 @@ Embedded font subsets may not encode every character you need. If a glyph is mis
 - switch to another subset of the same typeface only if the glyph really exists there
 - avoid guessing glyph IDs across subsets
 
+### PyMuPDF redact+reinsert for font fixes
+
+When no embedded font subset has all required glyphs, use PyMuPDF to redact the text and reinsert with a system font file:
+
+1. `page.search_for("text")` to find the exact rect
+2. `page.add_redact_annot(rect, fill=(1,1,1))` + `page.apply_redactions()`
+3. `page.insert_text(origin, "text", fontfile="/path/to/font.ttf", fontsize=N)`
+
+**System fonts ≠ embedded subsets.** A system `Arial.ttf` is the same typeface as an embedded `ArialMT` subset, but rendering can differ slightly (hinting, metrics). After reinserting, always pixel-diff the label against neighboring labels at high DPI. If the weight or spacing looks wrong, the system font may not be a drop-in match — try the exact `.ttf` file or a different weight.
+
 ### Field geometry affects filled output
 
 If the runtime filler generates appearances from widget rects, changing `/Rect` can change the visible filled PDF even when the page content stream is unchanged.
