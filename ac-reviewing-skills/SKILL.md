@@ -46,19 +46,19 @@ To generate this file interactively, teatree users can run `/t3-setup` (Step 8).
 
 ## Deterministic Checker
 
-This skill ships a deterministic checker at [`scripts/check_frontmatter.py`](scripts/check_frontmatter.py).
+This skill ships a deterministic checker at [`scripts/cli.py`](scripts/cli.py).
 
 - In this repo's pre-commit hook, run it directly:
 
   ```bash
-  uv run ac-reviewing-skills/scripts/check_frontmatter.py
+  uv run ac-reviewing-skills/scripts/cli.py
   ```
 
 - When reviewing another skills repo interactively, call it explicitly against that repo before the deeper human review:
 
   ```bash
   cd /path/to/your/skills-repo
-  uv run ac-reviewing-skills/scripts/check_frontmatter.py --root /path/to/skills-repo
+  uv run ac-reviewing-skills/scripts/cli.py --root /path/to/skills-repo
   ```
 
 When the checker is invoked, run in **check-only mode**:

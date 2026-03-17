@@ -375,84 +375,15 @@ lint.extend-ignore = [
 The two section markers (`# --- To enforce:` and `# --- Permanently disabled`)
 are the contract between Phase 1 and Phase 2. The scan reads only between them.
 
-Scan script:
+Run the scan script from the target project directory:
 
-**Important:** `ruff check` respects `lint.ignore` even when `--select` is passed.
-Rules in `lint.ignore` report zero violations regardless of actual codebase state.
-The scan below temporarily empties `lint.ignore` to get real counts, then restores
-the original file.
-
-```python
-#!/usr/bin/env python3
-"""Scan enforceable rules for real violation counts."""
-import json, subprocess, collections, re, sys, shutil
-
-path = sys.argv[1] if len(sys.argv) > 1 else "."
-
-with open("pyproject.toml") as f:
-    original = f.read()
-
-# Extract queue rules between markers
-QUEUE_START = "# --- To enforce:"
-QUEUE_END = "# --- Permanently disabled"
-if QUEUE_START not in original:
-    sys.exit("ERROR: missing queue marker — expected: " + QUEUE_START)
-queue_section = original.split(QUEUE_START)[1]
-if QUEUE_END in queue_section:
-    queue_section = queue_section[: queue_section.index(QUEUE_END)]
-queue = sorted(set(re.findall(r'"([A-Z]+\d+)"', queue_section)))
-
-# Temporarily clear lint.ignore to get real violation counts
-lines = original.split("\n")
-new_lines, in_ignore = [], False
-for line in lines:
-    if "lint.ignore" in line and "=" in line and "extend" not in line and "per-file" not in line:
-        new_lines.append("lint.ignore = []")
-        in_ignore = True
-        continue
-    if in_ignore:
-        if line.strip() == "]":
-            in_ignore = False
-        continue
-    new_lines.append(line)
-with open("pyproject.toml", "w") as f:
-    f.write("\n".join(new_lines))
-
-try:
-    select_str = ",".join(queue)
-    proc = subprocess.run(
-        ["ruff", "check", "--select", select_str, "--preview", "--no-fix",
-         "--output-format", "json", path],
-        capture_output=True, text=True,
-    )
-    data = json.loads(proc.stdout)
-finally:
-    # Always restore original
-    with open("pyproject.toml", "w") as f:
-        f.write(original)
-
-counts = collections.Counter(d["code"] for d in data)
-fixable = collections.Counter(d["code"] for d in data if d.get("fix"))
-manual = collections.Counter(d["code"] for d in data if not d.get("fix"))
-files_per_rule = collections.defaultdict(set)
-for d in data:
-    files_per_rule[d["code"]].add(d["filename"])
-
-print(f"Enforceable rules in queue: {len(queue)}")
-
-zero = sorted(set(queue) - set(counts.keys()))
-print(f"Zero-violation rules: {len(zero)}")
-for c in zero:
-    print(f"  {c}")
-
-auto_only = sorted(
-    [c for c in queue if c in fixable and c not in manual],
-    key=lambda c: fixable[c],
-)
-print(f"\nAuto-fixable-only rules: {len(auto_only)}")
-for c in auto_only:
-    print(f"  {fixable[c]:5d} violations, {len(files_per_rule[c]):4d} files  {c}")
+```bash
+./ac-adopting-ruff/scripts/scan_queue.py [path]
 ```
+
+The script temporarily clears `lint.ignore` to get real violation counts (ruff
+respects `lint.ignore` even with `--select`), then restores the file. Use
+`--json` for machine-readable output.
 
 Prioritization order:
 

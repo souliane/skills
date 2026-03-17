@@ -71,13 +71,9 @@ Without these, OpenClaw is indeed just a passthrough to an LLM API. The value is
 
 This skill is designed to work with **any AI coding agent**:
 
-- **Claude Code** — use `AskUserQuestion` tool for interactive Q&A
-- **Codex** — present questions inline, wait for user input
-- **GitHub Copilot** — present questions inline, wait for user input
-- **Gemini CLI** — present questions inline, wait for user input
-- **Cursor / Windsurf / other** — present questions inline, wait for user input
+- Use the agent's native interactive questioning mechanism (e.g., `AskUserQuestion` in Claude Code, inline prompts in Codex/Copilot/Gemini CLI/Cursor).
 
-Adapt question delivery to whatever interaction model the agent supports. The key rule is: **ask one question at a time, wait for the answer, then proceed.**
+The key rule is: **ask one question at a time, wait for the answer, then proceed.**
 
 ## Workflow Overview
 
@@ -102,7 +98,7 @@ Adapt question delivery to whatever interaction model the agent supports. The ke
 
 ## Phase 1: Gather Requirements
 
-Ask these questions **one at a time**, in order. Use the agent's questionnaire tool if available (e.g., `AskUserQuestion` in Claude Code). Provide sensible defaults based on cached data in [`references/`](references/).
+Ask these questions **one at a time**, in order. Use the agent's native interactive questioning tool. Provide sensible defaults based on cached data in [`references/`](references/).
 
 ### 1.1 Where will OpenClaw run?
 
@@ -433,6 +429,7 @@ Detailed step-by-step instructions for each phase live in reference files. Load 
 | Running OpenClaw as root | Unnecessary privilege escalation | Create dedicated `openclaw` user |
 | Asking all questions at once | Overwhelms the user | Ask ONE question, wait for answer, proceed |
 | Not refreshing research before starting | OpenClaw evolves rapidly; cached data may be stale | Web search for latest version + breaking changes first |
+| Running `curl \| bash` without verifying the script | Remote scripts can change between visits — supply chain risk | Download first (`curl -fsSL url -o install.sh`), inspect, then run. Reference files use vendor install commands for convenience but the agent should prefer download-then-inspect when practical |
 | Skipping tool-use question | Security recommendation (Docker sandboxing) depends on whether user plans to use tools. Assuming chat-only leads to wrong advice | Always ask § 1.5 before security preferences |
 | Moving on without confirming specific local model | User chose "BYOK + Ollama" but doesn't know which model will be installed | Explicitly confirm the model (e.g., "Qwen 3 4B on 4 GB — OK?") before proceeding |
 | Generating a new SSH key without checking existing ones | User already has keys locally and/or registered with the provider | List `~/.ssh/*.pub` + provider keys first, ask which to use |
@@ -471,10 +468,10 @@ Before starting, refresh cached data AND fetch OpenClaw docs. This is non-negoti
 
 **Fetch official docs (do this BEFORE Phase 5, not during debugging):**
 
-1. `WebFetch https://docs.openclaw.ai/install` — installation steps, post-install config
-2. `WebFetch https://docs.openclaw.ai/gateway/security` — auth modes, allowedOrigins, token setup, Control UI pairing
-3. `WebFetch https://docs.openclaw.ai/gateway/tailscale` — Tailscale Serve config (if user chose Tailscale)
-4. `WebFetch https://docs.openclaw.ai/channels/<channel>` — channel-specific setup (for Phase 8)
+1. Fetch `https://docs.openclaw.ai/install` — installation steps, post-install config
+2. Fetch `https://docs.openclaw.ai/gateway/security` — auth modes, allowedOrigins, token setup, Control UI pairing
+3. Fetch `https://docs.openclaw.ai/gateway/tailscale` — Tailscale Serve config (if user chose Tailscale)
+4. Fetch `https://docs.openclaw.ai/channels/<channel>` — channel-specific setup (for Phase 8)
 
 **Refresh version data via web search:**
 

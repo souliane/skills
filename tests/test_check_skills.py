@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 CHECK_FRONTMATTER_DIR = Path(__file__).resolve().parents[1] / "ac-reviewing-skills" / "scripts"
-CHECK_FRONTMATTER_PATH = CHECK_FRONTMATTER_DIR / "check_frontmatter.py"
+CHECK_FRONTMATTER_PATH = CHECK_FRONTMATTER_DIR / "cli.py"
 SPEC = importlib.util.spec_from_file_location("check_frontmatter", CHECK_FRONTMATTER_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None

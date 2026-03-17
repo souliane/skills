@@ -28,4 +28,4 @@
 ## `on_commit` Callback Never Fires
 
 - **Cause:** Code is inside a nested `atomic()` block — `on_commit` only fires when the outermost transaction commits.
-- **Fix:** Ensure `on_commit` is registered at the right transaction level. See [`references/transactions-and-migrations.md`](transactions-and-migrations.md) for patterns.
+- **Fix:** Ensure `on_commit` is registered at the right transaction level. See [`transactions-and-migrations.md`](transactions-and-migrations.md) for patterns.

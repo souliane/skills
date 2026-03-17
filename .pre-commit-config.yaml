@@ -132,7 +132,7 @@ repos:
       - id: check-skills
         name: check-skills
         language: system
-        entry: uv run ac-reviewing-skills/scripts/check_frontmatter.py
+        entry: uv run ac-reviewing-skills/scripts/cli.py
         pass_filenames: false
         always_run: true
 

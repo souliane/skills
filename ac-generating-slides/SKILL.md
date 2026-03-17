@@ -32,23 +32,7 @@ Before creating slides, check if the user has a branding skill configured:
 4. If the user provides one, load it and suggest they store the path in their agent's memory for future sessions.
 5. If no branding skill is available, proceed with the default Marp theme.
 
-### 1. Determine the Browser Path
-
-Marp needs a Chromium-based browser for PDF rendering. Detect which one is available:
-
-```bash
-# Check in order of preference
-for app in "Google Chrome" "Brave Browser" "Microsoft Edge" "Chromium"; do
-  path="/Applications/${app}.app/Contents/MacOS/${app}"
-  [ -x "$path" ] && echo "CHROME_PATH=\"$path\"" && break
-done
-```
-
-On Linux, check: `which google-chrome || which chromium-browser || which brave-browser`
-
-Store the result — you'll need it for every PDF export.
-
-### 2. Create the Slide Deck
+### 1. Create the Slide Deck
 
 Write a `.md` file with Marp front matter. Always start with:
 
@@ -77,15 +61,17 @@ style: |
 - Use `<div>` blocks with inline styles for custom layouts (layered diagrams, flow boxes, status bars)
 - Keep font sizes readable: don't go below `0.75em`
 
-### 3. Export to PDF
+### 2. Export to PDF
 
 ```bash
-CHROME_PATH="<detected-path>" marp <input>.md --pdf --allow-local-files
+./ac-generating-slides/scripts/cli.py slides.md
+./ac-generating-slides/scripts/cli.py slides.md --open    # render and open
+./ac-generating-slides/scripts/cli.py slides.md -o out.pdf
 ```
 
-The `--allow-local-files` flag is needed if the slides reference local images.
+The script auto-detects a Chromium browser (Chrome, Brave, Edge, Chromium) on macOS and Linux, sets `CHROME_PATH`, and calls `marp --pdf --allow-local-files`.
 
-### 4. Iterate
+### 3. Iterate
 
 After generating, read the PDF to visually verify the result. Fix any layout issues — common problems:
 
