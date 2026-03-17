@@ -294,6 +294,19 @@ cover_image: assets/banner.jpg   # Rewritten to CDN URL by CI
 ---
 ```
 
+### Pulling Changes Back from dev.to
+
+If the author edits a post directly on dev.to (typos, formatting, wording), those changes can be pulled back into the source markdown without breaking mermaid blocks, local image paths, or cross-article links.
+
+The blog CLI should support a `pull` command (or equivalent) that:
+
+1. Fetches `body_markdown` from the dev.to API
+2. Reverse-transforms: CDN image URLs → local `assets/` paths, dev.to article links → `posts/<slug>.md`, mermaid image refs (`![slug diagram N](url)`) → original ```` ```mermaid ```` source blocks (positional match)
+3. Overwrites the source file in `posts/`
+4. The author reviews with `git diff` and uses `git checkout -p` to accept/reject individual hunks
+
+**Limitation:** if someone deletes or reorders mermaid diagrams on dev.to, the positional matching breaks. For typical edits (typos, rewording, adding paragraphs), it works reliably.
+
 ### Platform Limitations (as of March 2026)
 
 - **dev.to:** no public image upload API — images must be hosted externally.
