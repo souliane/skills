@@ -156,6 +156,7 @@ Before starting the review:
 - Is the context budget used efficiently? (Large skills that are always loaded together might benefit from merging; monolithic skills that are partially loaded might benefit from splitting.)
 - Do reference files serve a clear purpose? Are any redundant or under-used?
 - **Platform coupling:** Do skills mix universal workflow logic with platform-specific API recipes (CLI commands, API URLs, MCP tool names, authentication patterns)? If so, the recipes should be extracted to reference files. See Quality Principles § Platform Independence.
+- **Medium assessment (Non-Negotiable).** For each skill, estimate what percentage of its content is **deterministic procedures** (step-by-step commands, exact CLI invocations, config generation) vs. **judgment guidance** (decision trees, heuristics, "when to ask the user", edge-case reasoning). When a skill is >60% deterministic procedures, flag it as a **toolification candidate** — the procedural content should be an executable tool (CLI, script) that the agent calls, with the skill reduced to "when and why to call it." Present the analysis to the user with the split ratio and a concrete proposal. A skill that encodes procedures the agent must interpret and re-issue as commands is strictly less reliable than a tool that executes them directly.
 
 ### 1.3 Dependency Documentation
 
@@ -391,6 +392,15 @@ Skills instruct an agent that can execute arbitrary code, access APIs, and modif
 
 **When in doubt, flag it.** If anything looks suspect or potentially dangerous — even if you're not sure it's a real risk — surface it to the user. False positives cost a question; false negatives cost a breach.
 
+**Supply chain license compatibility:**
+
+- **Check every dependency** introduced by skill scripts (Python packages in `# /// script` metadata, pre-commit hook repos, npm packages, any external tool the skill instructs to install). Verify the dependency's license is compatible with the project's license.
+- **Blockers:** GPL and LGPL dependencies in MIT/Apache-licensed projects are license violations. AGPL is a blocker in almost all contexts. Flag these immediately.
+- **Safe licenses:** MIT, Apache 2.0, BSD (2-clause and 3-clause), ISC, Unlicense, CC0 are compatible with MIT projects.
+- **Detection:** For Python scripts with inline metadata, extract dependencies from the `# /// script` block and check each package's license via `pip show <pkg>` or PyPI metadata. For pre-commit hooks, check the hook repo's LICENSE file.
+- **Transitive dependencies matter.** A direct MIT dependency that pulls in a GPL transitive dependency is still a problem. When flagging a new dependency, check `pip show <pkg>` for its `Requires` field and spot-check the license chain.
+- **Ask when unclear.** Some licenses (MPL 2.0, EUPL, dual-licensed packages) require case-by-case assessment. Flag them to the user with the license text and let them decide.
+
 ### 3.7 CLI vs MCP Tool Preference
 
 **Prefer native CLI tools over MCP when available.** MCP tools add server overhead, reduce portability across agent platforms, and are harder to debug than standard CLI tools.
@@ -522,7 +532,7 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 
 - **Always commit after implementation** — do not wait for the user to ask. If unsure about the commit scope, ask; but never leave changes uncommitted without at least offering.
 - Commit all changes with a clear conventional commit message summarizing the review scope.
-- **Suggest squashing fixup commits** when multiple small review commits accumulate before pushing. But **never rewrite commits already pushed to origin (Non-Negotiable).** Before any squash, check `git log origin/<branch>..HEAD` — only rewrite commits in that local-only range.
+- **Suggest squashing fixup commits** when multiple small review commits accumulate before pushing. But **never rewrite settled commits (Non-Negotiable).** This means: (1) never rewrite commits already pushed to origin, and (2) even on local-only branches, never rewrite commits that predate the current work session — they are settled history. Before any squash, check `git log origin/<branch>..HEAD` and **ask the user which commit range is in scope** rather than assuming all local commits are fair game.
 
 ### 6.2 Second Pass
 
@@ -531,7 +541,7 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 
 ### 6.3 Pre-Commit Verification
 
-- Run the repo's pre-commit checks (e.g., `pre-commit run --all-files`).
+- Run the repo's pre-commit checks (e.g., `prek run --all-files`).
 - Fix any failures.
 
 ### 6.4 Final Commit

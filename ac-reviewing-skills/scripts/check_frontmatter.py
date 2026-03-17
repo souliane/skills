@@ -47,7 +47,16 @@ def _git_ls_files(root_dir: Path, *patterns: str) -> list[Path]:
         check=False,
     )
     if result.returncode != 0:
-        message = f"git ls-files failed for {root_dir}: {result.stderr.strip()}"
+        # Check if child directories are git repos (container pattern like ~/workspace/org/)
+        children = [d for d in root_dir.iterdir() if d.is_dir() and (d / ".git").exists()]
+        if children:
+            hint = ", ".join(d.name for d in children[:5])
+            message = (
+                f"{root_dir} is not a git repo, but contains git repos: {hint}. "
+                f"Run with --root pointing to a specific repo (e.g., --root {children[0]})."
+            )
+        else:
+            message = f"git ls-files failed for {root_dir}: {result.stderr.strip()}"
         raise RuntimeError(message)
     return sorted(root_dir / line for line in result.stdout.splitlines() if line)
 
