@@ -284,14 +284,69 @@ repos:
         stages: [commit-msg]
         args: [--verbose]
 
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        language: system
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && uv run pytest --no-header -q'
-        pass_filenames: false
-        always_run: true
+```
+
+> **Note:** pytest is NOT included as a pre-commit hook — testing is handled by the dedicated CI test matrix job.
+
+## CI Template (`.github/workflows/ci.yml`)
+
+```yaml
+name: CI
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: uv sync
+      - uses: j178/prek-action@v1
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with: { enable-cache: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python-version }}" }
+      - run: uv run -p ${{ matrix.python-version }} pytest --no-header -q
+```
+
+## `dev/test-matrix.sh`
+
+Local equivalent of the CI test matrix — runs all Python versions in Docker (sequential, mirrors ubuntu-latest):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+IMAGE="ubuntu:latest"
+failed=0
+for py in 3.12 3.13 3.14; do
+    echo "=== Python $py ==="
+    if docker run --rm -v "$PWD":/app -w /app "$IMAGE" \
+        bash -c "
+            set -e
+            apt-get update -qq >/dev/null
+            apt-get install -y -qq curl git >/dev/null 2>&1
+            curl -LsSf https://astral.sh/uv/install.sh | sh -s -- -q 2>/dev/null
+            export PATH=\\\$HOME/.local/bin:\\\$PATH
+            uv run -p $py pytest --no-header -q
+        "; then
+        echo "--- Python $py: OK ---"
+    else
+        echo "--- Python $py: FAILED ---"
+        failed=1
+    fi
+    echo
+done
+exit $failed
 ```
 
 **Pinning strategy:** all external repos must be pinned to a full git SHA with the version in a comment. Get the SHA with:

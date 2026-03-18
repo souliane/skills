@@ -152,13 +152,6 @@ repos:
         files: ^(pyproject\.toml|uv\.lock)$
         stages: [commit, manual]
 
-      - id: pytest
-        name: pytest
-        language: system
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && uv run python -m pytest --no-header -q'
-        pass_filenames: false
-        always_run: true
-
   # Phase 9 - Manual
   - repo: https://github.com/semgrep/semgrep
     rev: 984f76026160ea94163eee091bc3caa876476b35  # v1.139.0
