@@ -21,7 +21,7 @@ ssh-keygen -t ed25519 -C "openclaw" -f ~/.ssh/openclaw_ed25519
 
 **Provider-specific provisioning:**
 
-- **Hetzner:** Use cached CLI commands from [`references/hetzner-servers.md`](references/hetzner-servers.md).
+- **Hetzner:** Use cached CLI commands from [`references/hetzner-servers.md`](./hetzner-servers.md).
 - **Any other provider:** Web-search for `"<provider> CLI create server"` or guide the user through their web console. The key steps are:
   1. Upload SSH public key(s) if not already registered with the provider
   2. Create an instance with Ubuntu 24.04 LTS (ARM64 preferred, x86 also works)
@@ -146,9 +146,9 @@ apt install -y unattended-upgrades
 dpkg-reconfigure -plow unattended-upgrades
 ```
 
-> **Docker bypass warning:** Docker bypasses UFW. See [`references/security-hardening.md`](references/security-hardening.md) § Docker + Firewall.
+> **Docker bypass warning:** Docker bypasses UFW. See [`references/security-hardening.md`](./security-hardening.md) § Docker + Firewall.
 
-**Disk encryption (only if user requested):** LUKS on cloud VPS requires rescue boot + `dropbear-initramfs` for remote unlock. For most users, encrypted block storage volumes are simpler. See [`references/security-hardening.md`](references/security-hardening.md) § LUKS.
+**Disk encryption (only if user requested):** LUKS on cloud VPS requires rescue boot + `dropbear-initramfs` for remote unlock. For most users, encrypted block storage volumes are simpler. See [`references/security-hardening.md`](./security-hardening.md) § LUKS.
 
 ---
 
@@ -592,7 +592,7 @@ echo "export OPENCLAW_GATEWAY_PASSWORD=\"$OPENCLAW_GATEWAY_PASSWORD\"" >> ~/.bas
 
 ## Phase 8: Connect Messaging Channels
 
-For each channel the user selected, follow [`references/channel-setup.md`](references/channel-setup.md). Do them **one at a time** — verify each works before moving to the next.
+For each channel the user selected, follow [`references/channel-setup.md`](./channel-setup.md). Do them **one at a time** — verify each works before moving to the next.
 
 **Quick summary per channel:**
 
@@ -631,7 +631,7 @@ openclaw channels status --probe
 - WhatsApp: needs a **real mobile number** (no VoIP). QR code expires in 60 seconds
 - All channels: approve new contacts via `openclaw pairing approve <channel> <code>`
 
-Full step-by-step for each channel: [`references/channel-setup.md`](references/channel-setup.md)
+Full step-by-step for each channel: [`references/channel-setup.md`](./channel-setup.md)
 
 ---
 
@@ -644,7 +644,7 @@ openclaw security audit --deep
 chmod 700 ~/.openclaw && chmod 600 ~/.openclaw/openclaw.json && chmod 700 ~/.openclaw/credentials
 ```
 
-Apply the secure baseline config from [`references/security-hardening.md`](references/security-hardening.md) — it includes: loopback binding, token auth, per-channel-peer DM scope, messaging-only tool profile, minimal mDNS, and sensitive log redaction.
+Apply the secure baseline config from [`references/security-hardening.md`](./security-hardening.md) — it includes: loopback binding, token auth, per-channel-peer DM scope, messaging-only tool profile, minimal mDNS, and sensitive log redaction.
 
 ### 9.2 Enable OpenClaw as a systemd service
 
@@ -697,7 +697,7 @@ Config (use Python to edit JSON directly — see § 9.4 warning):
 ```
 
 > **`workspaceAccess: "rw"` is required** when `sandbox.mode` is `"all"`. Without it, the agent cannot write to its own workspace — USER.md updates, memory writes, and file operations all fail silently.
-> **Docker + UFW warning:** Docker bypasses UFW. Add DOCKER-USER iptables rules — see [`references/security-hardening.md`](references/security-hardening.md) § Docker + Firewall.
+> **Docker + UFW warning:** Docker bypasses UFW. Add DOCKER-USER iptables rules — see [`references/security-hardening.md`](./security-hardening.md) § Docker + Firewall.
 
 ### 9.4 Config editing — use Python, not `openclaw config set` for complex changes
 
@@ -798,7 +798,7 @@ Ask: "Do you also want OpenClaw to post content publicly on your behalf (social 
 
 **Default recommendation: No.** Only proceed if the user has a clear use case.
 
-If yes, present the recommendation from [`references/social-media.md`](references/social-media.md):
+If yes, present the recommendation from [`references/social-media.md`](./social-media.md):
 
 | Platform | Recommendation | Why |
 |----------|---------------|-----|
@@ -815,7 +815,7 @@ If yes, present the recommendation from [`references/social-media.md`](reference
 - **Prompt injection risk**: social media comments are untrusted input that could steer your agent
 - Store all OAuth tokens in `pass`, never in config files
 
-Full setup details: [`references/social-media.md`](references/social-media.md)
+Full setup details: [`references/social-media.md`](./social-media.md)
 
 ---
 
