@@ -18,7 +18,7 @@ Standalone. No hard dependencies on other skills.
 **Recommended companions:**
 
 - **`ac-python`** — When the reviewed repo contains Python scripts or tests, load for its integration-first testing philosophy and code style guidelines.
-- **`ac-auditing-repos`** — When the review scope includes multiple repos that share tooling (or a single repo known to have siblings), load for cross-repo infrastructure comparison (`.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, utility scripts). § 3.2b delegates to this skill automatically.
+- **`ac-managing-repos`** — When the review scope includes multiple repos that share tooling (or a single repo known to have siblings), load for cross-repo infrastructure comparison (`.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, utility scripts). § 3.2b delegates to this skill automatically.
 
 ## Configuration: `~/.ac-reviewing-skills`
 
@@ -34,6 +34,7 @@ MAINTAINED_SKILLS="my-repo/|other-repo/internal/(my-skill/)"
 | Variable | Purpose | Fallback when missing |
 |----------|---------|----------------------|
 | `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
+| `DELIVERY_SKILL` | Skill to chain into after review for cross-repo delivery (squash, status, push). E.g., `ac-managing-repos`. | No chaining — review ends after commit. |
 
 **This file is shared with teatree** (which references it via `T3_SKILL_OWNERSHIP_FILE` in `~/.teatree`), but review-skills does not depend on teatree — it reads `~/.ac-reviewing-skills` directly.
 
@@ -368,7 +369,7 @@ When a skill ecosystem spans multiple layers — e.g., **team skills** (shared a
 
 ### 3.2b Cross-Repo Infrastructure Harmonization
 
-**Delegate to `ac-auditing-repos`.** When the review scope includes multiple repos (or a single repo known to share tooling with sibling repos), load `ac-auditing-repos` and run its workflow on all repos in scope. It compares `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, and utility scripts — identifying drift, proposing alignment, and implementing fixes.
+**Delegate to `ac-managing-repos`.** When the review scope includes multiple repos (or a single repo known to share tooling with sibling repos), load `ac-managing-repos` and run its infrastructure audit workflow on all repos in scope. It compares `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, and utility scripts — identifying drift, proposing alignment, and implementing fixes.
 
 This step is most valuable during scheduled full reviews. For single-skill reviews, only trigger if the reviewed skill's repo shares tooling with known sibling repos (e.g., skill repos, boilerplate repos).
 
@@ -432,14 +433,23 @@ Skills instruct an agent that can execute arbitrary code, access APIs, and modif
 - **Migration scope:** When the user approves, update skill files, reference docs, scripts, and hook configs to use the CLI equivalent. Update permission allowlists if needed (e.g., replacing `mcp__glab__*` with `Bash(glab:*)` in agent settings).
 - **Exception:** If the MCP tool provides capabilities that have no CLI equivalent (e.g., rich structured queries, platform-specific integrations), document why MCP is preferred and skip migration.
 
-### 3.8 Sub-Agent Safety Classification
+### 3.8 Single CLI Entrypoint per Skill (Non-Negotiable)
+
+Each skill that ships scripts must have **exactly one CLI entrypoint** — a single `scripts/cli.py` using Typer. All commands hang off that one app.
+
+- **Detection:** For each skill with a `scripts/` directory, check for multiple executable Python files (`#!/usr/bin/env` shebang or executable permission). If more than one file can be invoked directly from the command line, flag it.
+- **Fix:** Integrate secondary scripts as subcommands of the main `scripts/cli.py` Typer app. Then remove the shebang and executable permission from the secondary scripts (they become internal modules imported by the CLI).
+- **Exception:** Helper modules imported by `cli.py` (in `scripts/lib/`) are fine — they're not entrypoints.
+- **Rationale:** Multiple entrypoints create discoverability problems. Users and other skills shouldn't have to guess which script to call. One CLI = one `--help` that shows everything.
+
+### 3.9 Sub-Agent Safety Classification
 
 - Check each skill's `subagent_safe` metadata field. Default is `false` (unsafe).
 - A skill is safe for sub-agents only if it is pure methodology/guidelines with **no dependency on**: sourced shell functions, MCP tools, environment variables from worktree setup, running services, or cross-skill state.
 - **Quick heuristic:** if a skill declares a dependency on an infrastructure/workspace skill, it is unsafe.
 - Flag any skill marked `subagent_safe: true` that references shell functions, MCP tools, or infrastructure skills in its workflows.
 
-### 3.9 Test Coverage & Quality
+### 3.10 Test Coverage & Quality
 
 - Check for test files covering the skill's scripts.
 - Flag scripts that lack tests.
@@ -454,7 +464,7 @@ Skills instruct an agent that can execute arbitrary code, access APIs, and modif
   - Over-mocking that makes tests tautological (testing the mocks, not the code).
   - Test methods named after implementation (`test_function_name`) instead of behavior (`test_returns_error_when_missing`).
 
-### 3.10 Upstream First — Prefer FOSS Contribution Over Custom Solutions
+### 3.11 Upstream First — Prefer FOSS Contribution Over Custom Solutions
 
 When reviewing scripts, utilities, or workarounds in skills or their managed repos, actively look for opportunities to **contribute upstream** instead of maintaining custom code.
 
@@ -579,7 +589,28 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 2. If any check would produce a new finding, fix it now.
 3. The user should never have to request a verification pass — that means you declared done prematurely.
 
-### 6.6 Retro & Iteration
+### 6.6 Squash Own Commits
+
+Before chaining to the next skill, squash review-related commits into clean, human-sized units. Follow the squash rules from `ac-managing-repos` § Workflow 2 (the canonical source):
+
+- Never rewrite pushed history.
+- Group by topic, keep human-sized.
+- Squash integrity check before/after.
+- Respect `T3_AUTO_SQUASH`.
+
+### 6.7 Chain to Delivery Skill
+
+If `DELIVERY_SKILL` is configured in `~/.ac-reviewing-skills`, load it and trigger its workflow after the review is complete and commits are squashed. This enables the full chain:
+
+```text
+t3-retro → ac-reviewing-skills → DELIVERY_SKILL (e.g., ac-managing-repos)
+```
+
+The delivery skill handles infrastructure audit, additional squashing, and final delivery status across all managed repos.
+
+If `DELIVERY_SKILL` is not configured, end the review normally.
+
+### 6.8 Retro & Iteration
 
 - After the review is complete, **run the retro skill** (if one exists in the system) to capture any lessons learned during the review itself — meta-improvements to the review process, skill patterns discovered, or recurring issues that suggest a systemic gap.
 - **If the user requests iteration** ("review again", "keep improving", "until it's perfect"), loop back to Phase 1 with a narrower focus: skip the full discovery phase and concentrate on areas where the first pass made changes. Each iteration should find fewer issues. Stop when a pass produces zero findings or only cosmetic nits.
