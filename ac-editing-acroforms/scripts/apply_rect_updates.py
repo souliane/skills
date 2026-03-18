@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pikepdf>=9.0", "typer>=0.12"]
-# ///
 r"""Apply AcroForm widget rect updates from a JSON spec.
 
 This is the durable replacement for one-off `/tmp/fix_*.py` scripts that only
@@ -76,7 +71,3 @@ def apply_spec(spec_path: Path) -> None:
 
 def main(spec: Path = typer.Argument(help="Path to JSON spec")) -> None:
     apply_spec(spec)
-
-
-if __name__ == "__main__":
-    typer.run(main)

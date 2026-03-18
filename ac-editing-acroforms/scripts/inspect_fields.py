@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pypdf>=4.0", "typer>=0.12"]
-# ///
 """Inspect AcroForm fields, content stream text, and font maps in a PDF.
 
 This is the first step before any PDF template modification — it reveals
@@ -239,7 +234,3 @@ def inspect(
                     typer.echo("\nUnderline positions (cm transforms, y<300):")
                     for x, y, sc in sorted(underlines, key=lambda t: -t[1]):
                         typer.echo(f"  x={x:.1f} y={y:.1f} scale={sc}")
-
-
-if __name__ == "__main__":
-    app()

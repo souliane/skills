@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["typer>=0.12"]
-# ///
 """Discover all ruff violations and generate a ready-to-paste lint.ignore block.
 
 Run AFTER configuring lint.select = ["ALL"] and lint.preview = true
@@ -150,7 +145,3 @@ def main(path: Path = typer.Argument(Path(), help="Path to check for ruff violat
         counts[v["code"]] += 1
 
     _print_report(counts, rule_meta)
-
-
-if __name__ == "__main__":
-    typer.run(main)

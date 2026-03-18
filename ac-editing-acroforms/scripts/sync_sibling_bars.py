@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pikepdf>=9.0", "typer>=0.12"]
-# ///
 r"""Sync underline bars between sibling PDF templates.
 
 When two templates share the same page layout (e.g., LRF and broker both have
@@ -209,7 +204,3 @@ def _fmt(v: float) -> str:
     if s.endswith("."):
         s += "0"
     return s
-
-
-if __name__ == "__main__":
-    app()

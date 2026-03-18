@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pikepdf>=9.0"]
-# ///
 r"""Verify that paired content-stream bars have matching counterparts.
 
 In multi-column PDF templates (e.g. Borrower 1 / Borrower 2), underline bars
@@ -281,7 +276,3 @@ def main() -> None:
 
     pdf.close()
     sys.exit(exit_code)
-
-
-if __name__ == "__main__":
-    main()

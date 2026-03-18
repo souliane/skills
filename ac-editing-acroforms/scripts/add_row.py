@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pypdf>=4.0", "typer>=0.12"]
-# ///
 """Add a field row to an AcroForm PDF template.
 
 This script:
@@ -1024,7 +1019,3 @@ def add_field(
     typer.echo(f"\nWritten: {output_path} ({Path(output_path).stat().st_size} bytes)")
     typer.echo(f"Verified fields: {matching}")
     typer.echo(f"Pages: {len(vr.pages)}")
-
-
-if __name__ == "__main__":
-    app()

@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pikepdf>=9.0", "Pillow>=10.0"]
-# ///
 r"""Verify that AcroForm field rectangles align with content stream underline bars.
 
 Checks structural integrity of PDF templates by comparing:
@@ -888,7 +883,3 @@ def main() -> int:
     print(f"{'=' * 70}")
 
     return 0 if all_ok else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

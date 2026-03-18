@@ -97,15 +97,13 @@ repos:
         language: pygrep
         entry: '#!/usr/bin/env -S uv run --script'
         args: [--negate]
-        files: '.*/scripts/[^_][^/]*\.py$'
-        exclude: 'ac-editing-acroforms/scripts/fix_'
+        files: '.*/scripts/cli\.py$'
       - id: scripts-have-inline-metadata
         name: scripts-have-inline-metadata
         language: pygrep
         entry: '# /// script'
         args: [--negate]
-        files: '.*/scripts/[^_][^/]*\.py$'
-        exclude: 'ac-editing-acroforms/scripts/fix_'
+        files: '.*/scripts/cli\.py$'
       - id: scripts-no-raw-sys-argv
         name: scripts-no-raw-sys-argv
         language: pygrep

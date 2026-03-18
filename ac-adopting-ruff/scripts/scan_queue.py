@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["typer>=0.12"]
-# ///
 """Scan Phase 2 enforcement queue for real violation counts.
 
 Reads the queue rules between the Phase 1/Phase 2 markers in pyproject.toml,
@@ -167,7 +162,3 @@ def main(
         print(f"\nManual-only rules ({len(manual_only)}):")
         for c in manual_only:
             print(f"  {manual[c]:5d} violations, {len(files_per_rule[c]):4d} files  {c:<10} {name(c)}")
-
-
-if __name__ == "__main__":
-    typer.run(main)

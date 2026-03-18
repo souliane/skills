@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["typer>=0.12"]
-# ///
 """Compare golden PDFs between a git base ref and the current branch.
 
 Shows side-by-side montage (only differing pages) and overlay diff for each
@@ -662,7 +657,3 @@ def main(
             typer.echo("")
 
     typer.echo(f"All done. Output in {outdir}")
-
-
-if __name__ == "__main__":
-    app()

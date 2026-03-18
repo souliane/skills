@@ -1,8 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pypdf>=4.0", "typer>=0.12"]
-# ///
 """Batch-modify AcroForm field flags in a PDF template.
 
 Common operations:
@@ -115,7 +110,3 @@ def set_flags(
             writer.write(f)
         typer.echo(f"Modified {modified} fields, skipped {skipped}")
         typer.echo(f"Written: {output_path} ({Path(output_path).stat().st_size} bytes)")
-
-
-if __name__ == "__main__":
-    app()
