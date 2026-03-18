@@ -1,0 +1,136 @@
+[dependency-groups]
+dev = [
+  "pre-commit>=4.5.1",
+  "pytest>=9.0.2",
+  "pytest-cov>=7",
+  "ty>=0.0.18"
+]
+
+[project]
+name = "<repo-name>"
+version = "0.0.1"
+description = "<description>"
+requires-python = ">=3.12"
+license = "MIT"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
+]
+
+[tool.codespell]
+
+[tool.coverage.report]
+fail_under = 100
+precision = 1
+show_missing = true
+exclude_lines = [
+  "if __name__",
+  "if TYPE_CHECKING",
+  "def main\\(",
+  "pragma: no cover"
+]
+
+[tool.pytest.ini_options]
+addopts = """
+--color=yes --doctest-modules --exitfirst --failed-first
+--strict-config --strict-markers --verbose --log-cli-level=INFO
+--cov --cov-report=term-missing:skip-covered --cov-branch
+"""
+testpaths = ["tests"]
+filterwarnings = ["error"]
+xfail_strict = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+fix = true
+lint.select = ["ALL"]
+lint.ignore = [
+  "CPY001", # missing-copyright-notice — not applicable
+  # D1xx: missing docstrings — prefer self-documenting code
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+  "D203", # one-blank-line-before-class — conflicts with D211
+  "D213", # multi-line-summary-second-line — conflicts with D212
+  "DOC201",
+  "DOC402",
+  "DOC501", # docstring content — disabled with docstrings
+  "INP001", # implicit-namespace-package — skills are not packages
+  "ISC002" # implicit-str-concat — interferes with multiline strings
+]
+# Rules that conflict with ruff's own formatter.
+# https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+lint.extend-ignore = [
+  "COM812",
+  "COM819",
+  "D206",
+  "D300",
+  "E111",
+  "E114",
+  "E117",
+  "ISC001", # single-line-implicit-string-concatenation — conflicts with formatter
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "Q004",
+  "W191"
+]
+lint.preview = true
+lint.flake8-implicit-str-concat.allow-multiline = false
+lint.flake8-tidy-imports.banned-api."__future__.annotations" = {msg = "Use native 3.10+ syntax (X | Y)"}
+# Scripts: CLI tools use print, subprocess, deferred imports, typer patterns.
+lint.per-file-ignores."*/scripts/**/*.py" = [
+  "B008", # function-call-in-default-argument (typer patterns)
+  "E402", # module-import-not-at-top (deferred after init)
+  "FBT001",
+  "FBT003", # boolean params (CLI flags)
+  "PLC0415", # import-outside-top-level
+  "PLC2701", # import-private-name
+  "PLW1510", # subprocess-run-without-check
+  "S404",
+  "S603",
+  "S607", # subprocess security (trusted calls)
+  "T201" # print (CLI output)
+]
+# Tests use assert, magic values, private access, etc.
+lint.per-file-ignores."tests/**/*.py" = [
+  "PLC1901", # compare-to-empty-string
+  "PLC2701", # import-private-name
+  "PLR0904", # too-many-public-methods
+  "PLR2004", # magic-value-comparison
+  "PLR6301", # no-self-use
+  "S101", # assert
+  "S108", # hardcoded-temp-file
+  "S404", # subprocess-import
+  "SLF001" # private-member-access
+]
+lint.pylint.max-args = 5
+lint.pylint.max-bool-expr = 5
+lint.pylint.max-branches = 12
+lint.pylint.max-locals = 15
+lint.pylint.max-nested-blocks = 5
+lint.pylint.max-returns = 6
+lint.pylint.max-statements = 50
+
+[tool.ty]
+terminal = {error-on-warning = true}
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["requests", "typer", "pytest", "tomlkit"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.rules]
+division-by-zero = "error"
+possibly-unresolved-reference = "error"
+unused-ignore-comment = "error"
+no-matching-overload = "error"

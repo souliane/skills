@@ -1,0 +1,99 @@
+default_install_hook_types: [commit-msg, pre-commit]
+default_stages: [commit, manual]
+fail_fast: true
+
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: <sha> # <version>
+    hooks:
+      - id: uv-lock
+      - id: uv-sync
+        args: ["--locked"]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: <sha> # <version>
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty-check
+        language: system
+        entry: uv run ty check
+        pass_filenames: false
+  - repo: local
+    hooks:
+      - id: update-readme-skills
+        name: Update README skills catalogue
+        language: system
+        entry: uv run scripts/update_readme_skills.py
+        pass_filenames: false
+        always_run: true
+
+      - id: banned-terms
+        name: banned-terms
+        language: script
+        entry: scripts/hooks/check-banned-terms.sh
+        types: [text]
+        exclude: ^(\.pre-commit-config\.yaml|scripts/hooks/)$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: <sha> # <version>
+    hooks:
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: <sha> # <version>
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: <sha> # <version>
+    hooks:
+      - id: rst-backticks
+      - id: rst-directive-colons
+      - id: rst-inline-touching-normal
+      - id: text-unicode-replacement-char
+  - repo: local
+    hooks:
+      - id: scripts-no-raw-sys-argv
+        name: scripts-no-raw-sys-argv
+        language: pygrep
+        entry: 'sys\.argv'
+        files: 'scripts/[^_][^/]*\.py$'
+  - repo: https://github.com/codespell-project/codespell
+    rev: <sha> # <version>
+    hooks:
+      - id: codespell
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: <sha> # <version>
+    hooks:
+      - id: markdownlint-cli2
+        args: [--fix]
+  - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+    rev: <sha> # <version>
+    hooks:
+      - id: editorconfig-checker
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: <sha> # <version>
+    hooks:
+      - id: pyproject-fmt
+        files: ^pyproject\.toml$
+  - repo: https://github.com/pappasam/toml-sort
+    rev: <sha> # <version>
+    hooks:
+      - id: toml-sort-fix
+        exclude: ^(pyproject\.toml|uv\.lock)$
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: <sha> # <version>
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [--verbose]

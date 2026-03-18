@@ -1,0 +1,22 @@
+# <repo-name>
+
+<One-line description.>
+
+## Available Skills
+
+<!-- BEGIN SKILLS -->
+<!-- END SKILLS -->
+
+## Installation
+
+Use one of two install modes:
+
+- `npx skills add` for consumer installs
+- contributor mode symlinks from a local clone for skills you actively improve
+
+## Contributing
+
+```bash
+uv run pytest               # tests (100% coverage)
+prek run --all-files         # all pre-commit hooks
+```

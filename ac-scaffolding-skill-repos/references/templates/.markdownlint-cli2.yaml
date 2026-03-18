@@ -1,0 +1,13 @@
+config:
+  # Skill docs use long lines for readability — don't enforce 80-char limit
+  MD013: false
+  # Docs use explicit numbering (1. 2. 3.) which is intentional
+  MD029: false
+  # Skill docs contain inline HTML for diagrams and markers
+  MD033: false
+  # Emphasis used as sub-headings in some docs
+  MD036: false
+  # Allow fenced code blocks without language specifier
+  MD040: false
+  # Skill docs reuse headings like "Rules", "Workflow" across sections
+  MD024: false

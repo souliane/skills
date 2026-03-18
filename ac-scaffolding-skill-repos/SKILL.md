@@ -133,9 +133,9 @@ Ask the user **one question at a time** (wait for each answer before asking the 
 
 ### 3. SKILL.md
 
-Read the [SKILL.md template](references/templates.md#skillmd-template) for the frontmatter spec, required fields, and starter template.
+Copy [`references/templates/SKILL.md.template`](references/templates/SKILL.md.template) and fill placeholders. See the [frontmatter spec](../ac-reviewing-skills/references/skill-authoring-best-practices.md) for required fields.
 
-Key authoring guidelines (full details in the reviewing skill's [best practices reference](../ac-reviewing-skills/references/skill-authoring-best-practices.md)):
+Key authoring guidelines:
 
 - Keep `SKILL.md` body under ~500 lines. Split into `references/` and `scripts/` when needed.
 - Match instruction specificity to operation fragility (high freedom for judgment calls, low freedom for fragile sequences).
@@ -144,13 +144,15 @@ Key authoring guidelines (full details in the reviewing skill's [best practices 
 
 ### 4. Config Files
 
-For skill repos with Python scripts, use the templates in [references/templates.md](references/templates.md):
+Copy template files from [`references/templates/`](references/templates.md) directly into the repo root:
 
-- [pyproject.toml](references/templates.md#pyprojecttoml-template) — ruff (ALL rules), pytest (100% coverage), ty, codespell
-- [.pre-commit-config.yaml](references/templates.md#pre-commit-config-template) — uv, ruff, ty, gitleaks, markdownlint, editorconfig, conventional commits, pytest
-- [.markdownlint-cli2.yaml](references/templates.md#markdownlint-cli2yaml-template)
-- [.editorconfig](references/templates.md#editorconfig-template)
-- [README.md](references/templates.md#readme-template) — with auto-generated skills catalogue
+- [`pyproject.toml`](references/templates/pyproject.toml) — ruff (ALL rules), pytest (100% coverage), ty, codespell
+- [`pre-commit-config.yaml`](references/templates/pre-commit-config.yaml) → `.pre-commit-config.yaml` — uv, ruff, ty, gitleaks, markdownlint, editorconfig, conventional commits
+- [`ci.yml`](references/templates/ci.yml) → `.github/workflows/ci.yml` — multi-Python CI with uv cache
+- [`test-matrix.sh`](references/templates/test-matrix.sh) → `dev/test-matrix.sh` — local Docker-based multi-version testing
+- [`.markdownlint-cli2.yaml`](references/templates/.markdownlint-cli2.yaml)
+- [`.editorconfig`](references/templates/.editorconfig)
+- [`README.md.template`](references/templates/README.md.template) — with auto-generated skills catalogue
 
 ### 9. Initialize
 

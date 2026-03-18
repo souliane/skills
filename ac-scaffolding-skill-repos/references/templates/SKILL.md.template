@@ -1,0 +1,28 @@
+---
+name: <skill-name>
+description: >-
+  <Third-person description of what and when.>
+  Use when user says "<trigger phrases>".
+compatibility: <platforms and requirements>
+metadata:
+  version: 0.0.1
+  subagent_safe: <true if pure methodology with no shell/MCP deps>
+---
+
+# <Skill Title>
+
+<Brief overview — what this skill does and why.>
+
+## Dependencies
+
+<List dependency skills, or "Standalone.">
+
+## Workflow
+
+### 1. <First Step>
+
+<Instructions the agent follows.>
+
+## Rules
+
+<Non-negotiable constraints, if any.>
