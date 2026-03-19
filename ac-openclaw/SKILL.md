@@ -361,7 +361,7 @@ Tunnel (option a) instead — it doesn't require a VPN app on your devices.
 
 ## Phase 2: Present the Plan
 
-After gathering all answers, present a **complete plan** for user approval:
+**Enter plan mode** if not already active (Phase 1 is read-only questions — plan mode should be active from the start). After gathering all answers, present a **complete plan**:
 
 ```markdown
 ## Installation Plan
@@ -388,7 +388,7 @@ Steps:
 Proceed? (yes/no)
 ```
 
-Wait for approval. If the user wants changes, adjust and re-present.
+Exit plan mode for user approval. If the user wants changes, re-enter plan mode, adjust, and re-present.
 
 ---
 
