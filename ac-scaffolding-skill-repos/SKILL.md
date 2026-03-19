@@ -154,6 +154,10 @@ Copy template files from [`references/templates/`](references/templates.md) dire
 - [`.editorconfig`](references/templates/.editorconfig)
 - [`README.md.template`](references/templates/README.md.template) — with auto-generated skills catalogue
 
+### Import Style Check (Non-Negotiable)
+
+When scaffolding from a boilerplate, **check how the boilerplate's entry point and imports work before writing code**. Check `pyproject.toml` `[project.scripts]` and `[tool.coverage.run] source` to understand the package structure. Write a minimal test that exercises the entry point early. The boilerplate may use bare module names (`from main import app`), not fully-qualified `from src.xxx` imports.
+
 ### 9. Initialize
 
 After scaffolding:

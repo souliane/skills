@@ -54,6 +54,10 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **Acknowledge limitations prominently.** Every tool has rough edges. State them near the beginning, not buried at the end.
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
 
+### No Repeated Disclaimers (Non-Negotiable)
+
+When a caveat or qualification is already stated in one place (e.g., "tested most with Claude Code" in the intro), do not add variations of it elsewhere (prerequisites, Get Started, etc.). State it once, trust the reader, stop. When the user gives iterative feedback to simplify, apply the simplification fully in one pass rather than introducing a new hedge that needs another correction round.
+
 ### Source-Grounded Claims Only (Non-Negotiable)
 
 Every technical claim in the article must be verifiable against the actual codebase, documentation, or skill files. Before writing about a tool or project:

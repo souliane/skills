@@ -357,6 +357,10 @@ When invoked in a chain, this skill:
 - [ ] Utility scripts present in all repos
 - [ ] All divergences are either aligned or documented with a comment
 
+### CI Pipeline Comparison
+
+Compare CI pipeline configurations (`.github/workflows/`, `.gitlab-ci.yml`) across target repos alongside pre-commit hooks, `pyproject.toml`, and editorconfig. Flag missing or divergent CI configs and propose alignment.
+
 ### Delivery
 
 - [ ] No unpushed commits left unintentionally

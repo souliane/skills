@@ -237,6 +237,55 @@ During every review, **read the user's personal config and memory files end-to-e
 
 This is not optional or aspirational — it is a **concrete deliverable** of every review. Knowledge stuck in one user's config is a portability bug. The review must produce commits that move promotable entries into skills.
 
+### 2.3b Cross-Repo Memory Scan (Non-Negotiable)
+
+Skills reference code repos (via managed assets, dependencies, worktree configs, or documented repo lists). Each code repo may have **agent memory files** (e.g., `~/.claude/projects/-<encoded-path>/memory/*.md`) containing guardrails, patterns, and troubleshooting entries that were saved as "feedback" or "project" memories but belong in skills.
+
+**Procedure:**
+
+1. **Discover referenced repos.** From Phase 1.4 (Managed Assets Inventory), collect all code repo paths the reviewed skills reference — workspace repos, overlay repos, private test repos.
+2. **Find memory directories.** For each repo path, derive the encoded project directory and check for memory files:
+
+   ```bash
+   # Derive the memory path from a repo's absolute path
+   # (Replace / with - and strip the leading -)
+   repo_path="/Users/someone/workspace/my-project"
+   encoded=$(echo "$repo_path" | tr '/' '-' | sed 's/^-//')
+   memory_dir="$HOME/.claude/projects/$encoded/memory"
+   [ -d "$memory_dir" ] && ls "$memory_dir"/*.md 2>/dev/null
+   ```
+
+   Also check for agent memory/config directories from other platforms (`~/.codex/`, `~/.cursor/`, etc.) if they exist.
+
+3. **Read and classify each memory file.** Apply the same table from § 2.3:
+   - Guardrails, patterns, troubleshooting → **promote to skill**
+   - User preferences, env-specific facts → **keep**
+   - Stale entries (completed tickets, outdated info, duplicates of existing skills) → **delete**
+
+4. **Privacy gate before promotion (Non-Negotiable).** Before promoting content from a memory file into a skill file, check whether the target skill is in a **public repository**:
+
+   ```bash
+   # Check if the skill repo has a public remote
+   cd "$skill_repo"
+   remote_url=$(git remote get-url origin 2>/dev/null)
+   # If the remote is public (github.com, gitlab.com without private group),
+   # the promoted content must not contain:
+   # - Internal hostnames, URLs, or IP addresses
+   # - Customer/tenant names or company-specific terms
+   # - Credentials, tokens, or API keys
+   # - Internal team names or org-specific processes
+   ```
+
+   If the target skill is public and the memory content contains internal details: **generalize** the content (strip names, URLs, specifics) before promoting. If the content cannot be meaningfully generalized, keep it in memory and note why.
+
+5. **Promote and clean up.** For each promotable entry:
+   - Add the content to the appropriate skill file (following the placement table in § 2.3)
+   - Delete the memory file
+   - Update the `MEMORY.md` index
+   - If the memory was the last file in the directory, remove the empty directory
+
+6. **Report.** Include a summary in the review output: how many memory files scanned, how many promoted, how many kept, how many deleted as stale.
+
 ### 2.4 Skill ↔ Repo Config Boundary (Non-Negotiable)
 
 Repos often have their own `AGENTS.md` or other repo-level agent instruction file with project rules. Skills must **not duplicate** these — they should **reference** them.
@@ -549,6 +598,10 @@ Evaluate reviewed skills against the [skill authoring best practices reference](
 - Present the change plan with non-ambiguous items as "will do" (no question needed).
 - For each ambiguous item (merge vs. split, keep vs. remove, design choices), ask the user **one question at a time** using the agent's native question tool. Wait for the answer before asking the next.
 - **Never dump a wall of questions or ask for batch approval.** This overwhelms the user and leads to missed answers.
+
+### Implement, Don't Postpone (Non-Negotiable)
+
+When review identifies concrete improvements (toolification candidates, script extraction, prose slimming), **implement them in the same session** rather than adding TODO comments. TODO comments are a form of postponement. If it's worth flagging during review, it's worth doing now. Flagging something as "candidate" and moving on wastes the review session.
 
 ### 5.4 Implementation
 
