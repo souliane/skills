@@ -31,7 +31,7 @@ def _run_git(cwd: Path, *args: str) -> None:
 def _init_repo(path: Path) -> Path:
     """Create a minimal git repo with one commit."""
     path.mkdir(parents=True, exist_ok=True)
-    _run_git(path, "init")
+    _run_git(path, "init", "-b", "main")
     _run_git(path, "config", "user.email", "test@test.com")
     _run_git(path, "config", "user.name", "Test")
     (path / "README.md").write_text("# test\n", encoding="utf-8")
