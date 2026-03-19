@@ -548,8 +548,12 @@ When reviewing scripts, utilities, or workarounds in skills or their managed rep
 
 ### 4.3 Agent Agnosticism Check
 
-- **Scan for platform-specific language** in all reviewed skills. Grep for agent brand names, agent-home paths, agent config filenames, and explicit tool names.
-- **Classify each hit:** (a) platform integration skill → OK, (b) example/parenthetical → OK, (c) hardcoded in rule/instruction → must generalize.
+- **Scan for platform-specific language** in all reviewed skills. Grep for agent brand names, agent-home paths, agent config filenames, and explicit tool names. **Concrete patterns to grep (Non-Negotiable):**
+  - Agent-home paths: `.claude/`, `.codex/`, `.cursor/`, `.copilot/`, `.agents/`
+  - Agent config files: `CLAUDE.md`, `settings.json`, `settings.local.json`
+  - Platform-specific tool names: `EnterPlanMode`, `ExitPlanMode`, `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `NotebookEdit`, `WebFetch`, `WebSearch`, `TodoWrite`
+  - Brand names: `Claude Code`, `Codex`, `Cursor`, `Copilot`, `Windsurf`
+- **Classify each hit:** (a) platform integration skill → OK, (b) example/parenthetical → OK, (c) hardcoded in rule/instruction → must generalize. **Generic alternatives:** "plan mode" (not `EnterPlanMode`), "ask the user" (not `AskUserQuestion`), "track progress" (not `TaskCreate`), "the agent's config file" (not `CLAUDE.md`).
 - **Ask the user** if unsure whether a reference is intentional or should be generalized.
 - See Quality Principles § Agent Agnosticism for the full standard.
 
