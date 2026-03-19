@@ -202,7 +202,7 @@ When asked to generate social media content (or when the user passes a platform 
 
 | Platform | Style | Length | Notes |
 |----------|-------|--------|-------|
-| **linkedin** | Professional, descriptive | 200-300 words | Include 3-5 hashtags. Mention role/company if known. |
+| **linkedin** | Professional, descriptive | 200-300 words | Include 3-5 hashtags. Mention role/company if known. Put article link directly in the post body — don't use "link in first comment." |
 | **mastodon** | Technical, community-focused | Under 500 chars | Include 3-5 hashtags. Link to repo/article. |
 | **hackernews** | Minimal, factual | Title + 2-3 sentence comment | No hashtags. Focus on technical merit. Avoid self-promotion tone — HN readers detect it instantly. |
 | **reddit** | Conversational, community-aware | Title + short body | Suggest appropriate subreddits (r/programming, r/python, r/django, etc.). Be genuine, not salesy. |
