@@ -31,6 +31,11 @@ mindmap
       Every failure → skill fix
       Retro is mandatory
       User corrections → skill bugs
+    Paradigm Fitness
+      Question the paradigm, not just the pieces
+      Counterfactual rebuild test
+      Prose-to-code ratio signal
+      Testability ceiling check
     Skill vs Model Balance
       Domain knowledge is permanent
       Orchestration decays with model progress
@@ -96,6 +101,17 @@ Skills should work with **any agent platform**, not just the one the author uses
 - **Measure skill coverage.** "Could an agent complete this workflow using only the skills?" If not, fill the gaps.
 - **User corrections are skill bugs.** Trace back to a skill deficiency and fix. Same mistake must never happen twice.
 - **Hook and loading reliability.** Verify loading mechanisms work with sample prompts. If keyword-based, verify keywords cover real-world phrasing.
+
+## Paradigm Fitness
+
+The most expensive failure mode in a skill system is optimizing the wrong paradigm. Incremental improvement is correct 90% of the time, but it creates a blind spot for the 10% when the whole approach needs rethinking.
+
+- **Question the paradigm, not just the pieces.** Before optimizing individual skills, ask: "Is skills-as-architecture the right choice for this project's size, complexity, and team?" A well-written skill in the wrong paradigm is still the wrong solution.
+- **Counterfactual rebuild test.** "If we started over today, would we make the same technology choice?" If the answer is no, the current architecture may be a local minimum that no amount of skill polishing will escape.
+- **Prose-to-code ratio signal.** When >50% of a system's behavior lives in prose (SKILL.md) rather than executable code, each behavior is interpreted by an LLM rather than executed deterministically. This is acceptable for judgment-heavy tasks (code review, design decisions) but dangerous for coordination-heavy tasks (state machines, multi-step provisioning, CI orchestration).
+- **Testability ceiling.** If the system's critical paths can't be tested without running an LLM, the architecture has a structural testability limit. No skill improvement will fix this — only moving logic into testable code will.
+- **Structural signals accumulate.** One problem that requires a paradigm change looks like an edge case. Three problems that all point to the same structural limitation are a pattern. Track them across reviews.
+- **Present alternatives, don't just flag.** When the assessment suggests a paradigm change, describe the concrete alternative — what technology, what moves where, what the migration costs. An abstract "consider rewriting" is not actionable.
 
 ## Skill vs Model Balance
 

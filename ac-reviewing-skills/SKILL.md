@@ -159,6 +159,37 @@ Before starting the review:
 - **Platform coupling:** Do skills mix universal workflow logic with platform-specific API recipes (CLI commands, API URLs, MCP tool names, authentication patterns)? If so, the recipes should be extracted to reference files. See Quality Principles § Platform Independence.
 - **Medium assessment (Non-Negotiable).** For each skill, estimate what percentage of its content is **deterministic procedures** (step-by-step commands, exact CLI invocations, config generation) vs. **judgment guidance** (decision trees, heuristics, "when to ask the user", edge-case reasoning). When a skill is >60% deterministic procedures, flag it as a **toolification candidate** — the procedural content should be an executable tool (CLI, script) that the agent calls, with the skill reduced to "when and why to call it." Present the analysis to the user with the split ratio and a concrete proposal. A skill that encodes procedures the agent must interpret and re-issue as commands is strictly less reliable than a tool that executes them directly.
 
+### 1.2b Paradigm Fitness Assessment (Non-Negotiable)
+
+The most dangerous architectural problem is not a bad skill — it's a good skill system applied to the wrong problem. Before optimizing individual skills, step back and assess whether the **skills-based approach itself** is the right paradigm for the project.
+
+**Ask these questions for the skill system as a whole:**
+
+1. **Prose-to-code ratio.** What percentage of the system's core logic lives in skill prose (SKILL.md, references) vs. executable code (scripts, CLI, application framework)? When >50% of the system's behavior is encoded as prose that the agent must interpret, the system is fragile — prose instructions produce different results depending on the model, context pressure, and what else is loaded. **Signal:** if the same prose instruction has been refined 3+ times because the agent kept misinterpreting it, that instruction should be code.
+
+2. **Counterfactual rebuild.** "If this project were built from scratch today, would you choose the same architecture?" Concretely:
+   - Would the coordination mechanism (file-based state, in-memory, database) be the same?
+   - Would the extension/customization mechanism (extension points, overlays, plugins, config) be the same?
+   - Would the core logic live in the same place (skills, scripts, application framework)?
+   - Would the testing strategy be possible with the current architecture?
+
+3. **Complexity budget.** Count the number of independent state stores (JSON files, databases, env vars, config files) that must stay in sync. Count the number of abstraction layers between "user intent" and "action taken." If either number exceeds what a single developer can hold in their head, the architecture has outgrown its paradigm.
+
+4. **Testability ceiling.** Can the system's critical paths be tested with deterministic assertions (not "run it and see if the agent does the right thing")? If core behavior requires an LLM to execute and can't be verified without one, the system has a testability ceiling that no amount of skill refinement will fix.
+
+5. **Incremental vs. structural fix.** For each problem found in the review, ask: "Can this be fixed by improving skills, or does it require changing the underlying technology?" When 3+ problems point to the same structural limitation, the answer is structural.
+
+**When the assessment suggests a paradigm change:**
+
+Do NOT silently keep optimizing skills. Present the findings to the user with:
+
+- The specific signals that triggered the assessment (prose-to-code ratio, state sync complexity, testability ceiling)
+- A concrete alternative architecture sketch (what technology, what would move where)
+- An honest cost/benefit: what the migration buys vs. what it costs
+- The recommendation: "This system would benefit more from a rewrite of [X] than from further skill optimization"
+
+**This assessment is the single most valuable thing a reviewer can do** — incremental skill improvements compound, but they can never fix a paradigm mismatch. Catching this early saves weeks of wasted effort.
+
 ### 1.3 Dependency Documentation
 
 - Every skill must declare its dependencies (or explicitly state "Standalone").
