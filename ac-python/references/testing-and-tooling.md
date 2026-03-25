@@ -44,6 +44,22 @@ def test_invoice_total() -> None:
 | `pytest-watcher` | File-watch mode (`ptw`) |
 | `pytest-xdist` | Parallel test execution (`-n auto` for CPU-bound, `-n logical` for I/O-bound) |
 
+### Mock scoping
+
+Always scope `patch()` to the **module under test**, not the original definition site:
+
+```python
+# WRONG — patches shutil.which globally (affects all imports)
+with patch("shutil.which", return_value=None):
+    ...
+
+# RIGHT — patches only the reference in the module under test
+with patch("mypackage.cli.shutil.which", return_value=None):
+    ...
+```
+
+The rule: patch where the name is **looked up**, not where it is **defined**. See [unittest.mock — where to patch](https://docs.python.org/3/library/unittest.mock.html#where-to-patch).
+
 ### Magic values in tests are fine
 
 In test files, ruff rule `PLR2004` (magic value comparisons) and `S101` (assert usage) are suppressed — direct literals and `assert` are idiomatic in tests.
