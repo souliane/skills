@@ -15,10 +15,13 @@ Deep, holistic review of one or more skills. Treats selected skills as a connect
 
 Standalone. No hard dependencies on other skills.
 
-**Recommended companions:**
+**Recommended companions (load during Phase 0 if applicable):**
 
 - **`ac-python`** — When the reviewed repo contains Python scripts or tests, load for its integration-first testing philosophy and code style guidelines.
+- **`ac-django`** — When the reviewed repo uses Django (check for `django` in dependencies or `manage.py`), load for Django-specific patterns and conventions.
 - **`ac-managing-repos`** — When the review scope includes multiple repos that share tooling (or a single repo known to have siblings), load for cross-repo infrastructure comparison (`.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, utility scripts). § 3.2b delegates to this skill automatically.
+
+**Companion loading is not optional when the condition matches.** If the reviewed code is Python, load `ac-python`. If it uses Django, load `ac-django`. Skipping companions leads to incomplete reviews — the reviewer misses framework-specific patterns that the companion skill would catch.
 
 ## Configuration: `~/.ac-reviewing-skills`
 
