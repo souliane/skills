@@ -124,6 +124,17 @@ User says: "Add a `LoanApplication` data model with validation"
 - [ ] boolean params preceded by `, *,`
 - [ ] `try` blocks and context managers are minimal (ideally one line each)
 
+### Architectural Health (Module-Level)
+
+Apply to **full files** touched by the diff, not just changed lines:
+
+- [ ] no module with >500 LOC (split by concern)
+- [ ] no module with >10 module-level functions (use classes)
+- [ ] module-level functions are justified — default is methods on a class
+- [ ] no god-module (single file mixing unrelated concerns — CLI wiring + business logic + subprocess management = split)
+- [ ] no complexity rule suppressions (`C901`, `PLR09xx`) in `pyproject.toml` beyond the `python-boilerplate` baseline
+- [ ] tests assert behavior through public interfaces, not by patching private functions or asserting subprocess command lists
+
 ### Testing
 
 #### Integration-First Testing (Non-Negotiable)

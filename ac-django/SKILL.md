@@ -2,6 +2,8 @@
 name: ac-django
 description: Definitive Django bible covering Django 6.x, 5.2 LTS, and optional DRF. Fat Models doctrine with migrations, transactions, security, testing, and tooling. Use when writing Django models, views, forms, serializers, migrations, tests, or reviewing Django code. Do NOT use for project-specific Django patterns (load the project overlay skill instead).
 compatibility: python3. Knowledge-only skill with no external tool requirements beyond a Django codebase.
+requires:
+  - ac-python
 metadata:
   version: 0.0.1
   subagent_safe: true
@@ -230,6 +232,16 @@ Expose domain methods that: validate state → perform mutation → persist chan
 - [ ] authz checked early
 - [ ] CSRF preserved
 - [ ] CSP configured correctly
+
+### Architectural Health (Module-Level)
+
+Apply to **full files** touched by the diff, not just changed lines:
+
+- [ ] Fat Model enforced: business logic on models/querysets, not in views/commands/CLI
+- [ ] views and management commands only orchestrate — no invariants, no workflow rules
+- [ ] no god-module (single file mixing unrelated concerns)
+- [ ] no complexity rule suppressions (`C901`, `PLR09xx`) in `pyproject.toml` beyond the `python-boilerplate` baseline
+- [ ] `services.py` only for external API orchestration (Stripe, AWS), never for domain logic
 
 ### Testing
 
