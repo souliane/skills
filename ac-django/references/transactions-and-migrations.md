@@ -120,6 +120,7 @@ Manual steps (when `django-linear-migrations` is not installed):
 - idempotent
 - no external API calls
 - chunk work to reduce lock time
+- **Never use `__latest__` in dependencies (Non-Negotiable).** Always pin to the explicit migration name (e.g., `("otherapp", "0090_descriptive_name")`). `__latest__` is re-resolved from files on disk at runtime — any new migration added to the dependency app after yours is applied will cause `InconsistentMigrationHistory` on every environment where your migration already ran.
 
 #### `apps.get_model()` results are classes — use PascalCase
 
