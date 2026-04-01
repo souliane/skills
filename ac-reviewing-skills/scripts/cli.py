@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# dependencies = []
+# dependencies = ["typer>=0.15"]
 # requires-python = ">=3.12"
 # ///
 """Minimal deterministic checks for skill repositories.
@@ -10,12 +10,12 @@ It intentionally checks just the structural fields that every skill should
 have: `name`, `description`, and `metadata.version`.
 """
 
-import argparse  # Intentionally not typer — this script has zero dependencies.
 import re
 import subprocess
-import sys
 from pathlib import Path
-from typing import cast
+from typing import Annotated, cast
+
+import typer
 
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.+?)\n---", re.DOTALL)
 REQUIRED_FRONTMATTER = ("name", "description")
@@ -129,12 +129,15 @@ def collect_files(root_dir: Path) -> dict[str, list[Path]]:
     return {"skills": skills}
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path, default=Path.cwd(), help="Repository root to check")
-    args = parser.parse_args(argv)
+app = typer.Typer(help="Deterministic checks for skill repositories.")
 
-    root_dir = args.root.resolve()
+
+@app.command()
+def check(
+    root: Annotated[Path, typer.Option(help="Repository root to check")] = Path.cwd(),
+) -> None:
+    """Validate SKILL.md frontmatter in a tracked skills repo."""
+    root_dir = root.resolve()
     files = collect_files(root_dir)
 
     findings: list[Finding] = []
@@ -145,11 +148,10 @@ def main(argv: list[str] | None = None) -> int:
         for finding in findings:
             print(finding)
         print("FAIL")
-        return 1
+        raise SystemExit(1)
 
     print("PASS")
-    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    app()

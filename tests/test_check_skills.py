@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from typer.testing import CliRunner
+
 CHECK_FRONTMATTER_DIR = Path(__file__).resolve().parents[1] / "ac-reviewing-skills" / "scripts"
 CHECK_FRONTMATTER_PATH = CHECK_FRONTMATTER_DIR / "cli.py"
 SPEC = importlib.util.spec_from_file_location("check_frontmatter", CHECK_FRONTMATTER_PATH)
@@ -89,8 +91,9 @@ class TestCollectFiles:
         assert any(path.name == "SKILL.md" for path in files["skills"])
 
 
-class TestMain:
+class TestCli:
     def test_pass_on_clean_repo(self, tmp_path: Path) -> None:
+
         skill_dir = tmp_path / "demo-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
@@ -98,12 +101,17 @@ class TestMain:
         )
         _run_git(tmp_path, "init")
         _run_git(tmp_path, "add", ".")
-        assert check_frontmatter.main(["--root", str(tmp_path)]) == 0
+        result = CliRunner().invoke(check_frontmatter.app, ["--root", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "PASS" in result.output
 
     def test_fail_on_errors(self, tmp_path: Path) -> None:
+
         skill_dir = tmp_path / "demo-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("# No frontmatter")
         _run_git(tmp_path, "init")
         _run_git(tmp_path, "add", ".")
-        assert check_frontmatter.main(["--root", str(tmp_path)]) == 1
+        result = CliRunner().invoke(check_frontmatter.app, ["--root", str(tmp_path)])
+        assert result.exit_code == 1
+        assert "FAIL" in result.output
