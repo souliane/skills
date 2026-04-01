@@ -11,6 +11,7 @@ metadata:
   version: 0.0.1
   subagent_safe: false
   last_research_date: "2026-03-14"
+  search_hints: [openclaw, self-hosted, ai-assistant, vps, deployment]
 ---
 
 # Bootstrap OpenClaw

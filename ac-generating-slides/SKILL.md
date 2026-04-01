@@ -5,6 +5,7 @@ compatibility: macOS/Linux, requires Marp CLI and a Chromium-based browser (Chro
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [slides, presentation, marp, deck, markdown-slides]
 ---
 
 # Generate Slides

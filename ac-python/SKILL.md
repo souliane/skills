@@ -5,6 +5,7 @@ compatibility: python3. Knowledge-only skill with no external tool requirements 
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [python, typing, pytest, testing, style, oop, scripts, cli]
 ---
 
 # Python Bible (Python 3.12+ baseline)

@@ -5,6 +5,7 @@ compatibility: macOS/Linux, Python 3.12+, uv, git.
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [scaffold, boilerplate, new-skill, template, create-repo]
 ---
 
 # Skill Repo Boilerplate

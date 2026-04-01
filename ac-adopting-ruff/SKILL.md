@@ -5,6 +5,7 @@ compatibility: Any Python project with pre-commit (prek). Knowledge-only skill.
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [ruff, linter, formatter, black, isort, flake8, pylint, migration]
 ---
 
 # Adopt Ruff

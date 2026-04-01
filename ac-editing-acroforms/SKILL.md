@@ -5,6 +5,7 @@ compatibility: macOS/Linux, python3, pypdf or pikepdf. Do NOT use pdfrw.
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [pdf, acroform, widget, form-field, pikepdf, pypdf]
 ---
 
 # AcroForm Editor

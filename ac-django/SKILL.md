@@ -7,6 +7,7 @@ requires:
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [django, drf, orm, models, migrations, views, serializers, forms, admin]
 ---
 
 # Django Bible (Django 6.x baseline · Django 5.2 deltas · optional DRF)
@@ -168,7 +169,7 @@ Some style choices are equally valid — the "right" answer depends on the team.
 
 - Only ask on the **first occurrence** in a project — never re-ask if already saved.
 - If a project overlay skill already documents the preference, treat that as the answer — don't ask again.
-- Save the answer as: `## Django Team Convention: <topic>` in the project's `MEMORY.md`.
+- Save the answer as a `project` type memory with a descriptive title (e.g., "Django team convention: LBYL for attribute checks").
 
 ## Fat Model Doctrine (where logic lives)
 

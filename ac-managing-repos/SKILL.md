@@ -5,6 +5,7 @@ compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv
 metadata:
   version: 0.1.0
   subagent_safe: false
+  search_hints: [repos, status, squash, backport, upgrade, dependencies, audit]
 ---
 
 # Managing Repos

@@ -5,6 +5,7 @@ compatibility: Any agent that can read/write files.
 metadata:
   version: 0.0.1
   subagent_safe: true
+  search_hints: [blog, article, devto, writing, social-media, promotion]
 ---
 
 # Blog Post
@@ -32,7 +33,7 @@ This skill is published in a public repository. It must **never** contain user-s
 
 When biographical context would improve the article, **ask the user** with a specific question. Example: "The intro would benefit from context about how you started using this tool — can you share a sentence or two?"
 
-Save user-provided biographical details to the agent's memory file for reuse in future articles.
+Save user-provided biographical details as a `user` type memory with a descriptive title for reuse in future articles.
 
 ### Humble, Non-Pretentious Tone (Non-Negotiable)
 
@@ -89,14 +90,7 @@ Before writing, collect:
 - **Key points** — what must the article cover? Let the user list them or extract from source material.
 - **Existing content** — are there README files, SKILL.md files, or documentation to base the article on?
 
-Save gathered preferences to the agent's memory file:
-
-```
-## Blog Post Preferences
-- Author intro: [what the user provided]
-- Default tone: [any specific preferences]
-- Preferred structure: [if stated]
-```
+Save gathered preferences as `user` type memories with descriptive titles (e.g., "Blog author intro: [summary]", "Blog preferred structure: [summary]").
 
 ### 2. Structure the Article
 
@@ -222,7 +216,7 @@ On first social media generation, ask:
 - "Do you have specific handles or hashtags you always include?"
 - "Any platforms where you prefer a specific tone?"
 
-Save answers to the agent's memory file for future use.
+Save answers as `user` type memories with descriptive titles for future use.
 
 ## Promotion Cache
 

@@ -5,6 +5,7 @@ compatibility: Any skills repo. Knowledge-only skill with no external tool requi
 metadata:
   version: 0.0.1
   subagent_safe: false
+  search_hints: [review, audit, quality, skill-review, best-practices]
 ---
 
 # Review Skillset
@@ -190,6 +191,18 @@ Do NOT silently keep optimizing skills. Present the findings to the user with:
 - A concrete alternative architecture sketch (what technology, what would move where)
 - An honest cost/benefit: what the migration buys vs. what it costs
 - The recommendation: "This system would benefit more from a rewrite of [X] than from further skill optimization"
+
+**Quantitative signals** (warnings, not hard failures — the reviewer makes the final call):
+
+| Signal | Threshold | What it means |
+|--------|-----------|---------------|
+| Prose-to-code ratio | >60% prose in a skill that has scripts | Core logic is interpreted, not executed — fragile under model variation |
+| Reference file count | >8 per skill | Diminishing returns on lazy loading; consider consolidating or splitting the skill |
+| SKILL.md body size | >500 lines or >2,000 tokens | Too much in the non-compactable layer; move content to reference files |
+| Refined-instruction count | Same prose instruction edited 3+ times | That instruction should be a script, not prose |
+| State store count | >5 independent stores that must stay in sync | Architecture has outgrown file-based coordination |
+
+These thresholds are calibration points, not pass/fail gates. A skill at 510 lines with good structure is fine. A skill at 400 lines where half the content is redundant is not.
 
 **This assessment is the single most valuable thing a reviewer can do** — incremental skill improvements compound, but they can never fix a paradigm mismatch. Catching this early saves weeks of wasted effort.
 
