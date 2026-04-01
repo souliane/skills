@@ -1,6 +1,6 @@
 ---
 name: ac-adopting-ruff
-description: Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with progressive per-rule enforcement via dedicated merge requests.
+description: Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with either progressive per-rule enforcement or changed-files-only gradual adoption.
 compatibility: Any Python project with pre-commit (prek). Knowledge-only skill.
 metadata:
   version: 0.0.1
@@ -15,7 +15,7 @@ Standalone. No dependencies on other skills.
 
 ## Overview
 
-Replace legacy Python linting (black, isort, flake8, pylint) with ruff as the **sole** linter and formatter. Enable ALL rules including preview, explicitly disable what fails, then enforce rules one MR at a time.
+Replace legacy Python linting (black, isort, flake8, pylint) with ruff as the **sole** linter and formatter. Enable ALL rules including preview, explicitly disable what fails, then enforce rules — either progressively (one MR per rule/batch) or by enabling all rules at once and checking only changed files.
 
 ## Principles
 
@@ -327,9 +327,9 @@ git push -f
 
 **Why `git add` during rebase:** After `git checkout --ours`, the files are still marked as conflicting. `git add .` marks them resolved so `git rebase --continue` can proceed.
 
-## Phase 2: Progressive Rule Enforcement
+## Phase 2: Rule Enforcement
 
-After bootstrap MR is merged.
+After the bootstrap MR is merged, choose an enforcement approach.
 
 ### 0. Ask the user
 
@@ -337,11 +337,140 @@ Before starting Phase 2, ask the user these questions (one at a time):
 
 1. **Which repo?** — the project directory containing `pyproject.toml` with the ruff config.
 
-2. **MR strategy?**
+2. **Enforcement approach?**
+   - **Changed files only (Recommended)** — enable all rules immediately, check only changed files in CI. Existing violations are fixed naturally as engineers touch files. One config-only MR, zero merge conflicts. Follow [Phase 2A](#phase-2a-changed-files-only).
+   - **Progressive enforcement** — fix violations across the codebase one rule/batch at a time via dedicated MRs. Predictable pace, but creates many MRs and merge conflicts on `pyproject.toml`. Follow [Phase 2B](#phase-2b-progressive-enforcement).
+
+## Phase 2A: Changed Files Only
+
+Goal: enable all rules immediately. Existing violations are fixed naturally as engineers touch files.
+
+This approach is ideal when:
+
+- Progressive enforcement creates too many MRs and merge conflicts
+- The team wants all rules active without a long migration
+- The codebase is large enough that dedicated enforcement MRs are disruptive
+
+### 1. Create worktree
+
+```bash
+git worktree add <project>-ruff-changed-only -b ruff-changed-only origin/main
+cd <project>-ruff-changed-only
+```
+
+### 2. Review permanently disabled rules
+
+Before clearing `lint.ignore`, review the list for rules that should **never** apply
+to this project. Move those to `lint.extend-ignore` with a comment explaining why.
+Common examples:
+
+- `CPY001` (missing-copyright-notice) — project doesn't use copyright headers
+- `INP001` (implicit-namespace-package) — project intentionally omits `__init__.py`
+
+### 3. Enable all rules
+
+Clear `lint.ignore` entirely — remove all Phase 2 queue rules:
+
+```toml
+# --- All rules active (violations checked on changed files only) ---
+lint.ignore = []
+```
+
+Keep `lint.extend-ignore` (permanently disabled + formatter-conflicting) and
+`lint.per-file-ignores` unchanged.
+
+### 4. Adapt CI to check changed files only
+
+The key: `ruff-check` runs only on files changed in the MR/branch.
+All other hooks (including `ruff-format`) still run on all files.
+
+Use the `SKIP` environment variable to exclude `ruff-check` from the
+`--all-files` run, then run `ruff-check` separately on changed files:
+
+```yaml
+# GitLab CI example
+variables:
+  GIT_DEPTH: "0"  # full history needed for accurate diff
+script:
+  - |
+    TARGET="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH:-main}}"
+    git fetch origin "$TARGET"
+    CHANGED_PY=$(git diff --name-only --diff-filter=d "origin/$TARGET...HEAD" -- '*.py')
+    if [ -n "$CHANGED_PY" ]; then
+      prek run ruff-check --files $CHANGED_PY
+    fi
+    SKIP=ruff-check prek run --all-files
+```
+
+**How this works:**
+
+- `prek run ruff-check --files <list>` — runs `ruff-check` on specific files only
+- `SKIP=ruff-check prek run --all-files` — runs every hook **except** `ruff-check` on all files
+- Locally, `prek` (without `--all-files`) already only checks staged files — no change needed
+
+**Adapt for your CI system:** Replace `CI_MERGE_REQUEST_TARGET_BRANCH_NAME` /
+`CI_DEFAULT_BRANCH` with your CI's equivalents (e.g., `GITHUB_BASE_REF` for
+GitHub Actions).
+
+### 5. Verify
+
+Run `prek` on a few changed files to confirm the new rules work:
+
+```bash
+prek run ruff-check --files $(git diff --name-only --diff-filter=d origin/main...HEAD -- '*.py')
+```
+
+Note: `prek run --all-files` **will fail** on the full codebase (existing violations) —
+this is expected and confirms rules are active.
+
+### 6. Create MR
+
+```text
+chore: enable all ruff rules, check changed files only
+
+- Clear lint.ignore — all rules now active
+- CI checks ruff-check on changed files only
+- Existing violations fixed naturally as files are touched
+- ruff-format and other hooks still run on all files
+```
+
+### 7. Message to colleagues
+
+```text
+This MR enables all remaining ruff lint rules. Existing code is not
+affected — ruff-check now only runs on files changed in each MR.
+
+Locally, pre-commit already only checks your staged files, so nothing
+changes in your workflow.
+
+In CI, if your MR touches a file with existing violations, you'll need
+to fix them. This is intentional — violations are cleaned up gradually
+as files are touched, without dedicated migration MRs.
+
+ruff-format and all other hooks still run on all files as before.
+```
+
+### Trade-offs
+
+| Aspect | Changed files only | Progressive enforcement |
+|--------|-------------------|------------------------|
+| Migration MRs | 1 (config only) | Many (one per rule/batch) |
+| Merge conflicts | None | Each MR conflicts on `pyproject.toml` |
+| Time to full coverage | Gradual (depends on file churn) | Predictable (you set the pace) |
+| Developer friction | Touching a file may surface unrelated violations | None (violations pre-fixed) |
+| Risk | Low (no auto-fix on untouched code) | Medium (auto-fix can change semantics) |
+
+## Phase 2B: Progressive Enforcement
+
+### 0. Ask the user (continued)
+
+Ask these additional questions (one at a time):
+
+1. **MR strategy?**
    - **One MR per rule** — clean git history, easy review, easy to revert. Best for high-risk or manual-fix rules.
    - **Grouped rules (Recommended)** — batch multiple rules into one MR until a change threshold is reached. Reduces MR overhead for low-risk auto-fixable rules.
 
-3. **Change threshold?** (only if grouped)
+2. **Change threshold?** (only if grouped)
    - Default: **50** changed lines per MR.
    - The agent enables rules one at a time, running `prek run --all-files` after each. If the cumulative number of changed lines stays below the threshold, the next rule is added to the same MR. Once the threshold is reached (or exceeded), the MR is finalized and a new one starts.
 

@@ -7,7 +7,7 @@ Skill-Driven Development
 <!-- BEGIN SKILLS -->
 | Skill | Version | Description |
 |-------|---------|-------------|
-| `ac-adopting-ruff` | — | Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with progressive per-rule enforcement via dedicated merge requests. |
+| `ac-adopting-ruff` | — | Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with either progressive per-rule enforcement or changed-files-only gradual adoption. |
 | `ac-django` | — | Definitive Django bible covering Django 6.x, 5.2 LTS, and optional DRF. Fat Models doctrine with migrations, transactions, security, testing, and tooling |
 | `ac-editing-acroforms` | — | Inspects, patches, verifies, or diffs AcroForm-based PDF templates — especially when widget geometry, content streams, or filled-output alignment need deterministic scriptable fixes. |
 | `ac-generating-slides` | — | Generates presentation slides from Markdown using Marp |
