@@ -13,12 +13,70 @@ The `name` and `description` fields are required by the [Agent Skills open stand
 | `compatibility` | No | Platforms and requirements (e.g., `macOS/Linux, Python 3.12+, uv, git`). |
 | `metadata.version` | No | SemVer string (e.g., `0.0.1`). |
 | `metadata.subagent_safe` | No | `true` only if the skill is pure methodology with no shell/MCP/env deps. |
+| `metadata.last_research_date` | No | ISO date (e.g., `"2026-03-14"`). For research-intensive skills where external tools, APIs, or installation procedures may change. Reviewers should flag skills whose research date is >6 months old. |
+| `when_to_use` | No | Free-text guidance shown alongside description in skill listing. The model reads this to decide when to invoke the skill. Claude Code's native skill discovery field. |
+| `allowed-tools` | No | Tools the skill grants access to. Supports `"*"` wildcard and brace expansion (`mcp__{a,b}__*`). |
+| `model` | No | Override model for this skill. `"inherit"` = use parent model. |
+| `effort` | No | Override reasoning effort level for this skill. |
+| `context` | No | `"fork"` runs the skill as an isolated sub-agent. |
+| `hooks` | No | Inline hooks — skill registers its own hooks for any Claude Code lifecycle event (PreToolUse, PostToolUse, FileChanged, etc.). |
+| `paths` | No | Glob patterns for conditional activation. Skill stays dormant until a file operation touches a matching path. |
+| `disable-model-invocation` | No | If `true`, the skill is excluded from the model's auto-discovery listing. Only invocable manually via `/skill-name`. |
+| `argument-hint` | No | Hint shown in typeahead for the skill's argument. |
+| `arguments` | No | Named arguments the skill accepts (e.g., `"url branch"`). |
 
 ## Body Size & Progressive Disclosure
 
-- Keep `SKILL.md` body under ~500 lines. Only include context the model does not already have.
+- Keep `SKILL.md` body under ~500 lines and under ~2,000 tokens. Only include context the model does not already have. Over that threshold, split into core SKILL.md + `references/` files.
 - Split detailed content into reference files one level deep (`references/`, `scripts/`). Avoid deeply nested chains — if reading the skill requires A -> B -> C to reach actual content, flatten it.
 - If contexts are mutually exclusive or rarely used together, keep them in separate files to reduce token usage.
+- **Token estimation:** `text.length / 4` gives a rough token count. A 8,000-character SKILL.md is ~2,000 tokens.
+
+## Compaction Survival
+
+Claude Code has two compaction mechanisms: **microcompaction** (lightweight — clears old tool results without summarizing) and **full auto-compact** (replaces the entire conversation with an LLM-generated summary at ~90% context usage). During full auto-compact, skill content loaded via the Skill tool is completely lost — replaced by the summary.
+
+- **Front-load non-negotiables.** The first ~100 lines of every SKILL.md should contain: all non-negotiable rules, the command reference, and the workflow summary. Put examples, verbose explanations, and edge cases after line 100. This matters because the auto-compact summary is more likely to retain content the model engaged with early.
+- **Include a reload directive.** At the end of the skill body, add: "If this skill was truncated during context compression, re-read it from disk." This gives the agent a recovery path.
+- **Reference files survive independently.** Content in `references/*.md` that the agent reads via the Read tool can be re-read on demand after compression. Content embedded inline in SKILL.md cannot.
+
+## Reference Content: Read Tool vs Embedding
+
+Agent platforms can surgically clear old Read tool results from context (microcompact), but content loaded via the Skill tool stays in context until full compression wipes everything.
+
+- **For content >1,500 tokens, put it in a `references/*.md` file** and instruct the agent to "Read `references/X.md`". This makes the content eligible for surgical cleanup when no longer needed.
+- **Keep only core instructions in SKILL.md** — non-negotiables, workflow steps, command reference. Move examples, code patterns, and detailed explanations to reference files.
+- This is already the pattern in some skills (`ac-django`'s 8 lazy-load references). The technical reason: Read results are recyclable, Skill results are not.
+- **Each reference file should start with a one-line purpose header** so the agent knows when to re-read it after compression (e.g., "# Django Model Patterns — read when working on models or migrations").
+
+## Deterministic Ordering & Cache Stability
+
+Agent platforms cache the conversation prefix server-side for performance. If content appears in a different order between interactions, the cache is invalidated — costing latency and money on every call.
+
+- **Load reference files in alphabetical order** (by filename) unless a specific order is required by the workflow.
+- **Static content before dynamic content.** When a skill reads both stable references (guidelines, architecture docs) and dynamic data (diffs, test output, API responses), read the stable references first. This maximizes the reusable cache prefix.
+- **Avoid reordering loaded content mid-session.** If you read `guidelines.md` then `patterns.md` at the start, maintain that order throughout.
+
+## Memory Conventions
+
+When a skill instructs the agent to save information for future sessions, use a consistent schema across all skills. This enables cross-skill memory access — a convention saved by one skill can be found and used by another.
+
+**Standard memory types** (match the agent platform's built-in types when available):
+
+| Type | When to use | Body structure |
+|------|-------------|---------------|
+| `user` | User's role, preferences, expertise | Free-form profile notes |
+| `feedback` | How-to-work guidance from the user | Rule, then `**Why:**` and `**How to apply:**` |
+| `project` | Ongoing work, goals, deadlines | Fact/decision, then `**Why:**` and `**How to apply:**` |
+| `reference` | Pointers to external resources | URL/location + when to consult it |
+
+**Conventions:**
+
+- Use a short, specific `description` on each memory entry — it is used for relevance matching when the platform selects which memories to load.
+- Do not save information that can be derived from the code, git history, or existing documentation.
+- When updating a convention previously saved by another skill, update in place rather than creating a duplicate.
+
+Skills should reference this schema rather than defining their own memory format. Instead of "save to MEMORY.md with `## Django Team Convention: <topic>`", say "save as a `project` memory with a descriptive title."
 
 ## Degrees of Freedom
 

@@ -141,14 +141,7 @@ repos:
       - id: safety
         name: safety
         language: system
-        entry: >
-          bash -c "
-          set -euo pipefail
-          tmp=$(mktemp)
-          trap 'rm -f \"$tmp\"' EXIT
-          uv export --no-hashes --dev -o \"$tmp\"
-          uv run safety check -r \"$tmp\" --full-report
-          "
+        entry: bash -c 'set -euo pipefail; tmp=$(mktemp); trap "rm -f $tmp" EXIT; uv export --no-hashes --dev -o "$tmp"; uv run safety check -r "$tmp" --full-report'
         pass_filenames: false
         files: ^(pyproject\.toml|uv\.lock)$
         stages: [commit, manual]

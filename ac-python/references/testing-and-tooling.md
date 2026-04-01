@@ -46,19 +46,28 @@ def test_invoice_total() -> None:
 
 ### Mock scoping
 
-Always scope `patch()` to the **module under test**, not the original definition site:
+**Prefer `patch.object` over string-based `patch` (Non-Negotiable).** String-based `patch("dotted.path")` silently succeeds even when the target was renamed or removed — the mock just patches a new attribute that nothing reads. `patch.object` validates the attribute exists at patch time, so stale patches fail immediately.
 
 ```python
-# WRONG — patches shutil.which globally (affects all imports)
-with patch("shutil.which", return_value=None):
+import mypackage.cli as cli_mod
+
+# WRONG — string path; silently succeeds even if shutil was removed from cli.py
+with patch("mypackage.cli.shutil.which", return_value=None):
     ...
 
-# RIGHT — patches only the reference in the module under test
-with patch("mypackage.cli.shutil.which", return_value=None):
+# RIGHT — fails immediately if cli_mod.shutil doesn't exist
+with patch.object(cli_mod.shutil, "which", return_value=None):
     ...
 ```
 
-The rule: patch where the name is **looked up**, not where it is **defined**. See [unittest.mock — where to patch](https://docs.python.org/3/library/unittest.mock.html#where-to-patch).
+Import the module under test at the top of the test file, then use `patch.object(module, "attr")`. For subprocess mocking: `patch.object(my_mod.subprocess, "run")`.
+
+When `patch.object` won't work (use string `patch` instead):
+
+- `patch("django.setup")` — patching a third-party module's own function, not an attribute on your code
+- `patch.dict(...)` — different API entirely
+
+The general rule still applies: patch where the name is **looked up**, not where it is **defined**. See [unittest.mock — where to patch](https://docs.python.org/3/library/unittest.mock.html#where-to-patch).
 
 ### Magic values in tests are fine
 
