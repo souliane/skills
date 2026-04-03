@@ -217,14 +217,18 @@ Skills don't exist in isolation — they reference, generate, or depend on exter
 **During discovery, build an inventory of managed assets:**
 
 1. **Scan each skill** for references to external files, repos, or config entries. Look for: file paths, repo names, env vars pointing to external locations, memory file entries, agent config instructions.
-2. **Classify each asset:**
+2. **Discover agent memory files dynamically.** Memory locations are platform-specific:
+   - **Claude Code:** glob `~/.claude/projects/*/memory/MEMORY.md` — each match is an index file pointing to individual memory files in the same directory.
+   - **Repo-level:** check for `CLAUDE.md`, `.cursorrules`, `AGENTS.md`, or similar agent config in the project root.
+   - Include all discovered files in the asset inventory for cross-review.
+3. **Classify each asset:**
    - **Owned by the skill** — generated or directly managed (e.g., hook configs, generated env files). Review as part of the skill.
    - **Referenced by the skill** — consumed but not owned (e.g., test repos, seed data, external tools). Read and cross-review for consistency, but **do not modify without asking the user**.
    - **Instructed by the skill** — the skill tells the agent to write to an external location (e.g., "add this to your memory file", "update the agent's config"). Verify the instructions are current and the target format is correct.
 
-3. **Cross-review for consolidation.** Knowledge often drifts between a skill and its managed assets — a memory file may contain stale rules that the skill has since updated, or a referenced repo may encode conventions that contradict the skill. Flag divergences. **Always ask before modifying external assets** — present the finding and the proposed consolidation, then wait for approval.
+4. **Cross-review for consolidation.** Knowledge often drifts between a skill and its managed assets — a memory file may contain stale rules that the skill has since updated, or a referenced repo may encode conventions that contradict the skill. Flag divergences. **Always ask before modifying external assets** — present the finding and the proposed consolidation, then wait for approval.
 
-4. **No asset-specific names in this skill.** Describe assets generically: "test helper repos", "agent memory files", "seed data repos" — never name specific repos, files, or projects. The inventory is built dynamically during each review from what the skills actually reference.
+5. **No asset-specific names in this skill.** Describe assets generically: "test helper repos", "agent memory files", "seed data repos" — never name specific repos, files, or projects. The inventory is built dynamically during each review from what the skills actually reference.
 
 ### 1.5 Cross-Skill Consistency Check (Non-Negotiable)
 
