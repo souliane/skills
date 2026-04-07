@@ -1,0 +1,248 @@
+---
+name: ac-reviewing-codebase
+description: Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting. Use when user says "review skills", "audit skills", "audit codebase", "code quality", "repo status", "what needs pushing", "align repos", "backport", "upgrade deps", "assess codebase", "health check", or wants a thorough quality pass on skills and/or code.
+compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv, Typer.
+metadata:
+  version: 0.2.0
+  subagent_safe: false
+---
+
+# Reviewing Codebase
+
+**Holistic** review of skills, code, and infrastructure across a portfolio of repos. Treats the entire portfolio as a connected system — the most dangerous bugs live at the seams: where one skill's output becomes another's input, where a skill describes code that has since changed, or where two repos encode the same convention differently. Cross-review is not just skill-vs-code — it's repo-vs-repo, skill-vs-skill, and code-vs-code across the full portfolio.
+
+## Dependencies
+
+Standalone. No hard dependencies on other skills.
+
+**Recommended companions (load during Phase 0 if applicable):**
+
+- **`ac-python`** — When the reviewed repo contains Python scripts or tests, load for its integration-first testing philosophy and code style guidelines.
+- **`ac-django`** — When the reviewed repo uses Django (check for `django` in dependencies or `manage.py`), load for Django-specific patterns and conventions.
+
+**Companion loading is not optional when the condition matches.** If the reviewed code is Python, load `ac-python`. If it uses Django, load `ac-django`. Skipping companions leads to incomplete reviews.
+
+## Configuration: `~/.ac-reviewing-codebase`
+
+On startup, load `~/.ac-reviewing-codebase` (hardcoded path) if it exists. Shell-sourceable config file with uppercase variable names.
+
+```bash
+# Regex matched against resolved skill paths.
+# Skills whose real path matches are owned by the user and can be modified.
+MAINTAINED_SKILLS="my-repo/|other-repo/internal/(my-skill/)"
+
+# Regex matched against repo paths relative to T3_WORKSPACE_DIR.
+# All git repos under T3_WORKSPACE_DIR whose relative path matches are managed.
+MANAGED_REPOS="<org>/(repo-a|repo-b|repo-c)$"
+
+# Boilerplate -> dependent repos mapping.
+# Format: boilerplate_name:dep1,dep2;boilerplate_name:dep1,dep2
+BOILERPLATE_MAP="<boilerplate-repo>:<dep-repo-1>,<dep-repo-2>"
+```
+
+| Variable | Purpose | Fallback when missing |
+|----------|---------|----------------------|
+| `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
+| `MANAGED_REPOS` | Regex to discover repos under `T3_WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
+| `BOILERPLATE_MAP` | Maps boilerplate repos to their dependents for backport workflow | No backporting |
+
+**Dependencies on other config files:**
+
+- **Workspace config** (e.g., `~/.teatree.toml` or equivalent) — `workspace_dir` (where to scan for repos), `auto_squash` (squash behavior). TOML format.
+
+**This file may be shared with a lifecycle tool** (which references it for workspace and ownership config). Users of such tools can generate it during setup. Otherwise, create it manually.
+
+## External References
+
+- [Anthropic Skill Authoring Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+- [Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+
+## Deterministic CLI
+
+Single entry point at [`scripts/cli.py`](scripts/cli.py).
+
+```bash
+# Validate SKILL.md frontmatter in a skills repo
+uv run ac-reviewing-codebase/scripts/cli.py check [--root PATH]
+
+# Show delivery status across all managed repos
+uv run ac-reviewing-codebase/scripts/cli.py status [--repo NAME] [--verbose]
+
+# Inventory config files and health checks
+uv run ac-reviewing-codebase/scripts/cli.py config
+
+# Run deterministic codebase metrics → JSON
+uv run ac-reviewing-codebase/scripts/cli.py assess [--root PATH] [--json]
+```
+
+In this repo's pre-commit hook, the `check` command runs automatically. When reviewing another repo interactively, call explicitly before the deeper review.
+
+## Quality Principles
+
+Read [`references/quality-principles.md`](references/quality-principles.md) before starting any review. Defines the 8 principles every skill and codebase is evaluated against: Reliability, Robustness, Platform Independence, Automation & Escalation, Agent Agnosticism, Self-Improvement, Paradigm Fitness, and Skill vs Model Balance.
+
+## Rules
+
+1. **Parallelize with sub-agents where safe.** Independent review tasks — e.g., grepping for stale references across separate repos, running lint checks, counting TODOs — can be dispatched to sub-agents in parallel. But **judgment-heavy work** (architectural assessment, cross-review at seams, deciding what to consolidate) must stay in the main conversation where full skill context, MCP access, and shell functions are available.
+2. **Work on the source repo** (git-tracked), never on symlink targets under the agent runtime's skills directory.
+3. **Be thorough, not fast.** Resist the urge to rush to completion. Each phase exists for a reason.
+4. **Ask when ambiguous (Non-Negotiable).** When you encounter an unclear design decision, ambiguous scope, or a choice with multiple valid options — **stop and ask the user**. In checker mode, mark ambiguous items as errors and `FAIL`.
+5. **Generic vocabulary only.** Use terms like "project-specific skills", "generic/framework skills", "lifecycle skills" — never hardcode actual skill names in this file.
+6. **Consolidate aggressively.** Critical operational knowledge gets ignored when buried in project-specific playbooks. The reviewer must actively hunt for buried knowledge and surface it.
+7. **Respect content publication status.** When `draft: false`, content is published and **must not be modified** — flag issues but do not edit.
+8. **This skill is meta — it must remain agnostic.** No specific skill names, project names, repo structures, or tool stacks. Works for any portfolio.
+9. **Implement, don't postpone (Non-Negotiable).** When review identifies concrete improvements, implement them in the same session. TODO comments are postponement.
+10. **Factorize aggressively.** Duplicated logic across scripts, repos, or skills is a finding. Extract to a shared module, tool, or reference file. When unsure whether duplication is intentional — **ask the user**.
+11. **Documentation must be current or auto-generated.** Check that docs (README, BLUEPRINT, generated API docs) are up to date with the code. If manually maintained, flag drift. If auto-generated, verify the generation hook exists in pre-commit or CI. Missing auto-generation for documentation that should be generated is a finding.
+
+---
+
+## Review Phases
+
+```mermaid
+flowchart LR
+    P0["**0** Prerequisites"] --> P1["**1** Discovery &<br/>Architecture"]
+    P1 --> P2["**2** Content<br/>Review"]
+    P2 --> P3["**3** Technical<br/>Review"]
+    P3 --> P4["**4** Quality<br/>Review"]
+    P4 --> PA["**A** Codebase<br/>Assessment"]
+    PA --> P5["**5** Plan &<br/>Implement"]
+    P5 --> P6["**6** Regression<br/>& Delivery"]
+    P6 -.->|iterate| P1
+```
+
+## Phase 0 — Prerequisites
+
+Before starting the review:
+
+1. **Verify git-tracked source repos.** For each repo in scope, confirm skill directories are git-tracked sources, not symlink targets. When the user's cwd is a parent of multiple skill repos (not itself a repo), verify each child repo individually.
+2. **Symlink health check.** Scan agent skill directories for **maintained skills** (matching `MAINTAINED_SKILLS` regex) that are managed installs instead of live clone symlinks. Report stale installs.
+3. **Check for unstaged changes.** Run `git status` in each skills repo. If there are uncommitted changes, **commit them before starting** — keeps review changes cleanly separated.
+4. **Determine review scope.** Use `MAINTAINED_SKILLS` from config to discover all repos and skills in scope. List discovered skills grouped by repo and ask the user to confirm or narrow.
+5. **Discover agent memory and config files dynamically.** Scan platform-specific locations (e.g., `~/.claude/projects/*/memory/`, `~/.codex/`, `~/.cursor/`) for memory files. Check for repo-level agent config (`AGENTS.md`, `.cursorrules`, or similar) in each project root. Include all discovered files in the asset inventory for cross-review.
+6. **Read all selected skills fully.** Load every `SKILL.md`, every reference, every script, every hook config. Do not skim.
+
+---
+
+## Phase 1 — Discovery & Architecture
+
+**Review skills in context.** When reviewing multiple skills, treat them as a connected system. When reviewing a single skill, still check its connections.
+
+### 1.1–1.5: Skill & Code Architecture
+
+- **1.1 Dependency graph.** Build the dependency graph between skills and their neighbors. Check coupling direction: generic skills must NOT import project-specific skills.
+- **1.2 Architecture assessment.** Is the skill/code decomposition optimal? Merges, splits, restructuring? Medium assessment: >60% deterministic procedures → toolification candidate.
+- **1.3 Dependency documentation.** Every skill must declare dependencies or state "Standalone."
+- **1.4 Managed assets inventory.** Build an inventory of external assets (configs, repos, memory files, hooks). Classify: owned, referenced, instructed.
+- **1.5 Cross-skill/cross-module consistency.** Grep for shared patterns across all skills and code repos. Same concept with different names in different places = stale.
+
+### 1.6: Cross-Review — Holistic Consistency (Non-Negotiable)
+
+**This is the key differentiator of this skill.** The review is holistic — it crosses ALL boundaries: skill-vs-code, skill-vs-skill, code-vs-code, and repo-vs-repo. Every artifact in the portfolio is checked against every other artifact it interacts with.
+
+**Skill ↔ Code:**
+
+1. **Skill → Code verification.** For every skill that references CLI commands, API patterns, file paths, or code conventions — verify those references against the actual codebase. Run the commands. Check the paths exist. If a skill says "run `tool setup`", verify that command exists and works as described.
+2. **Code → Skill verification.** For code patterns that should be governed by skills (testing conventions, commit workflows, deployment procedures) — verify the skill accurately describes current behavior. If the code has changed since the skill was written, one of them is stale.
+
+**Repo ↔ Repo:**
+
+3. **Cross-repo convention alignment.** When multiple repos encode the same convention (branch naming, commit message format, test structure, CI pipeline steps), verify they agree. Divergence between repos is the most common source of "it works in repo A but breaks in repo B."
+4. **Shared dependency contracts.** When repos share libraries, APIs, or data formats — verify the producer and consumer agree on the contract. Check version compatibility across repos.
+
+**Boilerplate Factorization (Non-Negotiable):**
+
+5. **Extract common patterns to boilerplate.** When 2+ repos contain the same config, script, CI pipeline, or project structure — this is a boilerplate extraction candidate. The shared pattern should live in a boilerplate repo and be propagated to dependents, not copy-pasted. Flag every instance and propose extraction.
+6. **Align existing copies.** When boilerplate repos already exist, verify that dependent repos stay aligned. Drift between a boilerplate and its dependents is a finding — either backport the change or document why the dependent diverges. Unjustified divergence = stale copy.
+7. **Maximize similarity across components.** Even when full factorization into a boilerplate isn't practical, repos that serve similar roles (e.g., multiple microservices, multiple skill repos) should be as similar as possible: same directory structure, same CI config shape, same tooling versions, same pre-commit hooks. Gratuitous differences increase cognitive load and hide real differences that matter.
+
+**Seam Verification:**
+
+8. **Contract verification at seams.** Where one skill produces output consumed by another (or by code), verify the producer's output format matches the consumer's expected input. Trace the full lifecycle at every handoff point.
+9. **Naming consistency.** Grep for key terms (branch names, CLI commands, function names, status labels) across ALL skills AND code repos in scope. Same concept with different names = stale reference.
+
+### 1.7: Silenced Quality Detection (Non-Negotiable)
+
+**Hunt for manually suppressed code quality signals** — lowered coverage thresholds, `# noqa` suppressions, excluded files from pre-commit, relaxed per-file-ignores, missing hooks, companion skill violations. See [`references/review-phases.md`](references/review-phases.md) § 3.14 for the full checklist.
+
+---
+
+## Phases 2–4 — Content, Technical & Quality Review
+
+Read [`references/review-phases.md`](references/review-phases.md) for the full checklists. Summary:
+
+- **Phase 2 — Content Review:** Duplication & diverged copies, conciseness, self-sufficiency & knowledge placement, cross-repo memory scan, skill ↔ repo config boundary, information boundaries, knowledge consolidation, cross-references, no hardcoded paths, guardrail classification, multi-layer overlap.
+- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**.
+- **Phase 4 — Quality Review:** Production-grade standard, attribution, agent agnosticism, attention to detail, formatting consistency, skill authoring best practices.
+
+---
+
+## Phase A — Codebase Assessment
+
+Deterministic metrics + LLM architectural judgment. Read [`references/codebase-assessment.md`](references/codebase-assessment.md) for the full methodology.
+
+**Quick summary:**
+
+1. **Run deterministic metrics** via `scripts/cli.py assess`. Collects: ruff violations, test coverage gaps, cyclomatic complexity, TODO/FIXME counts, dependency staleness.
+2. **Architectural judgment** (LLM-driven): naming consistency, separation of concerns, abstraction quality, module boundaries, coupling analysis.
+3. **Output:** Three scores (cleanliness, maintainability, architecture, each 1–10) + ranked improvement list with impact/effort/affected files.
+4. **Action items are primary, scores are secondary.** Nobody acts on "architecture is a 6." They act on "extract payment logic from the view layer (high impact, medium effort, 4 files)."
+
+---
+
+## Phase 5 — Plan & Implement
+
+### 5.1 Change Plan
+
+Compile all findings from Phases 1–4 + A into a structured change plan. Group by repo and type.
+
+### 5.2 Progressive Clarification (Non-Negotiable)
+
+Present non-ambiguous items as "will do." For ambiguous items, ask **one question at a time**. Never dump a wall of questions.
+
+### 5.3 Implementation
+
+- **Ownership check before each file edit (Non-Negotiable):** Resolve real path and check against `MAINTAINED_SKILLS`. Ask if not matched.
+- Implement all approved changes. After each logical group, briefly summarize.
+
+---
+
+## Phase 6 — Regression & Delivery
+
+### 6.1–6.5: Regression Review
+
+Commit, second pass, pre-commit verification, final commit, definition of done. See [`references/review-phases.md`](references/review-phases.md).
+
+**"Done" means re-running this review on the same scope produces zero new findings.**
+
+### 6.6: Squash Own Commits
+
+Before delivery, squash review-related commits into clean, human-sized units. See [`references/repo-management.md`](references/repo-management.md) § Squash & Prepare for the canonical rules.
+
+### 6.7: Delivery Status & Push
+
+Run delivery status across all managed repos. Offer to proceed to push. See [`references/repo-management.md`](references/repo-management.md) § Delivery Status.
+
+### 6.8: Retro & Iteration
+
+Run the retro skill (if available) to capture meta-improvements. If the user requests iteration, loop back to Phase 1.
+
+---
+
+## Repo Management Workflows
+
+These workflows can be invoked standalone or as part of a full review. Read [`references/repo-management.md`](references/repo-management.md) for full details.
+
+| Workflow | Purpose |
+|----------|---------|
+| **Delivery Status** | Quick overview of unpushed commits, dirty files, branches, stashes across all managed repos |
+| **Squash & Prepare** | Squash related unpushed commits into clean units. Canonical source of squash rules. |
+| **Infrastructure Audit** | Compare and harmonize `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig` across repos |
+| **Boilerplate Backport** | Propagate changes from boilerplate repos to dependents |
+| **Architectural Health Check** | Dependency audit, cross-repo code analysis, tech stack review, consolidation recommendations |
+
+---
+
+## Skill Authoring Best Practices
+
+When reviewing skill files, evaluate against [`references/skill-authoring-best-practices.md`](references/skill-authoring-best-practices.md), which consolidates Anthropic's official spec and community recommendations.

@@ -131,7 +131,7 @@ repos:
       - id: check-skills
         name: check-skills
         language: system
-        entry: uv run ac-reviewing-skills/scripts/cli.py
+        entry: uv run ac-reviewing-codebase/scripts/cli.py check
         pass_filenames: false
         always_run: true
 

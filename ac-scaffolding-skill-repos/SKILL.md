@@ -133,7 +133,7 @@ Ask the user **one question at a time** (wait for each answer before asking the 
 
 ### 3. SKILL.md
 
-Copy [`references/templates/SKILL.md.template`](references/templates/SKILL.md.template) and fill placeholders. See the [frontmatter spec](../ac-reviewing-skills/references/skill-authoring-best-practices.md) for required fields.
+Copy [`references/templates/SKILL.md.template`](references/templates/SKILL.md.template) and fill placeholders. See the [frontmatter spec](../ac-reviewing-codebase/references/skill-authoring-best-practices.md) for required fields.
 
 Key authoring guidelines:
 
@@ -259,4 +259,4 @@ Compare hooks against the template in § 5:
 
 ## References
 
-- [Skill Authoring Best Practices](../ac-reviewing-skills/references/skill-authoring-best-practices.md) — consolidated authoring guidelines with external references
+- [Skill Authoring Best Practices](../ac-reviewing-codebase/references/skill-authoring-best-practices.md) — consolidated authoring guidelines with external references

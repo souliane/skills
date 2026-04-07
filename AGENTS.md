@@ -32,7 +32,7 @@ All scripts must follow these conventions:
 
 - Run: `uv run pytest`
 - Pre-commit: `prek run --all-files`
-- Frontmatter validation: `uv run ac-reviewing-skills/scripts/cli.py`
+- Frontmatter validation: `uv run ac-reviewing-codebase/scripts/cli.py check`
 
 ## Skill Design Principles
 
