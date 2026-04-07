@@ -1,4 +1,4 @@
-"""Tests for ac-managing-repos CLI."""
+"""Tests for repo management functions in ac-reviewing-codebase CLI."""
 
 import importlib.util
 import shutil
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-CLI_PATH = Path(__file__).resolve().parents[2] / "ac-managing-repos" / "scripts" / "cli.py"
-SPEC = importlib.util.spec_from_file_location("managing_repos_cli", CLI_PATH)
+CLI_PATH = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts" / "cli.py"
+SPEC = importlib.util.spec_from_file_location("reviewing_codebase_cli", CLI_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
 cli = importlib.util.module_from_spec(SPEC)
@@ -183,35 +183,35 @@ class TestParseBoilerplateMap:
 class TestGitHelpers:
     def test_git_output_returns_stdout(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        branch = cli.git_output(repo, "branch", "--show-current")
+        branch = cli._git_output(repo, "branch", "--show-current")
         assert branch in {"main", "master"}
 
     def test_git_ok_returns_true_for_valid_command(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        assert cli.git_ok(repo, "status") is True
+        assert cli._git_ok(repo, "status") is True
 
     def test_git_ok_returns_false_for_invalid_ref(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        assert cli.git_ok(repo, "rev-parse", "--verify", "nonexistent") is False
+        assert cli._git_ok(repo, "rev-parse", "--verify", "nonexistent") is False
 
     def test_get_unpushed_no_upstream(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        result = cli.get_unpushed(repo)
+        result = cli._get_unpushed(repo)
         assert len(result) == 1
         assert result[0].startswith("(no upstream")
 
     def test_get_dirty_count_clean(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        assert cli.get_dirty_count(repo) == 0
+        assert cli._get_dirty_count(repo) == 0
 
     def test_get_dirty_count_with_changes(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
         (repo / "new.txt").write_text("dirty", encoding="utf-8")
-        assert cli.get_dirty_count(repo) == 1
+        assert cli._get_dirty_count(repo) == 1
 
     def test_get_stale_branches_none_on_fresh_repo(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        assert cli.get_stale_branches(repo) == []
+        assert cli._get_stale_branches(repo) == []
 
     def test_get_stale_branches_detects_merged(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
@@ -221,7 +221,7 @@ class TestGitHelpers:
         _run_git(repo, "commit", "-m", "feat")
         _run_git(repo, "checkout", "main")
         _run_git(repo, "merge", "feature")
-        stale = cli.get_stale_branches(repo)
+        stale = cli._get_stale_branches(repo)
         assert "feature" in stale
 
 
@@ -248,27 +248,34 @@ class TestBuildAndFormatStatus:
         assert info["dirty"] == 1
 
     def test_format_clean(self) -> None:
-        info = {"n_unpushed": 0, "dirty": 0, "stale": [], "no_upstream": False}
+        info = {"n_unpushed": 0, "dirty": 0, "stale": [], "no_upstream": False, "stashes": 0, "other_branches": []}
         assert cli._format_status(info) == "[green]clean[/green]"
 
     def test_format_needs_push(self) -> None:
-        info = {"n_unpushed": 2, "dirty": 0, "stale": [], "no_upstream": False}
+        info = {"n_unpushed": 2, "dirty": 0, "stale": [], "no_upstream": False, "stashes": 0, "other_branches": []}
         assert "needs push" in cli._format_status(info)
 
     def test_format_dirty(self) -> None:
-        info = {"n_unpushed": 0, "dirty": 3, "stale": [], "no_upstream": False}
+        info = {"n_unpushed": 0, "dirty": 3, "stale": [], "no_upstream": False, "stashes": 0, "other_branches": []}
         assert "dirty" in cli._format_status(info)
 
     def test_format_no_upstream(self) -> None:
-        info = {"n_unpushed": 0, "dirty": 0, "stale": [], "no_upstream": True}
+        info = {"n_unpushed": 0, "dirty": 0, "stale": [], "no_upstream": True, "stashes": 0, "other_branches": []}
         assert "no upstream" in cli._format_status(info)
 
     def test_format_stale(self) -> None:
-        info = {"n_unpushed": 0, "dirty": 0, "stale": ["old-branch"], "no_upstream": False}
+        info = {
+            "n_unpushed": 0,
+            "dirty": 0,
+            "stale": ["old-branch"],
+            "no_upstream": False,
+            "stashes": 0,
+            "other_branches": [],
+        }
         assert "stale" in cli._format_status(info)
 
     def test_format_combined(self) -> None:
-        info = {"n_unpushed": 1, "dirty": 2, "stale": ["x"], "no_upstream": False}
+        info = {"n_unpushed": 1, "dirty": 2, "stale": ["x"], "no_upstream": False, "stashes": 0, "other_branches": []}
         result = cli._format_status(info)
         assert "needs push" in result
         assert "dirty" in result

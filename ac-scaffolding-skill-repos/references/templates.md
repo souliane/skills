@@ -17,7 +17,7 @@ Templates for scaffolding a new skill repo. Each template is a real file that ca
 
 ## SKILL.md Frontmatter
 
-See [`ac-reviewing-skills/references/skill-authoring-best-practices.md`](../../ac-reviewing-skills/references/skill-authoring-best-practices.md) § Frontmatter Spec for the full field reference.
+See [`ac-reviewing-codebase/references/skill-authoring-best-practices.md`](../../ac-reviewing-codebase/references/skill-authoring-best-practices.md) § Frontmatter Spec for the full field reference.
 
 ## Pinning Strategy
 

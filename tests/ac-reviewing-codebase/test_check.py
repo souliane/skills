@@ -5,7 +5,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-CHECK_FRONTMATTER_DIR = Path(__file__).resolve().parents[1] / "ac-reviewing-skills" / "scripts"
+from typer.testing import CliRunner
+
+CHECK_FRONTMATTER_DIR = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts"
 CHECK_FRONTMATTER_PATH = CHECK_FRONTMATTER_DIR / "cli.py"
 SPEC = importlib.util.spec_from_file_location("check_frontmatter", CHECK_FRONTMATTER_PATH)
 assert SPEC is not None
@@ -61,17 +63,17 @@ class TestCheckFrontmatter:
             "demo-skill",
             "---\nname: demo-skill\ndescription: Desc\nmetadata:\n  version: 0.0.1\n---\n",
         )
-        assert check_frontmatter.check_frontmatter(tmp_path, [skill_md]) == []
+        assert check_frontmatter._check_frontmatter(tmp_path, [skill_md]) == []
 
     def test_missing_frontmatter_fails(self, tmp_path: Path) -> None:
         skill_md = _make_skill(tmp_path, "demo-skill", "# No frontmatter")
-        findings = check_frontmatter.check_frontmatter(tmp_path, [skill_md])
+        findings = check_frontmatter._check_frontmatter(tmp_path, [skill_md])
         assert len(findings) == 1
         assert "missing or invalid" in findings[0].message
 
     def test_missing_metadata_version_fails(self, tmp_path: Path) -> None:
         skill_md = _make_skill(tmp_path, "demo-skill", "---\nname: demo-skill\ndescription: Desc\n---\n")
-        findings = check_frontmatter.check_frontmatter(tmp_path, [skill_md])
+        findings = check_frontmatter._check_frontmatter(tmp_path, [skill_md])
         assert len(findings) == 1
         assert "metadata.version" in findings[0].message
 
@@ -85,12 +87,13 @@ class TestCollectFiles:
         )
         _run_git(tmp_path, "init")
         _run_git(tmp_path, "add", ".")
-        files = check_frontmatter.collect_files(tmp_path.resolve())
+        files = check_frontmatter._collect_files(tmp_path.resolve())
         assert any(path.name == "SKILL.md" for path in files["skills"])
 
 
-class TestMain:
+class TestCli:
     def test_pass_on_clean_repo(self, tmp_path: Path) -> None:
+
         skill_dir = tmp_path / "demo-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
@@ -98,12 +101,17 @@ class TestMain:
         )
         _run_git(tmp_path, "init")
         _run_git(tmp_path, "add", ".")
-        assert check_frontmatter.main(["--root", str(tmp_path)]) == 0
+        result = CliRunner().invoke(check_frontmatter.app, ["check", "--root", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "PASS" in result.output
 
     def test_fail_on_errors(self, tmp_path: Path) -> None:
+
         skill_dir = tmp_path / "demo-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("# No frontmatter")
         _run_git(tmp_path, "init")
         _run_git(tmp_path, "add", ".")
-        assert check_frontmatter.main(["--root", str(tmp_path)]) == 1
+        result = CliRunner().invoke(check_frontmatter.app, ["check", "--root", str(tmp_path)])
+        assert result.exit_code == 1
+        assert "FAIL" in result.output

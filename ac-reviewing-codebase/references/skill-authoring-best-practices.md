@@ -14,12 +14,12 @@ The `name` and `description` fields are required by the [Agent Skills open stand
 | `metadata.version` | No | SemVer string (e.g., `0.0.1`). |
 | `metadata.subagent_safe` | No | `true` only if the skill is pure methodology with no shell/MCP/env deps. |
 | `metadata.last_research_date` | No | ISO date (e.g., `"2026-03-14"`). For research-intensive skills where external tools, APIs, or installation procedures may change. Reviewers should flag skills whose research date is >6 months old. |
-| `when_to_use` | No | Free-text guidance shown alongside description in skill listing. The model reads this to decide when to invoke the skill. Claude Code's native skill discovery field. |
+| `when_to_use` | No | Free-text guidance shown alongside description in skill listing. The model reads this to decide when to invoke the skill. Some platforms use this as a native discovery field. |
 | `allowed-tools` | No | Tools the skill grants access to. Supports `"*"` wildcard and brace expansion (`mcp__{a,b}__*`). |
 | `model` | No | Override model for this skill. `"inherit"` = use parent model. |
 | `effort` | No | Override reasoning effort level for this skill. |
 | `context` | No | `"fork"` runs the skill as an isolated sub-agent. |
-| `hooks` | No | Inline hooks — skill registers its own hooks for any Claude Code lifecycle event (PreToolUse, PostToolUse, FileChanged, etc.). |
+| `hooks` | No | Inline hooks — skill registers its own hooks for agent lifecycle events (e.g., pre/post tool use, file changed). Event names are platform-specific. |
 | `paths` | No | Glob patterns for conditional activation. Skill stays dormant until a file operation touches a matching path. |
 | `disable-model-invocation` | No | If `true`, the skill is excluded from the model's auto-discovery listing. Only invocable manually via `/skill-name`. |
 | `argument-hint` | No | Hint shown in typeahead for the skill's argument. |
@@ -34,20 +34,19 @@ The `name` and `description` fields are required by the [Agent Skills open stand
 
 ## Compaction Survival
 
-Claude Code has two compaction mechanisms: **microcompaction** (lightweight — clears old tool results without summarizing) and **full auto-compact** (replaces the entire conversation with an LLM-generated summary at ~90% context usage). During full auto-compact, skill content loaded via the Skill tool is completely lost — replaced by the summary.
+Agent platforms compress conversation context as it grows. Mechanisms vary (lightweight cleanup of old tool results, full summarization, sliding window), but the risk is the same: skill content loaded early in the session may be lost or summarized.
 
-- **Front-load non-negotiables.** The first ~100 lines of every SKILL.md should contain: all non-negotiable rules, the command reference, and the workflow summary. Put examples, verbose explanations, and edge cases after line 100. This matters because the auto-compact summary is more likely to retain content the model engaged with early.
+- **Front-load non-negotiables.** The first ~100 lines of every SKILL.md should contain: all non-negotiable rules, the command reference, and the workflow summary. Put examples, verbose explanations, and edge cases after line 100. Summaries are more likely to retain content the model engaged with early.
 - **Include a reload directive.** At the end of the skill body, add: "If this skill was truncated during context compression, re-read it from disk." This gives the agent a recovery path.
-- **Reference files survive independently.** Content in `references/*.md` that the agent reads via the Read tool can be re-read on demand after compression. Content embedded inline in SKILL.md cannot.
+- **Reference files survive independently.** Content in `references/*.md` that the agent reads on demand can be re-read after compression. Content embedded inline in SKILL.md may not survive.
 
-## Reference Content: Read Tool vs Embedding
+## Reference Content: Lazy Loading vs Embedding
 
-Agent platforms can surgically clear old Read tool results from context (microcompact), but content loaded via the Skill tool stays in context until full compression wipes everything.
+Some agent platforms can selectively clear old file-read results from context, but content embedded in the skill body stays loaded until full compression.
 
-- **For content >1,500 tokens, put it in a `references/*.md` file** and instruct the agent to "Read `references/X.md`". This makes the content eligible for surgical cleanup when no longer needed.
+- **For content >1,500 tokens, put it in a `references/*.md` file** and instruct the agent to read it on demand. This makes the content eligible for selective cleanup when no longer needed.
 - **Keep only core instructions in SKILL.md** — non-negotiables, workflow steps, command reference. Move examples, code patterns, and detailed explanations to reference files.
-- This is already the pattern in some skills (`ac-django`'s 8 lazy-load references). The technical reason: Read results are recyclable, Skill results are not.
-- **Each reference file should start with a one-line purpose header** so the agent knows when to re-read it after compression (e.g., "# Django Model Patterns — read when working on models or migrations").
+- **Each reference file should start with a one-line purpose header** so the agent knows when to re-read it after compression (e.g., "# Model Patterns — read when working on models or migrations").
 
 ## Deterministic Ordering & Cache Stability
 
