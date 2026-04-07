@@ -446,7 +446,18 @@ def _count_lint_violations(root: Path) -> dict[str, object]:
 
 def _count_todos(root: Path) -> dict[str, object]:
     result = _run_tool(
-        ["grep", "-rn", r"TODO\|FIXME\|HACK\|XXX", "--include=*.py", "--include=*.ts", "--include=*.js", "."],
+        [
+            "grep",
+            "-rn",
+            r"TODO\|FIXME\|HACK\|XXX",
+            "--include=*.py",
+            "--include=*.ts",
+            "--include=*.js",
+            "--exclude-dir=.venv",
+            "--exclude-dir=node_modules",
+            "--exclude-dir=.tox",
+            ".",
+        ],
         cwd=root,
     )
     lines = result.stdout.strip().splitlines() if result.stdout else []
@@ -499,7 +510,10 @@ def _count_suppressions(root: Path) -> dict[str, int]:
         "pragma_no_cover": r"# pragma: no cover",
     }
     for name, pattern in patterns.items():
-        result = _run_tool(["grep", "-rn", pattern, "--include=*.py", "."], cwd=root)
+        result = _run_tool(
+            ["grep", "-rn", pattern, "--include=*.py", "--exclude-dir=.venv", "--exclude-dir=node_modules", "."],
+            cwd=root,
+        )
         lines = result.stdout.strip().splitlines() if result.stdout else []
         if lines:
             counts[name] = len(lines)
