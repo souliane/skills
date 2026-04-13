@@ -19,13 +19,13 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 
 > **OpenClaw** was originally published in November 2025 by Peter Steinberger as "Clawdbot", renamed "Moltbot" on 2026-01-27 (Anthropic trademark), then "OpenClaw" on 2026-01-30. MIT-licensed. 247k+ GitHub stars as of 2026-03.
 
-## Versions (as of 2026-03-14)
+## Versions (baseline refreshed 2026-04-13)
 
 | Component | Version | Notes |
 |-----------|---------|-------|
 | OpenClaw | v2026.3.13 (stable, 2026-03-14) | Releases use `vYYYY.M.D` scheme |
 | Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | Minimum: >=22.16; recommended: 24 LTS |
-| signal-cli | v0.14.1 (2025-03-08) | Requires Java 25+; **no official ARM64 native binary** — use JVM variant on aarch64 |
+| signal-cli | v0.14.2 | Checked 2026-04-13; requires Java 25+; **no official ARM64 native binary** — use JVM variant on aarch64 |
 | Tailscale | Latest stable | Free Personal plan (3 users, 100 devices). Serve = free. Funnel = Premium only ($18/user/mo) |
 | Ollama | Latest stable | Native ARM64 support. CPU-only unless the server has a GPU |
 | Caddy | Latest stable | Alternative to Tailscale for HTTPS reverse proxy |
