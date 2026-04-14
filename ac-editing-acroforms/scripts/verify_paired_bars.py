@@ -14,6 +14,7 @@ Usage:
 
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -265,7 +266,7 @@ def main(
         else:
             contents.write(fixed.encode("latin-1"))
 
-        out_path = Path(output) if output else Path("/tmp/_paired_fix.pdf")  # noqa: S108
+        out_path = Path(output) if output else Path(tempfile.gettempdir()) / "_paired_fix.pdf"
         pdf_doc.save(out_path, recompress_flate=True)
         print(f"Fixed PDF saved to {out_path}")
         if not output:

@@ -13,12 +13,26 @@ import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import typer
 
 QUEUE_START = "# --- To enforce:"
 QUEUE_END = "# --- Permanently disabled"
+
+
+@dataclass
+class ScanResults:
+    queue: list[str]
+    fixable: Counter[str]
+    manual: Counter[str]
+    files_per_rule: defaultdict[str, set[str]]
+    zero: list[str]
+    auto_only: list[str]
+    mixed: list[str]
+    manual_only: list[str]
+    counts: Counter[str] = field(default_factory=Counter)
 
 
 def _extract_queue_rules(toml_content: str) -> list[str]:
@@ -60,6 +74,68 @@ def _load_rule_names() -> dict[str, str]:
     return {r["code"]: r["name"] for r in json.loads(result.stdout)}
 
 
+def _categorize(data: list[dict], queue: list[str]) -> ScanResults:
+    counts: Counter[str] = Counter(d["code"] for d in data)
+    fixable: Counter[str] = Counter(d["code"] for d in data if d.get("fix"))
+    manual: Counter[str] = Counter(d["code"] for d in data if not d.get("fix"))
+    files_per_rule: defaultdict[str, set[str]] = defaultdict(set)
+    for d in data:
+        files_per_rule[d["code"]].add(d["filename"])
+    return ScanResults(
+        queue=queue,
+        counts=counts,
+        fixable=fixable,
+        manual=manual,
+        files_per_rule=files_per_rule,
+        zero=sorted(set(queue) - set(counts)),
+        auto_only=sorted([c for c in queue if c in fixable and c not in manual], key=lambda c: fixable[c]),
+        mixed=sorted([c for c in queue if c in fixable and c in manual], key=lambda c: counts[c]),
+        manual_only=sorted([c for c in queue if c not in fixable and c in manual], key=lambda c: manual[c]),
+    )
+
+
+def _as_json(r: ScanResults) -> str:
+    return json.dumps(
+        {
+            "queue_size": len(r.queue),
+            "zero_violation": r.zero,
+            "auto_only": [
+                {"code": c, "violations": r.fixable[c], "files": len(r.files_per_rule[c])} for c in r.auto_only
+            ],
+            "mixed": [
+                {"code": c, "auto": r.fixable[c], "manual": r.manual[c], "files": len(r.files_per_rule[c])}
+                for c in r.mixed
+            ],
+            "manual_only": [
+                {"code": c, "violations": r.manual[c], "files": len(r.files_per_rule[c])} for c in r.manual_only
+            ],
+        },
+        indent=2,
+    )
+
+
+def _print_results(r: ScanResults, rule_names: dict[str, str]) -> None:
+    def name(c: str) -> str:
+        return rule_names.get(c, "unknown")
+
+    print(f"Enforceable rules in queue: {len(r.queue)}")
+    print(f"\nZero-violation rules ({len(r.zero)}) — safe to enable immediately:")
+    for c in r.zero:
+        print(f"  {c:<10} {name(c)}")
+    print(f"\nAuto-fixable-only rules ({len(r.auto_only)}):")
+    for c in r.auto_only:
+        print(f"  {r.fixable[c]:5d} violations, {len(r.files_per_rule[c]):4d} files  {c:<10} {name(c)}")
+    if r.mixed:
+        print(f"\nPartially auto-fixable rules ({len(r.mixed)}):")
+        for c in r.mixed:
+            nf = len(r.files_per_rule[c])
+            print(f"  {r.fixable[c]:5d} auto + {r.manual[c]:5d} manual, {nf:4d} files  {c:<10} {name(c)}")
+    if r.manual_only:
+        print(f"\nManual-only rules ({len(r.manual_only)}):")
+        for c in r.manual_only:
+            print(f"  {r.manual[c]:5d} violations, {len(r.files_per_rule[c]):4d} files  {c:<10} {name(c)}")
+
+
 def main(
     path: Path = typer.Argument(Path(), help="Path to check for ruff violations"),
     as_json: bool = typer.Option(False, "--json", help="Output as JSON"),
@@ -76,18 +152,19 @@ def main(
     # Temporarily clear lint.ignore to get real violation counts
     pyproject.write_text(_clear_lint_ignore(original), encoding="utf-8")
     try:
+        cmd = [
+            "ruff",
+            "check",
+            "--select",
+            ",".join(queue),
+            "--preview",
+            "--no-fix",
+            "--output-format",
+            "json",
+            str(path),
+        ]
         proc = subprocess.run(
-            [
-                "ruff",
-                "check",
-                "--select",
-                ",".join(queue),
-                "--preview",
-                "--no-fix",
-                "--output-format",
-                "json",
-                str(path),
-            ],
+            cmd,
             capture_output=True,
             text=True,
             check=False,
@@ -96,69 +173,8 @@ def main(
     finally:
         pyproject.write_text(original, encoding="utf-8")
 
-    rule_names = _load_rule_names()
-    counts: Counter[str] = Counter(d["code"] for d in data)
-    fixable: Counter[str] = Counter(d["code"] for d in data if d.get("fix"))
-    manual: Counter[str] = Counter(d["code"] for d in data if not d.get("fix"))
-    files_per_rule: defaultdict[str, set[str]] = defaultdict(set)
-    for d in data:
-        files_per_rule[d["code"]].add(d["filename"])
-
-    zero = sorted(set(queue) - set(counts))
-    auto_only = sorted(
-        [c for c in queue if c in fixable and c not in manual],
-        key=lambda c: fixable[c],
-    )
-    mixed = sorted(
-        [c for c in queue if c in fixable and c in manual],
-        key=lambda c: counts[c],
-    )
-    manual_only = sorted(
-        [c for c in queue if c not in fixable and c in manual],
-        key=lambda c: manual[c],
-    )
-
+    results = _categorize(data, queue)
     if as_json:
-        print(
-            json.dumps(
-                {
-                    "queue_size": len(queue),
-                    "zero_violation": zero,
-                    "auto_only": [
-                        {"code": c, "violations": fixable[c], "files": len(files_per_rule[c])} for c in auto_only
-                    ],
-                    "mixed": [
-                        {"code": c, "auto": fixable[c], "manual": manual[c], "files": len(files_per_rule[c])}
-                        for c in mixed
-                    ],
-                    "manual_only": [
-                        {"code": c, "violations": manual[c], "files": len(files_per_rule[c])} for c in manual_only
-                    ],
-                },
-                indent=2,
-            )
-        )
+        print(_as_json(results))
         return
-
-    name = lambda c: rule_names.get(c, "unknown")  # noqa: E731
-
-    print(f"Enforceable rules in queue: {len(queue)}")
-    print(f"\nZero-violation rules ({len(zero)}) — safe to enable immediately:")
-    for c in zero:
-        print(f"  {c:<10} {name(c)}")
-
-    print(f"\nAuto-fixable-only rules ({len(auto_only)}):")
-    for c in auto_only:
-        print(f"  {fixable[c]:5d} violations, {len(files_per_rule[c]):4d} files  {c:<10} {name(c)}")
-
-    if mixed:
-        print(f"\nPartially auto-fixable rules ({len(mixed)}):")
-        for c in mixed:
-            print(
-                f"  {fixable[c]:5d} auto + {manual[c]:5d} manual, {len(files_per_rule[c]):4d} files  {c:<10} {name(c)}"
-            )
-
-    if manual_only:
-        print(f"\nManual-only rules ({len(manual_only)}):")
-        for c in manual_only:
-            print(f"  {manual[c]:5d} violations, {len(files_per_rule[c]):4d} files  {c:<10} {name(c)}")
+    _print_results(results, _load_rule_names())
