@@ -69,9 +69,10 @@ set -euo pipefail
 ACCOUNT="${OPENCLAW_SIGNAL_ACCOUNT:?set OPENCLAW_SIGNAL_ACCOUNT in the service environment}"
 BACKUP_ROOT="$HOME/backups/signal-cli"
 STATE_DIR="$HOME/.local/share/signal-cli/data"
-# Adjust if running as a system service: sudo systemctl restart openclaw.service
-SERVICE_CTL="systemctl --user"
-SERVICE_NAME="openclaw-gateway"
+# The gateway runs as a system service — requires passwordless sudo for systemctl.
+# Grant it with: echo "openclaw ALL=(root) NOPASSWD: /usr/bin/systemctl start openclaw.service, /usr/bin/systemctl stop openclaw.service, /usr/bin/systemctl restart openclaw.service" | sudo tee /etc/sudoers.d/openclaw-systemctl
+SERVICE_CTL="sudo systemctl"
+SERVICE_NAME="openclaw"
 
 if signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
   exit 0
@@ -97,7 +98,7 @@ echo "ERROR: Signal account still not registered after restart+restore" >&2
 exit 1
 ```
 
-### Auto-Update (user timer, weekly)
+### Auto-Update (user timer, weekly — controls the system service via sudo)
 
 The update script should be equally strict:
 
@@ -174,8 +175,9 @@ loginctl enable-linger "$USER"
 set -euo pipefail
 
 ACCOUNT="${OPENCLAW_SIGNAL_ACCOUNT:?set OPENCLAW_SIGNAL_ACCOUNT in ~/.config/openclaw-env}"
-SERVICE_CTL="systemctl --user"
-SERVICE_NAME="openclaw-gateway"
+# Requires passwordless sudo — see /etc/sudoers.d/openclaw-systemctl setup above.
+SERVICE_CTL="sudo systemctl"
+SERVICE_NAME="openclaw"
 BACKUP_ROOT="$HOME/backups/openclaw-$(date +%Y%m%d)"
 LOG="$HOME/.local/log/openclaw-update.log"
 mkdir -p "$BACKUP_ROOT" "$(dirname "$LOG")"
@@ -198,6 +200,9 @@ NEW_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
 log "New version: $NEW_VERSION"
 
 # 4. Update signal-cli if SIGNAL_CLI_UPGRADE_VERSION is set
+# Requires passwordless sudo for tar and ln — extend /etc/sudoers.d/openclaw-systemctl:
+#   openclaw ALL=(root) NOPASSWD: /usr/bin/tar, /usr/bin/ln
+# Without that, skip this block and upgrade signal-cli manually as root.
 if [[ -n "${SIGNAL_CLI_UPGRADE_VERSION:-}" ]]; then
   log "Updating signal-cli to $SIGNAL_CLI_UPGRADE_VERSION..."
   curl -sL "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_UPGRADE_VERSION}/signal-cli-${SIGNAL_CLI_UPGRADE_VERSION}.tar.gz" \

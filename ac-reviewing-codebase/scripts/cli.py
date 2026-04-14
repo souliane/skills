@@ -511,7 +511,16 @@ def _count_suppressions(root: Path) -> dict[str, int]:
     }
     for name, pattern in patterns.items():
         result = _run_tool(
-            ["grep", "-rn", pattern, "--include=*.py", "--exclude-dir=.venv", "--exclude-dir=node_modules", "."],
+            [
+                "grep",
+                "-rn",
+                pattern,
+                "--include=*.py",
+                "--exclude-dir=.venv",
+                "--exclude-dir=node_modules",
+                "--exclude-dir=.tox",
+                ".",
+            ],
             cwd=root,
         )
         lines = result.stdout.strip().splitlines() if result.stdout else []
