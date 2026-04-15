@@ -30,9 +30,11 @@
 | Problem | Check |
 |---------|-------|
 | OpenClaw won't start | `openclaw doctor`, check Node version (`node -v` >= 22) |
-| Gateway unreachable | `openclaw status`, check `systemctl status openclaw` |
+| Gateway unreachable | `openclaw status`, check the configured service (`systemctl --user status openclaw` or `sudo systemctl status openclaw`) |
 | Channel not receiving messages | `openclaw channels status --probe` |
 | Signal: daemon not reachable | `pgrep -af signal-cli`, check signal-cli HTTP port |
+| Signal: "User is not registered" | Verify `getUserStatus` first, then restart gateway and restore the latest signal-cli backup before attempting destructive re-registration. See [`channel-setup.md`](channel-setup.md) § "Troubleshooting: Signal Registration Lost" |
+| Signal: "This person is not on Signal" (after re-registration) | Identity key changed. Contact must delete old conversation and start a new one |
 | WhatsApp: QR expired | Re-run `openclaw channels login --channel whatsapp` |
 | Tailscale: can't reach dashboard | `tailscale status`, verify both devices on same tailnet |
 | Docker bypasses firewall | Add DOCKER-USER iptables rules (see [`references/security-hardening.md`](references/security-hardening.md) § Docker + Firewall) |
@@ -40,6 +42,203 @@
 | High memory usage (Ollama) | Check model size vs RAM; use smaller quantization or smaller model |
 | SSH custom port not working (Ubuntu 24.04) | Ubuntu 24.04 uses systemd socket activation. Do NOT put `Port` directives in `sshd_config` — use a systemd socket override at `/etc/systemd/system/ssh.socket.d/override.conf` with explicit `0.0.0.0:PORT` and `[::]:PORT` format. Bare port numbers (e.g., `ListenStream=2222`) don't bind IPv4. Always keep the old port open in UFW until the new port is confirmed working from outside. |
 | Locked out of SSH | Use `hcloud server enable-rescue <name> --ssh-key <key>` then `hcloud server reset <name>` to boot into rescue mode. Mount disk at `/mnt` via `mount /dev/sda1 /mnt`, fix configs, unmount, disable rescue, reset. |
+
+---
+
+## Automated Maintenance (Post-Install)
+
+Use `systemd --user` for ongoing OpenClaw automation unless you deliberately standardized on a root-managed system service. That keeps the gateway, health checks, and update timers in the same supervision model.
+
+### Signal Health Check (user timer, every 30 min)
+
+The health-check script should be conservative:
+
+1. Verify the account with `signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT"`.
+2. If the account is still registered, exit without changes.
+3. If the account is not registered, restore the most recent backup of `~/.local/share/signal-cli/data/` and restart the gateway once.
+4. Only alert the operator after that retry still fails.
+5. Do not auto-run `deleteLocalAccountData` or re-register without human approval.
+
+Example script skeleton:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Read from env or config — never hardcode the number
+ACCOUNT="${OPENCLAW_SIGNAL_ACCOUNT:?set OPENCLAW_SIGNAL_ACCOUNT in the service environment}"
+BACKUP_ROOT="$HOME/backups/signal-cli"
+STATE_DIR="$HOME/.local/share/signal-cli/data"
+# The gateway runs as a system service — requires passwordless sudo for systemctl.
+# Grant it with: echo "openclaw ALL=(root) NOPASSWD: /usr/bin/systemctl start openclaw.service, /usr/bin/systemctl stop openclaw.service, /usr/bin/systemctl restart openclaw.service" | sudo tee /etc/sudoers.d/openclaw-systemctl
+SERVICE_CTL="sudo systemctl"
+SERVICE_NAME="openclaw"
+
+if signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
+  exit 0
+fi
+
+latest_backup=$(ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | head -1)
+if [[ -n "${latest_backup:-}" ]]; then
+  rm -rf "$STATE_DIR"
+  cp -R "$latest_backup" "$STATE_DIR"
+fi
+
+$SERVICE_CTL restart "$SERVICE_NAME".service
+
+# Poll until registered (max 30s) instead of sleeping blindly
+for i in $(seq 1 6); do
+  sleep 5
+  if signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
+    exit 0
+  fi
+done
+
+echo "ERROR: Signal account still not registered after restart+restore" >&2
+exit 1
+```
+
+### Auto-Update (user timer, weekly — controls the system service via sudo)
+
+The update script should be equally strict:
+
+1. Back up `~/.openclaw/` and `~/.local/share/signal-cli/data/`.
+2. Stop the gateway cleanly.
+3. Update one component at a time.
+4. Restart the gateway.
+5. Verify `openclaw status`, the gateway health endpoint, and `signal-cli getUserStatus`.
+6. Abort and alert if verification fails.
+
+Example user-unit setup:
+
+```bash
+mkdir -p ~/.config/systemd/user
+
+cat > ~/.config/systemd/user/openclaw-health.service <<'EOF'
+[Unit]
+Description=OpenClaw Signal health check
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/openclaw-env
+ExecStart=%h/bin/openclaw-signal-health-check.sh
+EOF
+
+cat > ~/.config/systemd/user/openclaw-health.timer <<'EOF'
+[Unit]
+Description=Run OpenClaw Signal health check every 30 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cat > ~/.config/systemd/user/openclaw-update.service <<'EOF'
+[Unit]
+Description=OpenClaw weekly update
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/openclaw-env
+ExecStart=%h/bin/openclaw-update.sh
+EOF
+
+cat > ~/.config/systemd/user/openclaw-update.timer <<'EOF'
+[Unit]
+Description=Run OpenClaw weekly update
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# openclaw-env — keeps secrets out of scripts
+# Create and chmod 600 before enabling timers:
+# echo 'OPENCLAW_SIGNAL_ACCOUNT=+<E.164 number>' > ~/.config/openclaw-env
+# chmod 600 ~/.config/openclaw-env
+
+systemctl --user daemon-reload
+systemctl --user enable --now openclaw-health.timer openclaw-update.timer
+loginctl enable-linger "$USER"
+```
+
+### Update script (`~/bin/openclaw-update.sh`)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+ACCOUNT="${OPENCLAW_SIGNAL_ACCOUNT:?set OPENCLAW_SIGNAL_ACCOUNT in ~/.config/openclaw-env}"
+# Requires passwordless sudo — see /etc/sudoers.d/openclaw-systemctl setup above.
+SERVICE_CTL="sudo systemctl"
+SERVICE_NAME="openclaw"
+BACKUP_ROOT="$HOME/backups/openclaw-$(date +%Y%m%d)"
+LOG="$HOME/.local/log/openclaw-update.log"
+mkdir -p "$BACKUP_ROOT" "$(dirname "$LOG")"
+
+log() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
+
+# 1. Backup current state
+log "Backing up ~/.openclaw and signal-cli data..."
+cp -a "$HOME/.openclaw" "$BACKUP_ROOT/openclaw"
+cp -a "$HOME/.local/share/signal-cli/data" "$BACKUP_ROOT/signal-cli-data" 2>/dev/null || true
+
+# 2. Stop gateway cleanly
+log "Stopping gateway..."
+$SERVICE_CTL stop "$SERVICE_NAME".service
+
+# 3. Update OpenClaw
+log "Updating openclaw..."
+npm update -g openclaw 2>&1 | tee -a "$LOG"
+NEW_VERSION=$(openclaw --version 2>/dev/null || echo "unknown")
+log "New version: $NEW_VERSION"
+
+# 4. Update signal-cli if SIGNAL_CLI_UPGRADE_VERSION is set
+# Requires passwordless sudo for tar and ln — extend /etc/sudoers.d/openclaw-systemctl:
+#   openclaw ALL=(root) NOPASSWD: /usr/bin/tar, /usr/bin/ln
+# Without that, skip this block and upgrade signal-cli manually as root.
+if [[ -n "${SIGNAL_CLI_UPGRADE_VERSION:-}" ]]; then
+  log "Updating signal-cli to $SIGNAL_CLI_UPGRADE_VERSION..."
+  curl -sL "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_UPGRADE_VERSION}/signal-cli-${SIGNAL_CLI_UPGRADE_VERSION}.tar.gz" \
+    -o "/tmp/signal-cli-${SIGNAL_CLI_UPGRADE_VERSION}.tar.gz"
+  sudo tar xf "/tmp/signal-cli-${SIGNAL_CLI_UPGRADE_VERSION}.tar.gz" -C /opt/
+  sudo ln -sf "/opt/signal-cli-${SIGNAL_CLI_UPGRADE_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli
+  log "signal-cli updated. Rebuild libsignal if on ARM64 — see channel-setup.md."
+fi
+
+# 5. Restart and verify
+log "Restarting gateway..."
+$SERVICE_CTL start "$SERVICE_NAME".service
+sleep 5
+
+if ! $SERVICE_CTL is-active --quiet "$SERVICE_NAME".service; then
+  log "ERROR: gateway failed to start after update. Restore from $BACKUP_ROOT"
+  exit 1
+fi
+
+if ! signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
+  log "ERROR: Signal account not registered after update. Restore from $BACKUP_ROOT"
+  exit 1
+fi
+
+log "Update complete. All checks passed."
+```
+
+### Graceful Shutdown
+
+The OpenClaw service should include `TimeoutStopSec=30` so signal-cli can flush its state before the process is killed:
+
+```ini
+[Service]
+TimeoutStopSec=30
+KillSignal=SIGTERM
+```
 
 ---
 
@@ -62,7 +261,11 @@ Before starting, refresh cached data AND fetch OpenClaw docs. This is non-negoti
 2. `signal-cli latest release ARM64` — check if native aarch64 build is now available
 3. `<provider> VPS pricing` — verify current prices for the user's chosen provider
 4. `tailscale pricing free plan serve` — confirm Serve is still free
-5. Update the `references/` files if any data changed. Note the new `last_updated` date.
+5. `openclaw cron job best practices 2026` — new scheduling features or patterns
+6. `openclaw agent isolation security` — any new sandbox or per-agent auth features
+7. Update the `references/` files if any data changed. Note the new `last_updated` date.
+
+> **Evolutive principle:** OpenClaw releases daily. This skill MUST web-search before any significant decision — don't rely solely on cached configs. If the user's setup uses a feature that has changed, flag it before proceeding.
 
 ### If offline (no web search)
 

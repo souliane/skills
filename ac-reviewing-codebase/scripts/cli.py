@@ -15,6 +15,7 @@ Subcommands:
 import json
 import os
 import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -425,12 +426,18 @@ def _print_repo_detail(name: str, info: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _ruff_cmd() -> list[str]:
+    """Return the ruff invocation, falling back to uv tool run when ruff is not in PATH."""
+    ruff = shutil.which("ruff")
+    return [ruff] if ruff else ["uv", "tool", "run", "ruff"]
+
+
 def _run_tool(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, capture_output=True, text=True, timeout=120, cwd=cwd, check=False)
 
 
 def _count_lint_violations(root: Path) -> dict[str, object]:
-    result = _run_tool(["ruff", "check", "--output-format", "json", "."], cwd=root)
+    result = _run_tool([*_ruff_cmd(), "check", "--output-format", "json", "."], cwd=root)
     if result.returncode == 0:
         return {"total": 0, "by_category": {}}
     try:
@@ -470,7 +477,7 @@ def _count_todos(root: Path) -> dict[str, object]:
 
 
 def _count_complexity(root: Path) -> dict[str, object]:
-    result = _run_tool(["ruff", "check", "--select", "C901", "--output-format", "json", "."], cwd=root)
+    result = _run_tool([*_ruff_cmd(), "check", "--select", "C901", "--output-format", "json", "."], cwd=root)
     try:
         violations = json.loads(result.stdout) if result.stdout else []
     except (json.JSONDecodeError, ValueError):
@@ -511,7 +518,16 @@ def _count_suppressions(root: Path) -> dict[str, int]:
     }
     for name, pattern in patterns.items():
         result = _run_tool(
-            ["grep", "-rn", pattern, "--include=*.py", "--exclude-dir=.venv", "--exclude-dir=node_modules", "."],
+            [
+                "grep",
+                "-rn",
+                pattern,
+                "--include=*.py",
+                "--exclude-dir=.venv",
+                "--exclude-dir=node_modules",
+                "--exclude-dir=.tox",
+                ".",
+            ],
             cwd=root,
         )
         lines = result.stdout.strip().splitlines() if result.stdout else []

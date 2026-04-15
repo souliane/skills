@@ -15,6 +15,49 @@ OpenClaw assumes a **personal assistant model**: one trusted operator per gatewa
 - Tailscale Serve preferred over exposing ports
 - Prompt injection is **not solved** — hard enforcement via tool policy, sandboxing, channel allowlists
 
+### What Tailscale Does and Doesn't Protect
+
+**Tailscale covers:**
+
+- Network-level access to the gateway and dashboard (only devices on your tailnet can reach it)
+- Removes the need to expose any port to the internet
+- Encrypted transit between your devices and the server
+
+**Tailscale does NOT cover:**
+
+- Content of agent conversations — session transcripts are stored in plaintext at `~/.openclaw/agents/<id>/sessions/*.jsonl`
+- Admin can always read all agents' conversations via the dashboard or directly on disk
+- Cross-agent isolation — different agents share the same filesystem and gateway process
+
+**Consequence:** If you route different people (e.g., personal vs. work contacts) to different agents, their conversations are isolated at the session level but an admin with server access or dashboard access can read all of them. **There is no E2E encryption between an agent's chat and the admin dashboard.** If strict agent privacy is a requirement, run separate gateway instances on separate servers.
+
+### Per-Agent Sandbox Isolation
+
+Agents on the same gateway share a filesystem. Sandbox mode controls what tool calls each agent can execute:
+
+```python
+# In openclaw.json — use Python to edit complex structures (see § 9.4)
+# Full trust for a personal automation agent (no sandbox):
+agent["sandbox"] = {"mode": "off"}
+
+# Isolated execution for untrusted/external-facing agents:
+agent["sandbox"] = {"mode": "all", "scope": "agent", "workspaceAccess": "rw"}
+# workspaceAccess: "rw" is required or the agent can't write SOUL.md/memory
+```
+
+Auto-approve all tool calls for a trusted agent:
+
+```json
+// exec-approvals.json
+{
+  "agents": {
+    "<trusted-agent-id>": { "default": "approve" }
+  }
+}
+```
+
+Restart the gateway after any `openclaw.json` or `exec-approvals.json` change.
+
 ## Secure Baseline Configuration
 
 ```json
@@ -93,7 +136,7 @@ sudo netfilter-persistent save
 
 ## Tool Access Control
 
-For messaging-only agents (safest):
+**Default (messaging-only agents, safest):**
 
 ```json
 {
@@ -106,7 +149,28 @@ For messaging-only agents (safest):
 }
 ```
 
+**Full machine access (personal operator agent, no sandbox):**
+
+```json
+{
+  "tools": {
+    "elevated": {
+      "enabled": true,
+      "allowFrom": {
+        "<channel>": ["<uuid-or-identifier>"]
+      }
+    }
+  }
+}
+```
+
+Set `sandbox: {mode: "off"}` at the agent level and `exec-approvals.agents.<id>.default = "approve"` for fully autonomous operation. Do this only for an agent bound to a channel and contact you fully trust.
+
 Control-plane tools to deny for untrusted senders: `gateway`, `cron`, `sessions_spawn`, `sessions_send`.
+
+### Monitoring Cost
+
+- Review `openclaw usage` monthly to catch runaway cron jobs or unexpected high-volume sessions
 
 ## Browser Control Security
 
