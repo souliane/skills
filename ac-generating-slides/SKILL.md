@@ -61,7 +61,61 @@ style: |
 - Use `<div>` blocks with inline styles for custom layouts (layered diagrams, flow boxes, status bars)
 - Keep font sizes readable: don't go below `0.75em`
 
-### 2. Export to PDF
+### 2. Embedding Images
+
+**Never embed large images as base64 in the Marp source file.** Images over ~100KB as base64 cause Marp's browser navigation to time out (30s limit).
+
+**Do this instead:**
+
+1. Copy the image into the same folder as the `.md` file
+2. Reference it by relative path: `![h:400](screenshot.png)` (use Marp native syntax, not `<img>` tags)
+3. The render script already passes `--allow-local-files` so local paths work
+
+**When base64 is acceptable:** small icons or logos under ~30KB that are already embedded as SVG strings in the CSS.
+
+### 2b. Image Sizing (Non-Negotiable)
+
+**Inline CSS `height`/`max-height` on `<img>` tags does NOT work in Marp.** Marp overrides inline styles on images. Always use Marp's native image sizing syntax:
+
+```markdown
+![h:400](image.png)           <!-- fixed height -->
+![w:600](image.png)           <!-- fixed width -->
+![h:400 w:600](image.png)    <!-- both -->
+```
+
+Never use `<img style="height:...">` or `<div style="max-height:...">` — they will be ignored.
+
+### 2c. Column Layouts
+
+**Inline flexbox `<div>` blocks do NOT produce columns in Marp** — Marp wraps markdown content in `<p>` tags that break flex children. Use **scoped CSS grid** instead:
+
+```markdown
+<style scoped>
+section { display: grid; grid-template-columns: 40% 58%; gap: 2%; align-items: center; }
+</style>
+
+<div>
+Left column content (text, bullets)
+</div>
+
+<div>
+
+![h:600](screenshot.png)
+
+</div>
+```
+
+**`![bg right:50%]()` can also work** but may render incorrectly with local files or produce black bars. Prefer the scoped grid approach for reliable results.
+
+### 2d. Lead Slides and Bold Text
+
+On `section.lead` slides, `strong` inherits the default color which may be invisible against the dark background. Always add this to the global style:
+
+```css
+section.lead strong { color: #fff; }
+```
+
+### 3. Export to PDF
 
 ```bash
 ./ac-generating-slides/scripts/cli.py slides.md
@@ -71,7 +125,7 @@ style: |
 
 The script auto-detects a Chromium browser (Chrome, Brave, Edge, Chromium) on macOS and Linux, sets `CHROME_PATH`, and calls `marp --pdf --allow-local-files`.
 
-### 3. Iterate
+### 4. Iterate
 
 After generating, read the PDF to visually verify the result. Fix any layout issues — common problems:
 
