@@ -201,8 +201,9 @@ Hunt for manually suppressed code quality signals — these represent deliberate
 - **Lowered coverage thresholds.** Check `fail_under` values, `--no-cov` usage.
 - **Suppressed lint rules.** Grep for `# noqa`, `# type: ignore`, `# pragma: no cover`. Each must be justified.
 - **Excluded files from pre-commit.** Check `exclude:` patterns — justified or deferred?
-- **Relaxed per-file-ignores.** Check broad patterns in ruff config.
+- **Relaxed per-file-ignores.** Check broad patterns in ruff config. To test whether a rule is stale, remove it from the config block and run the full `ruff check <glob>` — not `ruff check --select <rule>`, which ignores the project's `preview` and `select = ["ALL"]` config and produces false "stale" results. A rule is stale only if zero violations surface when the full project config runs with that rule removed.
 - **Missing hooks.** Compare against the infrastructure baseline.
+- **Stale type-checker allowlists.** `ty`/`mypy`/`pyright` allowlists for unresolved imports accumulate — third-party libs get proper stubs over time. Test each entry by removing it and re-running the type checker; zero new errors = stale.
 - **Companion skill violations.** When `ac-python` or `ac-django` are loaded, verify the codebase follows their conventions (integration-first testing, fat models, proper typing, correct manager usage).
 
 ---
