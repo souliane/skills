@@ -24,6 +24,10 @@
 | Not configuring `allowedOrigins` before user opens dashboard | User gets "origin not allowed" error | Configure `allowedOrigins` with the Tailscale/Cloudflare/Caddy hostname in Phase 5.3 |
 | Not explaining device pairing before user hits "pairing required" | User sees cryptic error, doesn't know what to do | Warn the user before they open the dashboard, then approve the device with `openclaw devices approve` |
 | Not fetching OpenClaw docs before starting installation | Agent guesses configs and commands, hits errors repeatedly | Fetch docs at the start of the install (Phase 5), not midway through debugging |
+| Installing BOTH a user-level `~/.config/systemd/user/openclaw-gateway.service` AND a system-level `/etc/systemd/system/openclaw.service` | They race for port 18789 on every restart, each one killing the other ("killing N stale gateway process(es) before restart"). Looks like the gateway "breaks constantly." | Pick ONE install method from the start. If both are already present, disable the one you don't want (`systemctl --user disable --now openclaw-gateway.service` + rename the unit file), then `systemctl daemon-reload`. |
+| Putting API keys in `Environment=` lines of a systemd unit file | Unit files are mode 664 by default — every logged-in user on the host can read them | Use `EnvironmentFile=` pointing at a `chmod 600` env file, OR a startup wrapper that reads from `pass` (the user's existing `~/.openclaw/start-gateway.sh` pattern). Rotate any key that was ever in a world/group-readable unit file. |
+| Running `openclaw` CLI commands on the same host as a running `openclaw.service` | In v2026.4.x, `openclaw cron list`/`doctor`/etc. detect the running gateway PID and SIGTERM it before trying to start their own in-process gateway, which then fails to resolve `OPENCLAW_GATEWAY_TOKEN` (not in interactive shells) and exits. Systemd restarts the real service, signal-cli dies for 20-30 s. Every CLI call causes a messaging outage. | Edit `~/.openclaw/cron/jobs.json` directly for cron tweaks, call signal-cli JSON-RPC at `http://127.0.0.1:8080/api/v1/rpc` (no trailing slash) for sends/probes, and use the Tailscale-served dashboard for everything else. If you must use the CLI, do it from a different machine against a remote gateway. |
+| Auto-update landed new code but gateway still errors `ERR_MODULE_NOT_FOUND` | OpenClaw's npm auto-update replaces files on disk but the running Node.js process still references old content-hashed chunk filenames that aren't in the new tarball. Every outbound send throws. | Restart the service: `sudo systemctl restart openclaw.service`. Disk and package.json will show the newer version; `start-gateway.sh` loads the new `dist/index.js` on startup. Consider enabling an auto-restart-after-update hook if OpenClaw doesn't ship one. |
 
 ## Troubleshooting Quick Reference
 
@@ -42,6 +46,12 @@
 | High memory usage (Ollama) | Check model size vs RAM; use smaller quantization or smaller model |
 | SSH custom port not working (Ubuntu 24.04) | Ubuntu 24.04 uses systemd socket activation. Do NOT put `Port` directives in `sshd_config` — use a systemd socket override at `/etc/systemd/system/ssh.socket.d/override.conf` with explicit `0.0.0.0:PORT` and `[::]:PORT` format. Bare port numbers (e.g., `ListenStream=2222`) don't bind IPv4. Always keep the old port open in UFW until the new port is confirmed working from outside. |
 | Locked out of SSH | Use `hcloud server enable-rescue <name> --ssh-key <key>` then `hcloud server reset <name>` to boot into rescue mode. Mount disk at `/mnt` via `mount /dev/sda1 /mnt`, fix configs, unmount, disable rescue, reset. |
+| Gateway constantly cycling / "breaks every few minutes" | Check for a DUPLICATE unit. Run `systemctl --user list-units --type=service --no-pager` AND `sudo systemctl list-units --type=service --no-pager \| grep openclaw`. If you see **both** a user-level `openclaw-gateway.service` and a system-level `openclaw.service`, they race for port 18789 — each tries to kill the other on startup ("killing N stale gateway process(es) before restart"). Disable whichever you don't want with `systemctl --user disable --now openclaw-gateway.service` (then rename the unit file to stop systemd still seeing it) or equivalent sudo-level commands. Pick ONE install method and delete the other. |
+| `ERR_MODULE_NOT_FOUND: Cannot find module '.../dist/*.runtime-*.js'` in gateway logs | An `npm update -g openclaw` landed new code on disk but the running process still references old code-split chunk filenames (content-hashed — new tarball ships new hashes). Fix: `sudo systemctl restart openclaw.service`. This is visible via `/home/openclaw/.npm-global/lib/node_modules/openclaw/package.json` showing a version newer than what the gateway logs report at startup. |
+| Health check `signal-cli getUserStatus` hangs indefinitely | Classic data-dir lock contention. `signal-cli daemon` holds the exclusive lock on `~/.local/share/signal-cli/data/`; a second `signal-cli` subprocess waits forever on the lock without printing the "in use by another instance" error immediately. **Fix the script**: probe `http://127.0.0.1:8080/api/v1/rpc` (**no trailing slash**) instead of spawning a second `signal-cli` subprocess, and wrap with `timeout 10 curl`. Also add `TimeoutStartSec=90` to the health service unit so systemd kills any residual hang after 90 s. |
+| signal-cli JSON-RPC `send` returns `UNREGISTERED_FAILURE` | Check the `recipient` format. signal-cli's JSON-RPC `send` takes E.164 phone numbers (`+436507401445`) in `recipient`, NOT `uuid:...` strings. If you pass `"recipient": ["uuid:..."]`, signal-cli strips non-digits and treats it as a phone number — always fails. OpenClaw's internal `delivery.to: "uuid:..."` is fine because OpenClaw translates before calling signal-cli; only raw JSON-RPC calls need the phone-number format. |
+| `openclaw` CLI kills the running gateway every time I invoke it | Do NOT run `openclaw cron list` / `openclaw doctor` / any CLI command on the same host as a running `openclaw.service`. The CLI in v2026.4.x detects the running gateway PID and SIGTERMs it ("service-mode: cleared N stale gateway pid(s) before bind on port 18789") before trying to start its own in-process gateway — which usually fails because `OPENCLAW_GATEWAY_TOKEN` env var isn't set in the interactive shell. Use direct file edits for cron changes, signal-cli JSON-RPC for sends, or the Tailscale dashboard for everything else. |
+| Plaintext API keys visible in `~/.config/systemd/user/*.service` | Never put `Environment=OPENAI_API_KEY=sk-...` or similar in unit files — they end up mode 664 (group+world readable by default). Use `EnvironmentFile=%h/.openclaw/gateway.env` with `chmod 600`, OR a startup wrapper script that reads from `pass`. Rotate any key that was ever committed as plaintext in a user-readable file. |
 
 ---
 
@@ -53,49 +63,84 @@ Use `systemd --user` for ongoing OpenClaw automation unless you deliberately sta
 
 The health-check script should be conservative:
 
-1. Verify the account with `signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT"`.
-2. If the account is still registered, exit without changes.
-3. If the account is not registered, restore the most recent backup of `~/.local/share/signal-cli/data/` and restart the gateway once.
-4. Only alert the operator after that retry still fails.
+1. Probe the running `signal-cli` daemon via its HTTP JSON-RPC endpoint — **never** spawn a second `signal-cli` subprocess. The daemon holds an exclusive lock on the data directory; a subprocess will block indefinitely waiting for it.
+2. If the RPC answers `version`, exit 0.
+3. If it doesn't, restart the gateway once and poll again for up to 30 s.
+4. Only if the daemon still doesn't answer, restore the latest backup of `~/.local/share/signal-cli/data/`, start the gateway, and notify via the same RPC.
 5. Do not auto-run `deleteLocalAccountData` or re-register without human approval.
 
-Example script skeleton:
+Example script skeleton (updated 2026-04-22 after a wedge-incident. The previous example spawned a second `signal-cli` subprocess to call `getUserStatus` — that contends for the data-dir lock and hangs forever. Use the HTTP JSON-RPC path instead; mind the exact URL `http://127.0.0.1:8080/api/v1/rpc` **with no trailing slash** — the trailing-slash variant silently 404s):
 
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail  # NOT -e: we manage exits manually
 
-# Read from env or config — never hardcode the number
 ACCOUNT="${OPENCLAW_SIGNAL_ACCOUNT:?set OPENCLAW_SIGNAL_ACCOUNT in the service environment}"
 BACKUP_ROOT="$HOME/backups/signal-cli"
 STATE_DIR="$HOME/.local/share/signal-cli/data"
-# The gateway runs as a system service — requires passwordless sudo for systemctl.
-# Grant it with: echo "openclaw ALL=(root) NOPASSWD: /usr/bin/systemctl start openclaw.service, /usr/bin/systemctl stop openclaw.service, /usr/bin/systemctl restart openclaw.service" | sudo tee /etc/sudoers.d/openclaw-systemctl
-SERVICE_CTL="sudo systemctl"
-SERVICE_NAME="openclaw"
+RPC="http://127.0.0.1:8080/api/v1/rpc"   # NO trailing slash
+LOGFILE="${OPENCLAW_HEALTH_LOG:-/var/log/openclaw-health.log}"
+# Grant sudo with: echo "openclaw ALL=(root) NOPASSWD: /usr/bin/systemctl start openclaw.service, /usr/bin/systemctl stop openclaw.service, /usr/bin/systemctl restart openclaw.service" | sudo tee /etc/sudoers.d/openclaw-systemctl
 
-if signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
+log() { echo "$(date -Iseconds) $1" >> "$LOGFILE"; }
+
+# 0. Gateway must be alive before we bother probing.
+if ! systemctl is-active --quiet openclaw.service; then
+  log "WARN: gateway not running, skipping check"
   exit 0
 fi
 
-latest_backup=$(ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | head -1)
-if [[ -n "${latest_backup:-}" ]]; then
-  rm -rf "$STATE_DIR"
-  cp -R "$latest_backup" "$STATE_DIR"
+# 1. Probe signal-cli daemon via HTTP with a hard timeout. timeout 10 guarantees we NEVER wedge.
+payload='{"jsonrpc":"2.0","method":"version","id":1}'
+resp=$(timeout 10 curl -sS -m 8 -H 'Content-Type: application/json' -X POST -d "$payload" "$RPC" 2>&1 || true)
+if echo "$resp" | grep -q '"result"'; then
+  exit 0
 fi
 
-$SERVICE_CTL restart "$SERVICE_NAME".service
+log "ALERT: signal-cli RPC unresponsive. Resp: ${resp:0:200}"
 
-# Poll until registered (max 30s) instead of sleeping blindly
-for i in $(seq 1 6); do
+# 2. Try a plain restart first.
+sudo systemctl restart openclaw.service || true
+for _ in 1 2 3 4 5 6; do
   sleep 5
-  if signal-cli -a "$ACCOUNT" getUserStatus "$ACCOUNT" 2>/dev/null | grep -q ": true"; then
+  if timeout 5 bash -c "</dev/tcp/127.0.0.1/8080" 2>/dev/null; then
+    log "Recovered via restart"
     exit 0
   fi
 done
 
-echo "ERROR: Signal account still not registered after restart+restore" >&2
-exit 1
+log "Restart did not recover; attempting backup restore"
+
+# 3. Last resort: restore from the latest backup.
+latest_backup=$(ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | head -1)
+if [[ -n "${latest_backup:-}" ]]; then
+  sudo systemctl stop openclaw.service || true
+  rm -rf "$STATE_DIR"
+  cp -R "$latest_backup" "$STATE_DIR"
+  sudo systemctl start openclaw.service
+  sleep 15
+fi
+
+log "Restored and restarted"
+```
+
+**Unit file — do NOT forget `TimeoutStartSec`**, otherwise a hung run can freeze the timer for days (it happened on this user's VPS: 5 days silent because `Active: activating (start)` never ended):
+
+```ini
+# /etc/systemd/system/openclaw-health.service  (or ~/.config/systemd/user/... if user-scoped)
+[Unit]
+Description=OpenClaw Signal Health Check
+After=openclaw.service
+# Do NOT add Requires=openclaw.service — that makes the health unit restart
+# whenever the gateway restarts, killing the script mid-recovery.
+
+[Service]
+Type=oneshot
+User=openclaw
+ExecStart=/home/openclaw/signal-health-check.sh
+TimeoutStartSec=90
+TimeoutStopSec=15
+KillMode=mixed
 ```
 
 ### Auto-Update (user timer, weekly — controls the system service via sudo)
