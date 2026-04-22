@@ -145,72 +145,82 @@ ssh "$SSH_HOST" 'systemctl show openclaw.service -p NRestarts --value'
 
 ## Prompt template (`press-review-prompt.txt`)
 
-Write this verbatim to a file before the `jq` call above. Substitute `{RECIPIENT}` before uploading.
+Write this verbatim to a file before the `jq` call above. Substitute `{WORKSPACE_PATH}`, `{CHANNEL}`, `{RECIPIENT}` before uploading.
+
+**Two things that will burn you if omitted:**
+
+1. **Tell the LLM to use the `exec` tool — not `web_fetch`.** Without this instruction, the agent will ignore the script and guess RSS URLs, fail on 404s, and hallucinate headlines. Explicit > implicit.
+2. **Signal does NOT render markdown links.** `[text](url)` shows as literal text and is not tappable. Signal auto-linkifies bare `https://...` URLs only. Use bare URLs. The same applies to most Telegram / iMessage clients — bare URLs are universally safe; markdown links are channel-specific and usually broken.
 
 ```
-Fetch today's press review sources:
+Daily press review for {YYYY-MM-DD}.
 
-  python3 $WORKSPACE/scripts/press-review.py
+Step 1 — run this exact shell command via the `exec` tool (NOT web_fetch;
+the script already fetches and dedupes):
 
-The script already dedupes against items sent in the last 30 days and uses HTTP
-conditional GETs — you only receive FRESH content. If a section is empty, it's
-because nothing new was published since the last run.
+  python3 {WORKSPACE_PATH}/scripts/press-review.py
 
-Synthesise the fresh sources into ONE aggregated press review using this exact
-structure. Do not add preamble, disclaimers, or trailing summaries — the output
-is the final message.
+The script:
+- fetches RSS + Hacker News,
+- dedupes against the last 30 days (so you never show the same article twice),
+- uses HTTP conditional GETs (feeds that haven't changed return 304 and are
+  skipped),
+- outputs plain markdown source data on stdout.
+
+Use THAT output as your single source of truth. Do NOT hallucinate headlines,
+do NOT guess URLs, do NOT fall back to web_fetch on random RSS feeds. If a
+section of the script output says "(no fresh items)", that section is empty
+for today — skip it.
+
+Step 2 — synthesise into ONE aggregated press review, in this exact
+structure. No preamble, no disclaimers, no trailing summary.
 
 ## Press Review — {YYYY-MM-DD}
 
 ### Top Stories
-Pick the 2-3 biggest stories across ALL sources. A story qualifies as "top" if
-(a) two or more sources cover it, OR (b) it's a Hacker News top-20 item with
-score > 300 and genuinely notable. Merge coverage into one bullet per story.
-Include every link that reports it.
+2-3 biggest stories across ALL sources, merged into one bullet per story.
+A story qualifies as "top" if (a) two or more sources cover it, OR (b) it's
+a Hacker News top-20 item with score > 300 and genuinely notable.
 
-- **{headline}** — {2-3 sentence synthesis drawing from all covering sources}.
-  Sources: [TLDR AI]({url}) · [HN]({url}) · [Pragmatic]({url})
+- {Headline, paraphrased} — {2-3 sentence synthesis}. Sources:
+  https://url-from-tldr-ai/...
+  https://news.ycombinator.com/item?id=...
+  https://url-from-pragmatic/...
 
 ### AI
-Short bullets on AI/ML news. Every item has a clickable link. No duplicates
-with Top Stories.
-
-- {short headline, <12 words} — [{source}]({url})
+- {short headline, <12 words}
+  https://...
 
 ### Web Dev & Python
-Same format. Merge TLDR Web Dev, PyCoder's, Django News, Real Python, PSF.
+(TLDR Web Dev + PyCoder's + Django News + Real Python + PSF)
 
 ### Crypto
-Same format.
 
 ### DevOps & Security
-Same format. Merge TLDR DevOps + TLDR InfoSec.
+(TLDR DevOps + TLDR InfoSec)
 
 ### Industry & Trends
-Pragmatic Engineer content and any broader industry/business stories.
+(Pragmatic Engineer + broader industry/business)
 
 ### Trending on Hacker News
-Only HN items that did NOT land in Top Stories and aren't already covered by
-a newsletter above. Include score.
+- {headline} (score: N)
+  https://news.ycombinator.com/item?id=...
 
-- {headline} (score: N) — [discuss]({hn_url})
+CRITICAL formatting rules:
+1. Always use BARE URLs — never markdown `[text](url)`. Signal, Telegram,
+   and most iMessage clients do NOT render markdown; bare URLs auto-linkify,
+   markdown links appear as literal text.
+2. Every bullet MUST have at least one bare URL.
+3. Never repeat a story across sections.
+4. Merge near-duplicate headlines from different sources into ONE bullet
+   with multiple URLs.
+5. Omit any section entirely if it has no fresh content.
+6. Keep individual headlines under 12 words.
+7. Skip filler: sponsored items, "job of the week", generic round-ups.
 
-Rules:
-1. Every bullet MUST contain at least one clickable markdown link.
-2. Never repeat a story across sections. If it's in Top Stories, skip elsewhere.
-3. Merge near-duplicate headlines from different sources into ONE bullet with
-   multiple links.
-4. Omit any section entirely if it has no fresh content.
-5. Keep individual headlines under 12 words. Prefer paraphrasing over quoting.
-6. Skip filler: sponsored items, "job of the week", generic round-ups,
-   promotional content.
-7. Output only the markdown press review — no "Here's your briefing" intro,
-   no sign-off.
-
-After generating, send the message via {CHANNEL} to {RECIPIENT}.
+Step 3 — send the resulting markdown directly to {RECIPIENT} via {CHANNEL}.
+No "here's your briefing" intro, no sign-off.
 ```
-
-Replace `{CHANNEL}` and `{RECIPIENT}` with the wizard's values.
 
 ## Customisation after install
 
@@ -219,6 +229,65 @@ Replace `{CHANNEL}` and `{RECIPIENT}` with the wizard's values.
 - **Change format** — edit the prompt stored in `jobs.json` `payload.message`. Pure prose, no restart needed.
 - **Reset dedup cache** — `rm ~/.openclaw/workspace-<agent>/state/press-review-seen.json` (next run will re-fetch everything; use when sources change dramatically).
 - **Force 304 cache invalidation** — `rm ~/.openclaw/workspace-<agent>/state/press-review-feeds.json`.
+
+## Also document the script in the agent's AGENTS.md
+
+The cron payload only runs at the scheduled time. When the user asks on-demand ("send me the press review"), the agent has no pointer to the script and will typically fall back to `web_fetch` on guessed RSS URLs (half of which 404) and then hallucinate headlines. To prevent this, append a section to the **agent's workspace `AGENTS.md`**:
+
+```markdown
+## On-Demand Press Review
+
+When the user asks for "press review", "daily news", "morning news",
+"news digest", "morning briefing", or anything similar, DO NOT use
+`web_fetch` on random RSS URLs and DO NOT hallucinate headlines. Use
+the shipped script:
+
+1. Run via the `exec` tool:
+
+       python3 {WORKSPACE_PATH}/scripts/press-review.py
+
+2. The script fetches RSS + Hacker News, dedupes against a 30-day cache,
+   and prints markdown-ready source data on stdout.
+
+3. Synthesise per the format stored in the `press-review` cron job's
+   prompt. Key points:
+   - First section is `### Top Stories` — 2-3 cross-source merged items.
+   - Then domain sections: AI, Web Dev & Python, Crypto, DevOps &
+     Security, Industry & Trends, Trending on Hacker News.
+   - **Bare URLs only** — Signal does NOT render markdown `[text](url)`
+     links, only auto-linkifies raw `https://...` URLs.
+   - No repeats between sections.
+
+4. Send the resulting markdown directly to the user. No preamble, no sign-off.
+```
+
+This is not optional. Skipping this step means the on-demand path works ~0% of the time.
+
+## Model reasoning flag
+
+If the agent's default model is one of the OpenRouter "reasoning is mandatory" models (`openai/gpt-oss-120b`, `deepseek/deepseek-r1`, `anthropic/claude-sonnet-4-5-thinking`, some Gemini thinking variants), the model entry in `~/.openclaw/agents/<agent-id>/agent/models.json` MUST have `"reasoning": true`. Otherwise every cron fire and every on-demand request fails with:
+
+```
+400 Reasoning is mandatory for this endpoint and cannot be disabled.
+```
+
+Example (add under `providers.openrouter.models`):
+
+```json
+{
+  "id": "openai/gpt-oss-120b",
+  "name": "GPT-OSS 120B",
+  "api": "openai-completions",
+  "reasoning": true,
+  "input": ["text"],
+  "cost": {"input": 0.05, "output": 0.25, "cacheRead": 0.05, "cacheWrite": 0.05},
+  "contextWindow": 131072,
+  "maxTokens": 32768,
+  "compat": {"supportsReasoningEffort": true, "supportsUsageInStreaming": true}
+}
+```
+
+Check during install: if `agents.defaults.model.primary` (in `openclaw.json`) references a reasoning-required model, verify the agent's `models.json` lists it with `reasoning: true`. If not, add it before declaring the install done.
 
 ## What to NOT do
 
@@ -231,8 +300,10 @@ Replace `{CHANNEL}` and `{RECIPIENT}` with the wizard's values.
 
 1. Run the script manually once: `ssh $SSH_HOST "python3 $WORKSPACE/scripts/press-review.py | wc -l"` — expect 300+ lines on first run.
 2. Check the cron was picked up: `ssh $SSH_HOST "jq '.jobs[] | select(.name == \"press-review\") | .enabled'" ~/.openclaw/cron/jobs.json` — expect `true`.
-3. Confirm the gateway didn't restart: `systemctl show openclaw.service -p NRestarts --value` — unchanged vs. baseline.
-4. Ask the user to test end-to-end by messaging `run press review` to the bot. If that succeeds, the daily cron will work too.
+3. Confirm AGENTS.md has the "On-Demand Press Review" section: `ssh $SSH_HOST "grep -q 'On-Demand Press Review' ~/.openclaw/workspace-*/AGENTS.md && echo OK"`.
+4. Confirm the default model has `reasoning: true` if required: `ssh $SSH_HOST "jq '.providers.openrouter.models[] | select(.id | contains(\"gpt-oss-120b\"))' ~/.openclaw/agents/$AGENT_ID/agent/models.json"` — expect a non-empty result with `"reasoning": true`.
+5. Confirm the gateway didn't restart: `systemctl show openclaw.service -p NRestarts --value` — unchanged vs. baseline.
+6. Ask the user to test end-to-end by messaging `send me the press review` to the bot. Verify the response contains real URLs (not hallucinated headlines) and that the URLs render as tappable links in the messaging app. If the response has no URLs or has markdown `[text](url)` syntax showing as literal text, revisit the prompt template + AGENTS.md.
 
 ## Operational notes
 
