@@ -54,8 +54,9 @@ Talking to OpenClaw on Signal feels the same as messaging ChatGPT — until you 
 
 **To get value beyond "just another chatbot"**, configure at least one of:
 
+- **Press Review** — daily aggregated tech/AI news digest delivered to your messaging channel. Ships ready-to-use with this skill (60-second install, see [`references/press-review.md`](references/press-review.md)).
 - **Heartbeat** — proactive monitoring (email triage, calendar reminders)
-- **Cron jobs** — scheduled automation (morning briefing, daily backup reports)
+- **Cron jobs** — scheduled automation (weekly backup reports, daily standup prompts, etc.)
 - **Multi-agent routing** — different personalities for different contacts ([`references/multi-agent-routing.md`](references/multi-agent-routing.md))
 - **Tool integrations** — Gmail, Calendar, GitHub, Obsidian, Home Assistant
 
@@ -89,6 +90,7 @@ The key rule is: **ask one question at a time, wait for the answer, then proceed
  9. Post-install hardening & verification
 10. Social media integrations (optional)
 11. Additional integrations & next steps
+11a. Press Review — daily news digest (optional, 60-second install)
 12. Wrap up + suggest retrospective to self-improve this skill
 ```
 
@@ -407,6 +409,7 @@ Detailed step-by-step instructions for each phase live in reference files. Load 
 | **9. Post-Install** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 9 | Security audit, systemd service, Docker sandboxing |
 | **10. Social Media** | [`references/social-media.md`](references/social-media.md) | Optional — only if user explicitly wants posting |
 | **11. Integrations** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 11 | Backups, tool integrations, heartbeat, cron jobs |
+| **11a. Press Review** | [`references/press-review.md`](references/press-review.md) | Ready-to-use daily news digest — aggregated RSS + HN, dedup cache, cross-source synthesis. Ship-in-60s Signal/Telegram/Discord delivery. Offer during install; skip if user declines. |
 | **12. Wrap Up** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 12 | Final verification, suggest retrospective |
 
 **Key rules for all phases:**
