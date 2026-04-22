@@ -254,8 +254,7 @@ HN_KEYWORDS = {
     "database",
     "cloud",
     "linux",
-    "vim",
-    "neovim",
+    "emacs",
 }
 
 
