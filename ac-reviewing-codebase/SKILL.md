@@ -83,7 +83,13 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
 
 ## Rules
 
-1. **Parallelize with sub-agents where safe.** Independent review tasks — e.g., grepping for stale references across separate repos, running lint checks, counting TODOs — can be dispatched to sub-agents in parallel. But **judgment-heavy work** (architectural assessment, cross-review at seams, deciding what to consolidate) must stay in the main conversation where full skill context, MCP access, and shell functions are available.
+1. **Parallelize per-repo mechanical audits by default, but keep scopes tight.** For any portfolio with >2 repos in scope, the first action in Phase 1 is to dispatch **one Explore sub-agent per repo in parallel** (not sequentially) collecting mechanical findings. Observed failure modes (real, recurring): sub-agents thrash on broad prompts, hallucinate "TEXT ONLY" constraints from compaction summaries, refuse to run tools, or time out. Counter-measures:
+   - **One repo per agent.** Never combine two repos in one prompt.
+   - **Prescribe the exact commands**, not a set of dimensions. Instead of "audit hygiene" write "run `git status --short`, `git log --oneline @{u}..HEAD`, `git stash list` and report verbatim".
+   - **Cap the report size** (≤300 words) and forbid summarization of findings — the agent returns raw evidence, you synthesize in main thread.
+   - **After ONE failed re-dispatch**, fall back to targeted main-thread Bash scans for that repo. Do not keep redispatching.
+
+   Only **judgment-heavy work** (architectural assessment, cross-review at seams, deciding what to consolidate, implementation) stays in the main conversation. Serializing all per-repo audits sequentially in the main thread is still a workflow failure — it costs context budget and usually ends in truncated reviews.
 2. **Work on the source repo** (git-tracked), never on symlink targets under the agent runtime's skills directory.
 3. **Be thorough, not fast.** Resist the urge to rush to completion. Each phase exists for a reason.
 4. **Ask when ambiguous (Non-Negotiable).** When you encounter an unclear design decision, ambiguous scope, or a choice with multiple valid options — **stop and ask the user**. In checker mode, mark ambiguous items as errors and `FAIL`.
@@ -94,6 +100,7 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
 9. **Implement, don't postpone (Non-Negotiable).** When review identifies concrete improvements, implement them in the same session. TODO comments are postponement.
 10. **Factorize aggressively.** Duplicated logic across scripts, repos, or skills is a finding. Extract to a shared module, tool, or reference file. When unsure whether duplication is intentional — **ask the user**.
 11. **Documentation must be current or auto-generated.** Check that docs (README, BLUEPRINT, generated API docs) are up to date with the code. If manually maintained, flag drift. If auto-generated, verify the generation hook exists in pre-commit or CI. Missing auto-generation for documentation that should be generated is a finding.
+12. **Phase 0 fixes are NOT the review (Non-Negotiable).** Phase 0 prerequisite checks (running `cli.py check`, `--help`, `prek` in dry-run, reading `assess` output) routinely surface quick-win fixups — stale refs in a generator script, a pyenv/shim bug, a missing dep declaration. Shipping those is encouraging, but it is not the review. Before declaring the review done, **explicitly list every repo in scope and confirm each has been through Phases 1–4**. A review that touched 2 of 8 in-scope repos is 25% complete, not done. When the user flags this gap, do not retroactively re-scope — acknowledge and run the missing phases. The "Definition of Done" in Phase 6.5 is binding: re-running the review on the same scope must produce zero new findings, which is only possible if the full scope was actually reviewed.
 
 ---
 
