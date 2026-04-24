@@ -20,25 +20,36 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.+?)\n---", re.DOTALL)
 def _parse_frontmatter(path: Path) -> dict[str, str]:
     """Extract YAML-ish key: value pairs from SKILL.md frontmatter.
 
-    Handles YAML folded (``>``) and literal (``|``) scalar indicators by
-    collecting indented continuation lines into the previous key's value.
+    Handles YAML folded (``>``) / literal (``|``) scalars and one level of
+    nested mapping (e.g., ``metadata: {version: ...}``). Nested keys are
+    stored with dotted names (``metadata.version``).
     """
     m = FRONTMATTER_RE.match(path.read_text(encoding="utf-8"))
     if not m:
         return {}
     meta: dict[str, str] = {}
     current_key: str | None = None
+    nested_parent: str | None = None
     for line in m.group(1).splitlines():
         stripped = line.strip()
+        if not stripped:
+            continue
         if ":" in line and not line[0].isspace():
             k, v = line.split(":", 1)
             current_key = k.strip()
+            nested_parent = None
             v_clean = v.strip().strip('"').strip("'")
             if v_clean in {">", "|", ">-", "|-"}:
                 meta[current_key] = ""
+            elif not v_clean:
+                meta[current_key] = ""
+                nested_parent = current_key
             else:
                 meta[current_key] = v_clean
-        elif current_key is not None and line[0:1].isspace() and stripped:
+        elif nested_parent is not None and line[:2].isspace() and ":" in stripped:
+            k, v = stripped.split(":", 1)
+            meta[f"{nested_parent}.{k.strip()}"] = v.strip().strip('"').strip("'")
+        elif current_key is not None and line[:1].isspace() and stripped:
             existing = meta.get(current_key, "")
             meta[current_key] = f"{existing} {stripped}".strip() if existing else stripped
     return meta
@@ -56,7 +67,7 @@ def _build_table() -> str:
         for sep in (". Triggers:", ". Use when", ". Use this"):
             if sep in short and not short.startswith(sep.lstrip(". ")):
                 short = short.split(sep)[0]
-        version = meta.get("version", "—")
+        version = meta.get("metadata.version") or meta.get("version", "—")
         skills.append((name, version, short))
 
     lines = [

@@ -39,7 +39,7 @@ metadata:
 
 ## Dependencies
 
-Standalone. No dependencies on other skills.
+Requires `ac-python` (declared via the `requires:` frontmatter field). This skill layers Django-specific rules on top of ac-python's generic Python guidelines — see "Overrides When Loaded Alongside ac-python" below.
 
 When used alongside lifecycle skills, provides Django best practices context for Django projects using the worktree workflow.
 

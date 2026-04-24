@@ -12,6 +12,7 @@ Subcommands:
     assess  — Run deterministic codebase metrics (ruff, coverage, complexity, TODOs, deps).
 """
 
+import functools
 import json
 import os
 import re
@@ -426,10 +427,26 @@ def _print_repo_detail(name: str, info: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _ruff_cmd() -> list[str]:
-    """Return the ruff invocation, falling back to uv tool run when ruff is not in PATH."""
+@functools.cache
+def _ruff_cmd() -> tuple[str, ...]:
+    """Return a runnable ruff invocation.
+
+    `shutil.which("ruff")` can return a pyenv shim that fails at dispatch when
+    the active Python version doesn't have ruff installed. Smoke-test with
+    `--version` before trusting the resolved path; otherwise fall back to
+    `uv tool run ruff`, which is always available in this skill's runtime.
+    """
     ruff = shutil.which("ruff")
-    return [ruff] if ruff else ["uv", "tool", "run", "ruff"]
+    if ruff:
+        probe = subprocess.run(
+            [ruff, "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if probe.returncode == 0:
+            return (ruff,)
+    return ("uv", "tool", "run", "ruff")
 
 
 def _run_tool(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
