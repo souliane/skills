@@ -1,6 +1,6 @@
 ---
 name: ac-adopting-ruff
-description: Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with either progressive per-rule enforcement or changed-files-only gradual adoption.
+description: Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with either progressive per-rule enforcement or changed-files-only gradual adoption. Also use to pay back ruff tech debt — shrinking accumulated `per-file-ignores` via session-sized, one-file-or-one-rule-at-a-time cleanup — on phrasing like "pay back ruff tech debt", "clean up ruff ignores", or "reduce per-file-ignores" (ask first if the user only says "pay back tech debt" without mentioning ruff).
 compatibility: Any Python project with pre-commit (prek). Knowledge-only skill.
 metadata:
   version: 0.0.1
@@ -16,6 +16,8 @@ Standalone. No dependencies on other skills.
 ## Overview
 
 Replace legacy Python linting (black, isort, flake8, pylint) with ruff as the **sole** linter and formatter. Enable ALL rules including preview, explicitly disable what fails, then enforce rules — either progressively (one MR per rule/batch) or by enabling all rules at once and checking only changed files.
+
+Projects that picked "changed files only" accumulate per-file-ignores over time (engineers touch a file, see unrelated violations, pin the rule instead of fixing it). **Phase 3** is the recurring, session-sized cleanup that pays that debt back one file or one rule at a time.
 
 ## Principles
 
@@ -254,6 +256,37 @@ Before starting Phase 2, ask the user these questions (one at a time):
 2. **Enforcement approach?**
    - **Changed files only (Recommended)** — enable all rules immediately, check only changed files in CI. One config-only MR, zero merge conflicts. See [`references/enforcement.md`](references/enforcement.md) § Phase 2A.
    - **Progressive enforcement** — fix violations one rule/batch at a time via dedicated MRs. Predictable pace, but many MRs and merge conflicts. See [`references/enforcement.md`](references/enforcement.md) § Phase 2B.
+
+## Phase 3: Paying Back Ruff Tech Debt
+
+After adopting the "changed files only" approach (Phase 2A), `per-file-ignores`
+tends to grow. When engineers touch a file and ruff surfaces violations
+unrelated to their change, the path of least resistance is to pin the rule for
+the file instead of fixing it. Over time, `pyproject.toml` collects dozens of
+file entries with long rule lists, each labelled "pre-existing — to be
+addressed in dedicated techdebt".
+
+Phase 3 is the recurring, session-sized cleanup that chips away at that debt.
+Invoke **only on ruff-specific phrasing** — "pay back ruff tech debt", "clean
+up ruff ignores", "reduce per-file-ignores", "unignore `<file>`/`<rule>`". If
+the user says only "pay back tech debt" without mentioning ruff, ask whether
+they mean ruff tech debt before proceeding — generic tech debt (dead code,
+slow queries, TODOs) is out of scope for this skill.
+
+Each session = one small MR. Two modes:
+
+- **Mode A (file-focused)** — shrink or delete one file's ignore entry
+- **Mode B (rule-focused, default when `per-file-ignores` has >20 entries)** —
+  drop one rule from every file where it can be removed without refactoring
+
+Always start by scanning for **stale** ignores (rule pinned but no longer
+violates) — those are free wins. Rules that demand real refactoring
+(`C901`, `PLR09xx`, `ANN*` at scale, `FBT001/2` on public APIs, `D*`) are on
+the skip list and left alone. If any cleanup drags in architectural change,
+restore the rule for that one file and move on.
+
+Read [`references/tech-debt-payback.md`](references/tech-debt-payback.md) for
+the full procedure, skip list, and scope discipline.
 
 ## Quick Reference
 

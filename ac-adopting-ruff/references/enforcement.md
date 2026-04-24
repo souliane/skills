@@ -118,6 +118,11 @@ ruff-format and all other hooks still run on all files as before.
 | Time to full coverage | Gradual (depends on file churn) | Predictable (you set the pace) |
 | Developer friction | Touching a file may surface unrelated violations | None (violations pre-fixed) |
 | Risk | Low (no auto-fix on untouched code) | Medium (auto-fix can change semantics) |
+| Long-term drift | `per-file-ignores` tends to grow (path of least resistance when editing a file is to pin the rule, not fix the violation) — plan a recurring **Phase 3 — Paying Back Ruff Tech Debt** session to shrink it | Minimal drift, no cleanup phase needed |
+
+**Planning for Phase 3.** If you pick this approach, assume you will need a
+recurring cleanup pass — set a reminder (quarterly is reasonable) to run a
+ruff tech-debt session. See the Phase 3 section in the main skill file.
 
 ## Phase 2B: Progressive Enforcement
 
