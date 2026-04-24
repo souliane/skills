@@ -79,51 +79,64 @@ Blog posts should include `draft: true` in their frontmatter until the user expl
 
 ## Workflow
 
-### 1. Gather Context
+### 1. Interactive Authoring Dialogue (Non-Negotiable)
 
-Before writing, collect:
+A blog post is the user's voice on the page — not yours. Writing runs as a conversation where **the user drives intent, structure, and voice, and you help formalize and propose phrasings**. Never produce a full draft from a single upfront prompt — that produces articles that don't sound like the user and don't express what they actually wanted to say.
 
-- **Topic and scope** — what is the article about? Ask if unclear.
-- **Target audience** — developers? managers? specific community?
-- **Author bio context** — check the agent's memory for stored biographical details. If none found, ask: "How should I introduce you? (role, company, relevant background)"
-- **Key points** — what must the article cover? Let the user list them or extract from source material.
-- **Existing content** — are there README files, SKILL.md files, or documentation to base the article on?
+**Rules of the dialogue**
 
-Save gathered preferences as `user` type memories with descriptive titles (e.g., "Blog author intro: [summary]", "Blog preferred structure: [summary]").
+- **One question per turn.** Ask exactly one question, wait for the answer, then ask the next. Each answer changes what the next question should be — you cannot know the right next question until the prior answer lands. Never batch.
+- **Every question has 4 to 8 options.** Always a numbered menu, tailored to the conversation so far. Options must span a real range, not near-duplicates. The last option is always "none of these — I'll describe it myself".
+- **Always run this dialogue.** Run it for every post, even when the user provides a clear topic or source material. The topic is the starting point of the dialogue, not a shortcut past it. Only skip if the user explicitly says something like "skip the dialogue, just draft it".
+- **Suggest actual prose at paragraph level.** When drafting a section, propose 4-8 *written paragraphs* — not outlines or bullets. The user picks, edits, or asks for more variants. (Analogous to how slides propose the actual words on the slide; blog posts propose the actual paragraphs.)
+- **The user owns the story.** You help formalize, suggest phrasings, and catch inconsistencies. You do not decide the narrative arc, the stance, or the voice.
 
-### 2. Structure the Article
+**If the user rejects all options in a turn**, the options missed the real axis. Do not simplify to a binary, and do not re-paraphrase the same set. Ask what dimension was missed, then regenerate along that dimension.
 
-Standard blog post structure (adapt as needed):
+#### Phase A — Intent & frame
 
-1. **Title** — concise, specific, no clickbait
-2. **Opening** — 2-3 sentences establishing context and what the reader will learn
-3. **Problem/motivation** — why this exists (grounded in real experience, not invented)
-4. **Solution/content** — the meat of the article
-5. **Examples** — concrete, runnable where possible
-6. **Limitations/status** — honest about maturity and scope
-7. **Links** — repo, license, related resources
+One turn per bullet, in this order:
 
-### 3. Write the Draft
+- **What the post *does* for the reader** (introduces a tool, walks through a technique, reflects on a failed experiment, compares approaches, pushes back on a common view, answers a recurring question, documents a working pattern, retrospective on a longer effort, etc.).
+- **Target audience** (peers on the same stack, newcomers needing step-by-step, skeptics, a named community, the user's future self as reference, mixed with a primary target, etc.).
+- **User's stance on the topic** (enthusiast / cautious / critical / undecided / curious observer / ambivalent / other).
+- **Tone calibration** (dry-factual, warm-personal, technical-narrative, conversational-brief, reflective, polemical, etc. — tie options to short example phrasings when useful).
+- **The single sentence the reader should walk away with**: generate 4-8 candidate takeaway sentences built from the prior answers. User picks or reshapes.
 
-- Use the frontmatter format:
+Before Phase A, check the agent's memory for stored author bio / style preferences and ask only for what's missing. Save new answers as `user` type memories with descriptive titles so the next post can reuse them.
 
-  ```yaml
-  ---
-  title: "Article Title"
-  date: YYYY-MM-DD
-  draft: true
-  ---
-  ```
+#### Phase B — Structure
 
-- Write in first person when the author is sharing personal experience.
-- Use code blocks with language annotations.
-- Keep paragraphs short (3-5 sentences max).
-- Use headings to create scannable structure.
-- Include links to source repos, documentation, and referenced projects.
+One turn per bullet:
 
-### 4. Review Against Source Material
+- **Outline**: offer 4-8 *full outlines*, each a short list of sections with a one-line description per section. Each outline should embody a real structural choice (chronological / problem-solution / thesis-and-evidence / compare-and-contrast / Q&A / walkthrough / annotated example / retrospective timeline / how-I-got-here / etc.), not just reshuffled titles.
+- **Title**: 4-8 title candidates derived from the chosen outline and takeaway sentence.
+- **Opening paragraph**: 4-8 actual prose openers spanning real angles (anecdote / direct thesis / question / scene-setting / quote / definition / observation / confession), not outlines.
 
-After writing the draft, verify:
+#### Phase C — Drafting, section by section
+
+For each section in the chosen outline:
+
+1. Restate the section's job in one sentence (from the outline).
+2. Offer 4-8 *full draft paragraphs* (or multi-paragraph blocks) for the section. Drafts must span real angles — one might open with an anecdote, another with a definition, another with a direct claim, another with a question, another with a code example and minimal framing.
+3. User picks, edits inline, asks for more variants, or asks you to merge two. Iterate until they accept.
+4. Move to the next section.
+
+When every section is accepted, assemble the full draft with frontmatter:
+
+```yaml
+---
+title: "Article Title"
+date: YYYY-MM-DD
+draft: true
+---
+```
+
+Use first person when sharing personal experience, short paragraphs (3-5 sentences max), code blocks with language annotations, and links to source repos and referenced projects.
+
+### 2. Review Against Source Material
+
+After assembling the draft, verify:
 
 - [ ] Every technical claim matches the actual codebase (counts, versions, commands)
 - [ ] No biographical details were invented
@@ -133,16 +146,18 @@ After writing the draft, verify:
 - [ ] Code examples are correct and runnable
 - [ ] Limitations are honestly stated (near the beginning, not buried)
 
-### 5. Iterate with the User
+### 3. Final Full-Draft Review
 
-Present the draft and ask for feedback. Common revision areas:
+Phase C iterates section by section. This step reads the *assembled* article as a whole and checks what turn-by-turn review can't catch:
 
-- Biographical accuracy
-- Technical depth (too shallow / too detailed)
-- Tone adjustments
-- Missing topics or over-emphasis
+- Cross-section coherence (does section 3 still make sense after the user changed section 1?)
+- Redundancy across sections
+- Pacing (too much setup, rushed ending, etc.)
+- Consistency of tense, voice, and level of detail
 
-### 6. Promote the Article
+Present the assembled draft to the user and ask what to adjust. If changes touch the structure, loop back into Phase B/C for the affected sections rather than rewriting inline.
+
+### 4. Promote the Article
 
 After the user is happy with the draft (or after publishing), ask:
 
