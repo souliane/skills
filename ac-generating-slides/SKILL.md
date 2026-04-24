@@ -32,7 +32,53 @@ Before creating slides, check if the user has a branding skill configured:
 4. If the user provides one, load it and suggest they store the path in their agent's memory for future sessions.
 5. If no branding skill is available, proceed with the default Marp theme.
 
-### 1. Create the Slide Deck
+### 1. Interactive Authoring Dialogue (Non-Negotiable)
+
+A deck is the user's talk — not yours. Slide creation runs as a conversation where **the user drives intent, arc, and voice, and you formalize by proposing the actual words that will appear on each slide**. Never assemble a full deck from a single upfront prompt — that produces decks that don't sound like the user and don't carry their argument.
+
+**Rules of the dialogue**
+
+- **One question per turn.** Ask exactly one question, wait for the answer, then ask the next. Each answer changes what the next question should be — you cannot know the right next question until the prior answer lands. Never batch.
+- **Every question has 4 to 8 options.** Always a numbered menu, tailored to the conversation so far. Options must span a real range, not near-duplicates. The last option is always "none of these — I'll describe it myself".
+- **Always run this dialogue.** Run it for every deck. Only skip if the user explicitly says something like "skip the dialogue, just assemble it".
+- **Suggest the actual words on the slide.** For slide-level turns, propose 4-8 variants of the *literal text* that will appear on the slide (headline + bullets / paragraph / caption). Not outlines. (Blog posts propose whole paragraphs of prose; slides propose what the audience will read on screen — this is the tighter form.)
+- **The user owns the argument.** You help formalize phrasing and catch inconsistencies. You do not decide the story arc, the stance, or the voice.
+
+**If the user rejects all options in a turn**, the options missed the real axis. Do not simplify to a binary, and do not re-paraphrase the same set. Ask what dimension was missed, then regenerate along that dimension.
+
+#### Phase A — Intent & frame
+
+One turn per bullet, in this order:
+
+- **What the talk *does* for the audience** (introduces a tool, walks through a technique, reports on an experiment, argues a position, compares approaches, recounts a failure, demos a workflow, retrospective, etc.).
+- **Audience** (peers at a meetup, internal team, conference track, mixed skill levels with a primary target, decision-makers, a named community, etc.).
+- **Duration.** Default to **5-minute lightning talk** unless the user indicates otherwise — offer 5 min / 10 min / 15-20 min / 30+ min / keynote / other. The duration caps the slide count: roughly 1 slide per minute for lightning and short talks, slower for longer formats.
+- **User's stance on the topic** (enthusiast / cautious / critical / undecided / curious observer / ambivalent / other).
+- **Tone calibration** (serious-technical, warm-personal, playful, dry-and-factual, polemical, reflective, etc.).
+- **The single line the audience should walk away with**: generate 4-8 candidate one-sentence takeaways built from the prior answers. User picks or reshapes.
+
+Before Phase A, check the agent's memory for stored speaker / style preferences and ask only for what's missing. Save new answers as `user` type memories so the next deck can reuse them.
+
+#### Phase B — Arc
+
+One turn per bullet:
+
+- **Slide-by-slide outline**: offer 4-8 *full outlines*, each a numbered list of slide titles with a one-line description of what goes on each slide. Each outline embodies a real narrative choice (chronological / problem-then-solution / thesis-and-evidence / before-and-after / live-demo walkthrough / Q&A structure / story arc with reveal / rapid-fire tips, etc.). Slide count should match the chosen duration (5-min ≈ 5-8 slides; 20-min ≈ 12-20 slides).
+- **Deck title**: 4-8 title candidates derived from the chosen outline and takeaway sentence.
+- **Opening slide (the lead)**: 4-8 actual lead-slide texts (title + subtitle + speaker line), not outlines.
+
+#### Phase C — Slide by slide
+
+For each slide in the chosen outline:
+
+1. Restate the slide's job in one sentence (from the outline).
+2. Offer 4-8 variants of the **actual slide content** — headline plus bullets or paragraph or caption, exactly as it will appear on screen. Variants must span real angles (headline-as-claim vs. question vs. number; dense-bullets vs. one-line-plus-image; screenshot vs. code block vs. flow diagram). For image-heavy slides, propose which image plus the accompanying text.
+3. User picks, edits inline, asks for more variants, or asks you to merge two. Iterate until they accept.
+4. Move to the next slide.
+
+When every slide is accepted, assemble the deck using the Marp patterns in the sections below.
+
+### 2. Create the Slide Deck
 
 Write a `.md` file with Marp front matter. Always start with:
 
@@ -61,7 +107,7 @@ style: |
 - Use `<div>` blocks with inline styles for custom layouts (layered diagrams, flow boxes, status bars)
 - Keep font sizes readable: don't go below `0.75em`
 
-### 2. Embedding Images
+### 3. Embedding Images
 
 **Never embed large images as base64 in the Marp source file.** Images over ~100KB as base64 cause Marp's browser navigation to time out (30s limit).
 
@@ -73,7 +119,7 @@ style: |
 
 **When base64 is acceptable:** small icons or logos under ~30KB that are already embedded as SVG strings in the CSS.
 
-### 2b. Image Sizing (Non-Negotiable)
+### 3b. Image Sizing (Non-Negotiable)
 
 **Inline CSS `height`/`max-height` on `<img>` tags does NOT work in Marp.** Marp overrides inline styles on images. Always use Marp's native image sizing syntax:
 
@@ -85,7 +131,7 @@ style: |
 
 Never use `<img style="height:...">` or `<div style="max-height:...">` — they will be ignored.
 
-### 2c. Column Layouts
+### 3c. Column Layouts
 
 **Inline flexbox `<div>` blocks do NOT produce columns in Marp** — Marp wraps markdown content in `<p>` tags that break flex children. Use **scoped CSS grid** instead:
 
@@ -107,7 +153,7 @@ Left column content (text, bullets)
 
 **`![bg right:50%]()` can also work** but may render incorrectly with local files or produce black bars. Prefer the scoped grid approach for reliable results.
 
-### 2d. Lead Slides and Bold Text
+### 3d. Lead Slides and Bold Text
 
 On `section.lead` slides, `strong` inherits the default color which may be invisible against the dark background. Always add this to the global style:
 
@@ -115,7 +161,7 @@ On `section.lead` slides, `strong` inherits the default color which may be invis
 section.lead strong { color: #fff; }
 ```
 
-### 3. Export to PDF
+### 4. Export to PDF
 
 ```bash
 ./ac-generating-slides/scripts/cli.py slides.md
@@ -125,7 +171,7 @@ section.lead strong { color: #fff; }
 
 The script auto-detects a Chromium browser (Chrome, Brave, Edge, Chromium) on macOS and Linux, sets `CHROME_PATH`, and calls `marp --pdf --allow-local-files`.
 
-### 4. Iterate
+### 5. Iterate
 
 After generating, read the PDF to visually verify the result. Fix any layout issues — common problems:
 
