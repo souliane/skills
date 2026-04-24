@@ -37,6 +37,24 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 
 Standalone. No dependencies on other skills.
 
+## Example Values — Always Use Placeholders (Non-Negotiable)
+
+When authoring documentation, troubleshooting entries, command examples, or config snippets in this skill, **never paste a real phone number, email, UUID, token, hostname, file path, or other personally identifying value from a live system** — even as "throwaway context" to illustrate a bug. Copy-paste from a live VPS or a real `pass` entry is how real values end up in examples.
+
+Use well-known placeholders instead:
+
+| Data type | Placeholder |
+|-----------|-------------|
+| Phone (E.164) | `+33612345678` (documented French test number) or `+15551234567` |
+| Email | `user@example.com`, `agent@example.org` |
+| UUID | `00000000-0000-0000-0000-000000000000` or `uuid:abcd1234-…` with obvious filler |
+| API token | `sk-EXAMPLE…`, `glpat-EXAMPLE…`, `ghp_EXAMPLE…` — always `EXAMPLE` in the body |
+| Hostname / IP | `openclaw.example.com`, `203.0.113.42` (RFC 5737 TEST-NET-3) |
+| Home path | `/home/openclaw/…` or `$HOME/…` — never a real `/Users/<name>/…` from a workstation |
+| Signal data dir | `~/.local/share/signal-cli/` — never the real account subdirectory |
+
+Before merging any change to this skill (or to any reference under `references/`), grep the diff for the Streisand-effect and PII patterns in `rules/SKILL.md` § "Leak Remediation — Silent Scrubs" and `retro/SKILL.md` § "Privacy Scan". If a real value slipped into an example, rewrite to a placeholder before push — do NOT ship the diff and scrub later. Post-merge remediation on a public repo is irreversible and amplifies the leak.
+
 ## Why OpenClaw (vs. ChatGPT / Gemini directly)
 
 Talking to OpenClaw on Signal feels the same as messaging ChatGPT — until you configure what makes it different:
