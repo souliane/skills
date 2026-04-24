@@ -289,12 +289,23 @@ Example (add under `providers.openrouter.models`):
 
 Check during install: if `agents.defaults.model.primary` (in `openclaw.json`) references a reasoning-required model, verify the agent's `models.json` lists it with `reasoning: true`. If not, add it before declaring the install done.
 
+### Two separate reasoning knobs — don't confuse them
+
+There are TWO orthogonal reasoning settings, and **both must be correct** for reasoning-required models to work:
+
+| Setting | File | Purpose |
+|---|---|---|
+| `providers.*.models[].reasoning` | `agents/<id>/agent/models.json` | Declares that the *model* supports/requires reasoning. Per-model capability flag. |
+| `agents.defaults.thinkingDefault` | `openclaw.json` | Default thinking level for every new session: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. Session-level policy. |
+
+If `thinkingDefault` is missing from `openclaw.json`, sessions default to `"off"`. On a reasoning-required model, every call then fails with `400 Reasoning is mandatory for this endpoint and cannot be disabled` — errors that are swallowed silently, so the user only sees degraded output (hallucinated URLs, tag leaks, short bland replies). Always set `agents.defaults.thinkingDefault: "high"` when the primary model is reasoning-required. Verify with `jq -r 'select(.type=="thinking_level_change") | .thinkingLevel' <session>.jsonl` — should be `"high"`, not `"off"`.
+
 ## What to NOT do
 
 - **Don't** use `openclaw cron add` / `openclaw cron list` on the same VPS as the running gateway — it SIGTERMs the service every call (see `troubleshooting-and-maintenance.md` § Common Mistakes row "Running `openclaw` CLI on VPS").
 - **Don't** put API keys or secrets into the cron payload — the prompt is agent-visible, but any tokens belong in `pass` and are injected via the gateway wrapper, never inline.
 - **Don't** hard-code absolute paths in the script. The canonical script uses `Path(__file__).resolve().parent.parent / "state"` so it works for any agent workspace.
-- **Don't** set `delivery.mode` to anything other than `none` unless you've verified the gateway's current delivery driver behaviour for that channel. The agent calling the send tool is the portable path.
+- **Don't** leave `delivery.mode: "none"` on a cron job you actually want the user to receive. With `mode: "none"`, OpenClaw's `resolveCronDeliveryPlan` (in `dist/server-plugin-bootstrap-*.js`) sets `requested: false` and skips `appendCronDeliveryInstruction`, so the agent treats its final output as "internal, do not relay" and the user gets nothing — even though `openclaw cron runs --id <jobId>` will still show the run as successful. Use `mode: "announce"` with `channel` + `to` (e.g., `"to": "uuid:<agent-uuid>"` for Signal). Verify delivery with `openclaw cron runs --id <jobId>` — look for `"delivered": true, "deliveryStatus": "delivered"` in the JSON.
 
 ## Verification after install
 
