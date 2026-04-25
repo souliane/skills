@@ -102,6 +102,8 @@ Expect a `# Press Review Sources — <date>` header and at least 2-3 fetched sec
 
 **Step 4 — add the cron job.** Patch `~/.openclaw/cron/jobs.json` directly with `jq` — **never use the `openclaw cron add` CLI on the same VPS** (it cycles the gateway; see `troubleshooting-and-maintenance.md`).
 
+> **Budget guidance:** `timeoutSeconds` covers the WHOLE agent turn (script exec + tool calls + synthesis + delivery), not just the LLM call. Reasoning-mandatory models (`gpt-oss-120b`, `deepseek-r1`, thinking-tier Claude/Gemini) routinely spend 60-150 s on synthesis alone and the tail is fat. The default below is **360 s** based on observed p95 + headroom. Tighten only after you've seen ≥ 2 weeks of `~/.openclaw/cron/runs/<jobId>.jsonl` durations and confirmed they sit comfortably under your target.
+
 ```bash
 NOW_MS=$(date +%s%N | cut -c1-13)
 JOB_ID=$(uuidgen)
@@ -120,7 +122,7 @@ jq --arg id "$JOB_ID" \
     createdAtMs: $now, updatedAtMs: $now,
     schedule: {kind: "cron", expr: $expr, tz: $tz},
     sessionTarget: "isolated", wakeMode: "now",
-    payload: {kind: "agentTurn", message: $msg, model: $model, timeoutSeconds: 180},
+    payload: {kind: "agentTurn", message: $msg, model: $model, timeoutSeconds: 360},
     delivery: {mode: "none", channel: $channel, to: $to},
     state: {
       nextRunAtMs: $now, lastRunAtMs: null,
