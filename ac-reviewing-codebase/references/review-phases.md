@@ -133,6 +133,37 @@ Verify agent platform hook scripts are correct and functional. Check event types
 - **Fallbacks are code smells (Non-Negotiable).** Code that tries multiple approaches ("if this fails, try that") hides real issues. Stick to one way of doing things. Fallbacks are especially common in agent-generated code — agents workaround for hours with dirty hacks instead of fixing the root cause. Flag every fallback and ask: "Why does the primary path fail? Fix that instead."
 - **Legacy compatibility shims are code smells.** Code that preserves old behavior (deprecated aliases, backward-compat wrappers, unused re-exports) accumulates silently. When found, ask the user: "Is this still needed, or can we remove it?" If removal requires deprecation, propose a timeline. Default stance: remove unless the user explicitly says to keep.
 
+### 3.5b Promote Plugin/Overlay Wrappers to Core Backends (Non-Negotiable)
+
+When the codebase has a plugin or overlay architecture with **typed core backend protocols** (e.g., teatree's `CodeHost`, `CIService`, `IssueTracker`, `ChatNotifier`, `ErrorTracker` in `backends/protocols.py`), every plugin/overlay method that performs platform-API work belongs on a core backend, not on the plugin.
+
+**A plugin method is a promotion candidate when its body contains any of:**
+
+- HTTP calls (`urllib.request`, `requests`, `httpx`, `aiohttp`, raw `socket`).
+- Platform CLI shellouts (`gh`, `glab`, `slack-cli`, `notion-cli`, `sentry-cli`, `aws`, `gcloud`).
+- Platform SDK clients (`Github(...)`, `gitlab.Gitlab(...)`, `WebClient(...)` for Slack, `boto3.client(...)`).
+- File parsing of well-known platform formats (GitLab MR JSON, GitHub PR API responses, Slack event payloads).
+
+**Promotion rule.** A plugin method that wraps a platform API is duplication waiting to drift — a second plugin will reimplement it differently, the API behavior will silently diverge, and pagination/auth/error handling will be missing in at least one copy. The fix:
+
+1. **Identify the matching core protocol.** If one already exists (e.g., `IssueTracker.get_issue` for "fetch issue title"), the plugin method should delegate to it.
+2. **If no matching protocol exists**, propose adding one — and gate the proposal on at least 2 plugins needing the same wrapper, or 1 plugin + a clear reuse case.
+3. **Move the implementation** behind the backend, then delete the plugin override (or shrink it to a thin delegator).
+
+**Detection grep (run during the audit):**
+
+```bash
+# Inside the plugin/overlay source root:
+rg -nP '\b(urllib|requests|httpx)\.(request|get|post|put|delete|urlopen)\b|subprocess\.run.*\b(gh|glab|slack|notion|sentry-cli|aws|gcloud)\b' \
+   src/<plugin_pkg>/
+```
+
+Any hit inside a method that the core extension API names (e.g., overlay base classes, plugin interfaces) is a finding.
+
+**Worked example.** A plugin's `get_issue_title(url)` calls `urllib.request.Request(api_url)` with a `PRIVATE-TOKEN` header for GitLab and `subprocess.run(["gh", "issue", "view", ...])` for GitHub. The core protocol already exposes `IssueTracker.get_issue(url)` with the same intent. Recommendation: change the default `OverlayMetadata.get_issue_title()` to delegate to `IssueTracker.get_issue(url).get("title", "")` and delete the plugin override.
+
+**Why this is not just "factorization" (3.5).** Factorization catches duplicate code within one repo. This check catches duplication across the **plugin boundary**, where the core has already provided a typed extension API but the plugin author either didn't know about it or grew the wrapper organically before the protocol existed. The first instance looks legitimate; the second instance is the pattern.
+
 ### 3.6 Security Review
 
 - No hardcoded secrets. Grep all files for tokens, passwords, API keys.
