@@ -21,18 +21,24 @@ Standalone. No dependencies on other skills.
 
 This skill is published in a public repository. It must **never** contain user-specific details: repo names, directory layouts, secret names, org names, or infrastructure specifics. Use `<user>`, `<repo>`, or similar placeholders in examples. Project-specific details belong in the agent's memory or a private overlay — not here.
 
-### Never Invent Biographical or Personal Details (Non-Negotiable)
+### Never Invent Anything on the Author's Behalf (Non-Negotiable)
 
-**Never state anything in the author's name that isn't explicitly provided by the author or sourced from verifiable project files (README, SKILL.md, commit history, etc.).** This includes:
+**Never state anything in the author's name that isn't explicitly provided by the author or sourced from verifiable project files (README, SKILL.md, code, commit history, memory entries, etc.).** The rule is broader than biographical detail — it covers every load-bearing claim attributed to the author. Forbidden without an explicit source:
 
 - Life events, career history, motivations, or emotional experiences
-- Time estimates ("I spent 15 minutes...", "after months of...")
-- Habits or workflow descriptions ("I always...", "every morning I...")
+- Time estimates ("I spent 15 minutes...", "after months of...", "two days of green CI")
+- Habits or workflow descriptions ("I always...", "every morning I...", "I run two prompts periodically")
 - Opinions or preferences not explicitly stated
+- **Quantitative claims about the author's experience** ("fifteen percent of my reads", "ten worktrees, half stale", "the hook is twenty lines"). Either come from a measurement the agent ran in this session, or from a user-supplied number, or they're deleted.
+- **Experiments the author did not run** ("when I disabled X for an A/B test", "the first time I ran with metrics", "I tried briefly to give both lanes the same lease"). Fabricated experimental evidence is the highest-stakes invention — it makes a post sound rigorously empirical when it isn't.
+- **Past states of the author's system** ("the file used to be 600 lines", "my first version had X", "after a few weeks I had ten of them"). Verify against `git log -S` / `git blame` / the actual current state of the file before claiming a "before" picture, or ask.
+- **Code snippets attributed to the author's codebase.** Copy from the actual file via `Read`. Never reconstruct from a remembered description of what the function does — the reconstruction will be plausible-shaped and wrong.
 
-When biographical context would improve the article, **ask the user** with a specific question. Example: "The intro would benefit from context about how you started using this tool — can you share a sentence or two?"
+When biographical or experiential context would improve the article, **ask the user** with a specific question. Example: "The intro would benefit from context about how you noticed the bug — can you share a sentence or two about what tipped you off?"
 
 Save user-provided biographical details as a `user` type memory with a descriptive title for reuse in future articles.
+
+**Pre-publish source audit (Non-Negotiable):** before assembling the final draft, walk every paragraph and identify, per load-bearing claim, the evidence source — `file:line` reference, commit hash, memory entry, or user-supplied detail in this conversation. Claims without a source are deleted or sent back to the user with a question. This applies to claims of any kind, not just biographical, and runs **before** the "Review Against Source Material" step in the workflow. The earlier review catches missing citations and limitations; this audit catches the silent fabrications that look like personal voice.
 
 ### Humble, Non-Pretentious Tone (Non-Negotiable)
 
