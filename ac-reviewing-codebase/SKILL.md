@@ -38,6 +38,12 @@ MANAGED_REPOS="<org>/(repo-a|repo-b|repo-c)$"
 # Boilerplate -> dependent repos mapping.
 # Format: boilerplate_name:dep1,dep2;boilerplate_name:dep1,dep2
 BOILERPLATE_MAP="<boilerplate-repo>:<dep-repo-1>,<dep-repo-2>"
+
+# PR-sweep policy per repo (consumed by the sweeping-prs skill).
+# Format: repo_pattern:policy;repo_pattern:policy
+# Policies: bulk-update (default — refresh PR from main, do not merge)
+#           serial-merge (refresh, wait for CI green, squash-merge, then next PR)
+SWEEP_POLICY="<owned-org>/(repo-a|repo-b):serial-merge"
 ```
 
 | Variable | Purpose | Fallback when missing |
@@ -45,6 +51,7 @@ BOILERPLATE_MAP="<boilerplate-repo>:<dep-repo-1>,<dep-repo-2>"
 | `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
 | `MANAGED_REPOS` | Regex to discover repos under `T3_WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
 | `BOILERPLATE_MAP` | Maps boilerplate repos to their dependents for backport workflow | No backporting |
+| `SWEEP_POLICY` | Per-repo policy for the `sweeping-prs` skill — `bulk-update` only refreshes the PR from `main`; `serial-merge` also squash-merges before moving to the next PR (avoids conflict cascades on owned repos) | All repos default to `bulk-update` (refresh-only) |
 
 **Dependencies on other config files:**
 
@@ -126,8 +133,8 @@ Before starting the review:
 2. **Symlink health check.** Scan agent skill directories for **maintained skills** (matching `MAINTAINED_SKILLS` regex) that are managed installs instead of live clone symlinks. Report stale installs.
 3. **Check for unstaged changes & main-clone hygiene.** Run `git status` in each managed repo. If there are uncommitted changes, **commit them before starting** — keeps review changes cleanly separated. A main clone parked on a feature branch with uncommitted edits is a worktree-rule violation: rescue the dirty work onto a fresh branch + worktree, restore the main clone to its default branch, then continue. Inspect (don't blindly drop) any leftover stashes — show the user what's in them before discarding.
 4. **Open-PR sweep (Non-Negotiable).** The review must run against the latest state — outstanding PRs that are about to land would produce stale findings and force a re-review.
-   - **Preferred path:** if a dedicated PR-sweep skill is available in the session (e.g. teatree's `sweeping-prs`), invoke it and proceed once it returns.
-   - **If unavailable:** ask the user whether they have one to install. If they decline, sweep manually by asking the user the few questions needed to do it correctly (which repos, which PRs to include/exclude, conflict-resolution preference, whether to wait for CI), then walk each open PR — update from base, push, monitor CI, fix root causes (never `--no-verify`) — and surface any skipped PR in the final report.
+   - **Preferred path:** if a dedicated PR-sweep skill is available in the session (e.g. teatree's `sweeping-prs`), invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
+   - **If unavailable:** ask the user whether they have one to install. If they decline, sweep manually by asking the user the few questions needed to do it correctly (which repos, which PRs to include/exclude, conflict-resolution preference, whether to wait for CI, **whether to also merge each PR after CI greens for fully-owned repos**), then walk each open PR — update from base, push, monitor CI, fix root causes (never `--no-verify`), and (for repos the user wants drained) squash-merge before the next PR — and surface any skipped PR in the final report.
 5. **Determine review scope.** Use `MAINTAINED_SKILLS` from config to discover all repos and skills in scope. List discovered skills grouped by repo and ask the user to confirm or narrow.
 6. **Discover agent memory and config files dynamically.** Scan platform-specific locations (e.g., `~/.claude/projects/*/memory/`, `~/.codex/`, `~/.cursor/`) for memory files. Check for repo-level agent config (`AGENTS.md`, `.cursorrules`, or similar) in each project root. Include all discovered files in the asset inventory for cross-review.
 7. **Read all selected skills fully.** Load every `SKILL.md`, every reference, every script, every hook config. Do not skim.
