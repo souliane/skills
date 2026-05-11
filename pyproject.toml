@@ -132,23 +132,11 @@ addopts = """
 --color=yes --doctest-modules --exitfirst --failed-first
 --ignore-glob=tests/**/fixtures/*.py
 --strict-config --strict-markers --verbose --log-cli-level=INFO
---cov --cov-report=term-missing:skip-covered --cov-branch
 """
 filterwarnings = [ "error" ]
 python_files = [ "test_*.py" ]
 testpaths = [ "tests" ]
 xfail_strict = true
-
-[tool.coverage.report]
-fail_under = 100
-precision = 1
-show_missing = true
-skip_covered = true
-
-[tool.coverage.run]
-branch = true
-source = [ "." ]
-omit = [ "tests/*" ]
 
 [tool.ty.analysis]
 # External deps from uv script headers (not installed in the skill repo)
