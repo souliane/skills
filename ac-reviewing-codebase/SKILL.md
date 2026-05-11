@@ -97,7 +97,7 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
    - **After ONE failed re-dispatch**, fall back to targeted main-thread Bash scans for that repo. Do not keep redispatching.
 
    Only **judgment-heavy work** (architectural assessment, cross-review at seams, deciding what to consolidate, implementation) stays in the main conversation. Serializing all per-repo audits sequentially in the main thread is still a workflow failure — it costs context budget and usually ends in truncated reviews.
-2. **Work on the source repo** (git-tracked), never on symlink targets under the agent runtime's skills directory.
+2. **Work in worktrees** on the source repos (git-tracked), never on main clones or symlink targets under the agent runtime's skills directory. Create a review branch and worktree per repo before making edits.
 3. **Be thorough, not fast.** Resist the urge to rush to completion. Each phase exists for a reason.
 4. **Ask when ambiguous (Non-Negotiable).** When you encounter an unclear design decision, ambiguous scope, or a choice with multiple valid options — **stop and ask the user**. In checker mode, mark ambiguous items as errors and `FAIL`.
 5. **Generic vocabulary only.** Use terms like "project-specific skills", "generic/framework skills", "lifecycle skills" — never hardcode actual skill names in this file.
