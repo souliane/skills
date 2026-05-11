@@ -178,6 +178,11 @@ Before starting the review:
 8. **Contract verification at seams.** Where one skill produces output consumed by another (or by code), verify the producer's output format matches the consumer's expected input. Trace the full lifecycle at every handoff point.
 9. **Naming consistency.** Grep for key terms (branch names, CLI commands, function names, status labels) across ALL skills AND code repos in scope. Same concept with different names = stale reference.
 
+**Override & Routing Verification (Non-Negotiable):**
+
+10. **Method-override contract verification.** For overlay/plugin architectures, list every method the overlay defines on composed classes (`OverlayMetadata`, `OverlayConfig`, etc.) and verify each one exists on the corresponding base class with the same name. A method that exists on the subclass but not the base class is either a new extension (should be declared in the base) or a broken override (silently dead code). Concrete check: `grep -n 'def ' overlay/*.py | grep -v '__'` → for each, verify the method name appears in the base class. Bulk renames (e.g., MR→PR) are the #1 cause of silent override breakage.
+11. **Routing completeness after skill extraction.** For every skill in `skills/`, verify it has a path to be loaded: (a) it appears in at least one keyword map or routing table in the Python code (`_AGENT_TASK_KEYWORDS`, `_PHASE_TO_SKILL`), (b) an agent definition in `agents/*.md` lists it in its `skills:` frontmatter, (c) its trigger keywords don't collide with another skill's keywords without a clear priority winner. A skill with no routing path is unreachable. This check is especially critical after a skill is extracted from another — the routing infrastructure must be updated in the same change.
+
 ### 1.7: Silenced Quality Detection (Non-Negotiable)
 
 **Hunt for manually suppressed code quality signals** — lowered coverage thresholds, `# noqa` suppressions, excluded files from pre-commit, relaxed per-file-ignores, missing hooks, companion skill violations. See [`references/review-phases.md`](references/review-phases.md) § 3.14 for the full checklist.

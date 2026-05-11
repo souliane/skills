@@ -16,11 +16,7 @@ Usage:
 from pathlib import Path
 
 from pypdf import PdfWriter
-from pypdf.generic import (
-    DecodedStreamObject,
-    DictionaryObject,
-    NameObject,
-)
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 
 def create_fixture_pdf(output: Path, page1_text: str, page2_text: str) -> None:
