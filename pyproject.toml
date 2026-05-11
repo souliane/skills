@@ -9,7 +9,7 @@ classifiers = [
 ]
 
 [dependency-groups]
-dev = [ "pip-audit>=2", "pytest>=9.0.3", "ty>=0.0.18", "typer>=0.12" ]
+dev = [ "pip-audit>=2.10", "pytest>=9.0.3", "pytest-cov>=7", "ty>=0.0.18", "typer>=0.25.1" ]
 
 [tool.ruff]
 target-version = "py313"
@@ -112,8 +112,9 @@ lint.per-file-ignores."tests/**/*.py" = [
 ]
 lint.fixable = [ "ALL" ]
 lint.flake8-implicit-str-concat.allow-multiline = false
-# Target is Python 3.12+ — use native type union syntax (X | Y), not PEP 563.
 lint.flake8-tidy-imports.banned-api."__future__.annotations" = { msg = "Use native 3.10+ syntax (X | Y) instead of from __future__ import annotations" }
+lint.isort.split-on-trailing-comma = false
+lint.pydocstyle.convention = "google"
 # Complexity and structure limits — keep functions small, focused, and testable.
 lint.pylint.max-args = 5
 lint.pylint.max-bool-expr = 5

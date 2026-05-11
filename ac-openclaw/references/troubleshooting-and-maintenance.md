@@ -41,7 +41,7 @@
 | Signal: "This person is not on Signal" (after re-registration) | Identity key changed. Contact must delete old conversation and start a new one |
 | WhatsApp: QR expired | Re-run `openclaw channels login --channel whatsapp` |
 | Tailscale: can't reach dashboard | `tailscale status`, verify both devices on same tailnet |
-| Docker bypasses firewall | Add DOCKER-USER iptables rules (see [`references/security-hardening.md`](references/security-hardening.md) § Docker + Firewall) |
+| Docker bypasses firewall | Add DOCKER-USER iptables rules (see [`security-hardening.md`](./security-hardening.md) § Docker + Firewall) |
 | API key rate limited | OpenClaw auto-rotates keys; add backup keys with `_1`, `_2` suffixes |
 | High memory usage (Ollama) | Check model size vs RAM; use smaller quantization or smaller model |
 | SSH custom port not working (Ubuntu 24.04) | Ubuntu 24.04 uses systemd socket activation. Do NOT put `Port` directives in `sshd_config` — use a systemd socket override at `/etc/systemd/system/ssh.socket.d/override.conf` with explicit `0.0.0.0:PORT` and `[::]:PORT` format. Bare port numbers (e.g., `ListenStream=2222`) don't bind IPv4. Always keep the old port open in UFW until the new port is confirmed working from outside. |
