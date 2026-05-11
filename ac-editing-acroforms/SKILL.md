@@ -1,6 +1,6 @@
 ---
 name: ac-editing-acroforms
-description: Inspects, patches, verifies, or diffs AcroForm-based PDF templates — especially when widget geometry, content streams, or filled-output alignment need deterministic scriptable fixes.
+description: Inspects, patches, verifies, or diffs AcroForm-based PDF templates — especially when widget geometry, content streams, or filled-output alignment need deterministic scriptable fixes. Use when user says "PDF", "acroform", "form field", "widget rect", "content stream", "pdf alignment", or is working with PDF template geometry.
 compatibility: macOS/Linux, python3, pypdf or pikepdf. Do NOT use pdfrw.
 metadata:
   version: 0.0.1
