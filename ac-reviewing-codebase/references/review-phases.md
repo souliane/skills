@@ -237,6 +237,30 @@ Hunt for manually suppressed code quality signals — these represent deliberate
 - **Stale type-checker allowlists.** `ty`/`mypy`/`pyright` allowlists for unresolved imports accumulate — third-party libs get proper stubs over time. Test each entry by removing it and re-running the type checker; zero new errors = stale.
 - **Companion skill violations.** When `ac-python` or `ac-django` are loaded, verify the codebase follows their conventions (integration-first testing, fat models, proper typing, correct manager usage).
 
+### 3.15 Override Contract Verification (Non-Negotiable)
+
+For overlay/plugin architectures with composed classes (e.g., `OverlayMetadata`, `OverlayConfig`), verify that every method the overlay defines actually overrides a base class method with the same name. Concrete check:
+
+```bash
+# List overlay methods (excluding private):
+grep -n 'def ' <overlay>/overlay/*.py | grep -v '__'
+# For each, verify the name exists on the base class:
+grep -n 'def <method_name>' <core>/overlay.py
+```
+
+A method on the subclass with no match on the base class is either a broken override (silently dead code — the caller invokes the base class no-op) or a new extension (should be declared abstract/default on the base). Bulk renames (MR→PR, sync→fetch) are the #1 cause: one side gets renamed, the other doesn't, and tests pass because they test each side in isolation.
+
+### 3.16 Routing Completeness After Skill Extraction (Non-Negotiable)
+
+When a skill is extracted from another (e.g., `e2e` from `test`), verify the routing infrastructure was updated:
+
+1. **Keyword maps.** Check `_AGENT_TASK_KEYWORDS` — the extracted skill's keywords must move to their own entry, not stay on the parent.
+2. **Phase maps.** Check `_PHASE_TO_SKILL` — the extracted skill needs its own phase entry.
+3. **Agent definitions.** Check `agents/*.md` — there must be an agent that lists the extracted skill in its `skills:` frontmatter.
+4. **Orchestrator routing.** Check the orchestrator's keyword→agent table — extracted skill keywords must route to the correct agent.
+5. **Keyword overlap.** Both parent and child should not trigger on the same keywords — the parent should drop the extracted keywords.
+6. **`subagent_safe` consistency.** If the skill is `subagent_safe: false`, it must NOT appear only on agents that are sub-agents with no main-conversation path.
+
 ---
 
 ## Phase 4 — Quality Review
