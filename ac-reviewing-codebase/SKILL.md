@@ -11,6 +11,10 @@ metadata:
 
 **Holistic** review of skills, code, and infrastructure across a portfolio of repos. Treats the entire portfolio as a connected system — the most dangerous bugs live at the seams: where one skill's output becomes another's input, where a skill describes code that has since changed, or where two repos encode the same convention differently. Cross-review is not just skill-vs-code — it's repo-vs-repo, skill-vs-skill, and code-vs-code across the full portfolio.
 
+## Mission: Re-Raise Quality, Don't Just Report (Non-Negotiable)
+
+AI-assisted change accretes architectural entropy — fast-but-shallow edits leave the repo a little worse each pass: god-modules grow, dependency guardrails go stale or blind, smells get layered over. This skill's job is to **counteract that drift, not narrate it**. Every review pass actively re-raises quality: critically assess the architectural changes since last review, and *improve them in the same session* when a fix is concrete (per Rule 9 — implement, don't postpone). A review that produces a findings list but leaves the architecture as-found has failed its mission. The deliverable is a measurably-better codebase, not a report. Reserve "file it" only for changes too large or design-ambiguous to land safely this session — and even then, fix the safe blast-radius now and recommend a concrete design for the rest.
+
 ## Dependencies
 
 Standalone. No hard dependencies on other skills.
