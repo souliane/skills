@@ -9,7 +9,7 @@ classifiers = [
 ]
 
 [dependency-groups]
-dev = [ "pip-audit>=2.10", "pytest>=9.0.3", "ty>=0.0.18", "typer>=0.25.1" ]
+dev = [ "pytest>=9.0.3", "ty>=0.0.18", "typer>=0.25.1" ]
 
 [tool.ruff]
 target-version = "py313"
@@ -141,6 +141,7 @@ xfail_strict = true
 [tool.ty.analysis]
 # External deps from uv script headers (not installed in the skill repo)
 allowed-unresolved-imports = [
+  "defusedxml",
   "golden_diff",
   "requests",
   "typer",

@@ -18,7 +18,7 @@ jobs:
       - run: uv sync
       - uses: j178/prek-action@v2
         env:
-          SKIP: pip-audit
+          SKIP: uv-audit
 
   test:
     runs-on: ubuntu-latest
