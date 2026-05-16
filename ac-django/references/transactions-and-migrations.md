@@ -65,6 +65,16 @@ class Order(models.Model):
             transaction.on_commit(lambda: send_receipt.enqueue(order.pk))
 ```
 
+### 6.6 The DB is the arbiter for shared state (Non-Negotiable)
+
+When a runtime fact (lifecycle status, ownership, liveness, a claim/lease, a gate decision) is persisted **and** a non-DB copy of it also exists (a registry/JSON file, a pidfile/flock, an in-memory singleton, a cache), the DB row is the **single source of truth**. On any conflict, reconcile *from* the DB — never trust the file/in-memory value over the row, and never let a non-DB store be co-equal.
+
+- Cross-process / cross-session coordination on shared mutable state uses a **DB lock**, never a file lock or in-memory flag. A pidfile/flock does not coordinate across hosts; an OS-released `flock` on a crash leaves app-level state uncleaned; and an `flock` scoped to only the write (not the whole read-decide-write) still races even single-host. Use `transaction.atomic()` + `select_for_update()` (§6.2) or an atomic conditional `update()`/`F()`.
+- A liveness/ownership "leader" or a worker claim belongs in a DB row with a **lease/heartbeat column + expiry**, so a dead holder's claim auto-expires and is reclaimable — not in a file that strands the resource forever when the holder dies.
+- Read-modify-write on a `JSONField` shared across processes must hold the row lock for the **whole** RMW (re-`select_for_update().get()` inside the `atomic()` block, mutate, save), or two processes clobber each other's JSON.
+
+Architectural-review detector for this smell: `ac-reviewing-codebase` codebase-assessment.md §2g and quality-principles.md "One owner per runtime fact".
+
 ---
 
 ## 7. Migrations: safety + zero-drama ops
@@ -204,7 +214,7 @@ Low-downtime index ops on live Postgres:
 - In non-atomic migrations, ordering matters:
   - create the new index first
   - then drop the old index
-  - avoid a window with _no_ supporting index.
+  - avoid a window with *no* supporting index.
 
 When Django's model state must change but DB operations must be controlled:
 

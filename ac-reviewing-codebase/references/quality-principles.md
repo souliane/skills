@@ -10,6 +10,7 @@ mindmap
       No ambiguous wording
       Fail fast, fail loud
       Single source of truth
+      One owner per runtime fact
     Robustness
       Document failure modes
       Time-box troubleshooting
@@ -51,6 +52,7 @@ Skills must produce **deterministic, repeatable outcomes**. If following a skill
 - **No ambiguous wording.** Use "required", "must", "non-negotiable" for things that matter. "Suggested" and "recommended" get ignored.
 - **Fail fast, fail loud.** Detect missing prerequisites early with clear messages — don't silently produce wrong results.
 - **Single source of truth.** Every piece of operational knowledge lives in exactly one place. Duplicated rules **always diverge over time**. Fix: one canonical location, cross-references from consumers. During review, grep for distinctive phrases across files — if the same concept appears in 2+ places, consolidate.
+- **One owner per runtime fact (state, not just docs).** The bullet above is about *prose*; this is about *persisted runtime state* and is the more expensive failure. Every runtime fact (lifecycle status, ownership, liveness, claims/leases, gate/approval decisions) has exactly **one authoritative store**; every file/in-memory/cache copy is a derived projection, never co-equal. **When a database is one of the stores, the DB wins every conflict** — reconcile from the DB, never trust a file/flock/in-memory value over the row. Cross-process or cross-session coordination on shared mutable state **must** use a DB lock, never a pidfile/flock/in-memory flag. A fact stored in 2+ places with no declared arbiter is a defect even when each store is locally correct. This is a mandatory **whole-repo architectural** check — detectors in codebase-assessment.md §2g; the lock mechanics live, canonically and only, in `ac-django` transactions-and-migrations §6.6.
 
 ## Robustness
 
