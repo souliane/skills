@@ -69,6 +69,26 @@ After collecting metrics, perform architectural analysis:
 - Is the test pyramid appropriate (integration > unit for happy paths)?
 - Are tests testing behavior or implementation?
 
+### 2g. State & Data Architecture (Single Source of Truth)
+
+The most expensive bugs in stateful systems come from the **same runtime fact being persisted in more than one place** and the copies silently diverging. The §2a–2f lenses do **not** catch this — check it explicitly on every pass. (Real incident this exists to prevent: a workflow orchestrator stored lifecycle/dispatch state in a DB *and* a per-worktree sqlite *and* a registry JSON file *and* an in-memory singleton; each diff was locally clean, each store locally correct, and the divergence cost multiple days across several "looks done" bugs.)
+
+For each piece of **runtime/persisted state** (lifecycle status, ownership, liveness/heartbeat, claims/leases, gate or approval decisions, denormalized aggregates), verify:
+
+- **One authoritative store per fact.** Exactly one store is the source of truth; every other representation (registry/JSON file, pidfile/flock, in-memory dict, denormalized column, cache) is a *derived projection* reconstructible from the authority. A fact persisted in ≥2 co-equal stores with no declared authority is a defect **even if each store is locally correct** — divergence is a *when*, not an *if*.
+- **The database wins.** When a DB is one of the stores, the DB row is the arbiter; on any conflict code reconciles *from* the DB and never trusts a file/in-memory/cache value over it. Grep the inverse: a decision read from a file/registry/in-memory flag that a DB row also expresses.
+- **Cross-process / cross-session coordination uses DB locks, not files.** State mutated by >1 process or session must be guarded by a DB-level lock, never a pidfile/flock/in-memory flag; RMW on a shared row or `JSONField` must hold the row lock for the whole read-modify-write. (Lock mechanics — `transaction.atomic()` + `select_for_update()`, atomic `update()`/`F()` — live canonically in `ac-django` references/transactions-and-migrations.md §6.6.)
+- **Aggregate at the right scope.** A fact owned by an entity must be read aggregated over that entity, not over one arbitrary child record (e.g. a per-ticket gate decision computed from a single one of the ticket's sessions instead of all of them).
+
+**Concrete detectors (run, cite file:line):**
+
+- Same noun written to a model field *and* a file/registry: `rg -n 'open\([^)]*\.json|registry|\.lock\b|pidfile|flock'` cross-referenced against model fields holding the same concept.
+- RMW on a status column / `JSONField` with no surrounding lock: a `.save(` (or `setattr` then save) on a model whose field was just mutated, with no `select_for_update`/`atomic` in the same function.
+- Liveness / ownership / leadership tracked in a file or in-memory singleton instead of a DB row with a lease/heartbeat column.
+- Two repos — or a skill and the code — independently encoding the same state machine or gate rule: extract the state/enum token set from each (`rg -o '\b[A-Z][A-Z_]{3,}\b' <pathA> | sort -u` vs `<pathB>`) and diff them — overlapping-but-unequal sets signal a duplicated rule that has started to drift.
+
+Any hit is **Architecture-dimension** scoring evidence and a ranked improvement item: a multi-store fact with no arbiter **caps the Architecture score** no matter how clean §2a–2f are.
+
 ## Output Format
 
 Each assessment produces:
