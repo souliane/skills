@@ -2,10 +2,10 @@
 
 import importlib.util
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
+from _gitutil import init_repo, run_git
 from typer.testing import CliRunner
 
 CLI_PATH = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts" / "cli.py"
@@ -111,21 +111,9 @@ class TestAssessCommand:
         assert "Codebase Metrics" in result.output
 
 
-GIT = shutil.which("git") or "git"
-
-
-def _init_git_repo(root: Path) -> None:
-    for args in (
-        [GIT, "init", "-q"],
-        [GIT, "config", "user.email", "t@t.t"],
-        [GIT, "config", "user.name", "t"],
-    ):
-        subprocess.run(args, cwd=root, check=True, capture_output=True)  # noqa: S603
-
-
 def _git_add_commit(root: Path) -> None:
-    subprocess.run([GIT, "add", "-A"], cwd=root, check=True, capture_output=True)  # noqa: S603
-    subprocess.run([GIT, "commit", "-qm", "init"], cwd=root, check=True, capture_output=True)  # noqa: S603
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
 
 
 class TestRepoScopedScanning:
@@ -135,7 +123,7 @@ class TestRepoScopedScanning:
     """
 
     def test_todos_count_only_tracked_files(self, tmp_path: Path) -> None:
-        _init_git_repo(tmp_path)
+        init_repo(tmp_path)
         (tmp_path / "app.py").write_text("# TODO: tracked\n", encoding="utf-8")
         (tmp_path / ".gitignore").write_text(".venv/\n.claude/\n", encoding="utf-8")
         _git_add_commit(tmp_path)
@@ -150,7 +138,7 @@ class TestRepoScopedScanning:
         assert result["total"] == 1, f"expected only the tracked TODO, got {result}"
 
     def test_suppressions_count_only_tracked_files(self, tmp_path: Path) -> None:
-        _init_git_repo(tmp_path)
+        init_repo(tmp_path)
         (tmp_path / "app.py").write_text("x = 1  # noqa: E501\n", encoding="utf-8")
         (tmp_path / ".gitignore").write_text(".venv/\n", encoding="utf-8")
         _git_add_commit(tmp_path)

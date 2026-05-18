@@ -149,6 +149,9 @@ allowed-unresolved-imports = [
   "tomlkit",
   "pypdf",
   "pypdf.generic",
+  # Test-only sibling helper; resolved via pytest's sys.path injection at
+  # runtime (the dir name has hyphens so it is not an importable package).
+  "_gitutil",
 ]
 
 [tool.ty]

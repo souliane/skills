@@ -1,10 +1,9 @@
 """Tests for deterministic skill repo frontmatter checks."""
 
 import importlib.util
-import shutil
-import subprocess
 from pathlib import Path
 
+from _gitutil import run_git
 from typer.testing import CliRunner
 
 CHECK_FRONTMATTER_DIR = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts"
@@ -16,26 +15,12 @@ check_frontmatter = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check_frontmatter)
 
 
-def _git_binary() -> str:
-    git = shutil.which("git")
-    assert git is not None
-    return git
-
-
-GIT = _git_binary()
-
-
 def _make_skill(tmp_path: Path, name: str, content: str) -> Path:
     skill_dir = tmp_path / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
     skill_md.write_text(content, encoding="utf-8")
     return skill_md
-
-
-def _run_git(tmp_path: Path, *args: str) -> None:
-    command: list[str] = [GIT, *args]
-    subprocess.run(command, cwd=tmp_path, check=True, capture_output=True, text=True)  # noqa: S603
 
 
 class TestParseFrontmatter:
@@ -85,8 +70,8 @@ class TestCollectFiles:
         (skill_dir / "SKILL.md").write_text(
             "---\nname: demo-skill\ndescription: Demo.\nmetadata:\n  version: 0.0.1\n---\n"
         )
-        _run_git(tmp_path, "init")
-        _run_git(tmp_path, "add", ".")
+        run_git(tmp_path, "init")
+        run_git(tmp_path, "add", ".")
         files = check_frontmatter._collect_files(tmp_path.resolve())
         assert any(path.name == "SKILL.md" for path in files["skills"])
 
@@ -99,8 +84,8 @@ class TestCli:
         (skill_dir / "SKILL.md").write_text(
             "---\nname: demo-skill\ndescription: Demo.\nmetadata:\n  version: 0.0.1\n---\n"
         )
-        _run_git(tmp_path, "init")
-        _run_git(tmp_path, "add", ".")
+        run_git(tmp_path, "init")
+        run_git(tmp_path, "add", ".")
         result = CliRunner().invoke(check_frontmatter.app, ["check", "--root", str(tmp_path)])
         assert result.exit_code == 0
         assert "PASS" in result.output
@@ -110,8 +95,8 @@ class TestCli:
         skill_dir = tmp_path / "demo-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("# No frontmatter")
-        _run_git(tmp_path, "init")
-        _run_git(tmp_path, "add", ".")
+        run_git(tmp_path, "init")
+        run_git(tmp_path, "add", ".")
         result = CliRunner().invoke(check_frontmatter.app, ["check", "--root", str(tmp_path)])
         assert result.exit_code == 1
         assert "FAIL" in result.output
