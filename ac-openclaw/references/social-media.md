@@ -1,8 +1,9 @@
 # OpenClaw Social Media Integrations — Reference
 
-> **Last updated:** 2026-03-14
+> **Last updated:** 2026-05-20
 > **Sources:**
 >
+> - [TweetClaw](https://github.com/Xquik-dev/tweetclaw) (OpenClaw plugin, 2026-05)
 > - [openclaw-plugin-social](https://github.com/pepicrft/openclaw-plugin-social) (open source, 2026-02)
 > - [Post Bridge + OpenClaw](https://www.post-bridge.com/openclaw) (2026-02)
 > - [Publora + OpenClaw](https://publora.com/blog/connect-openclaw-ai-agent-social-media-publora) (2026-02)
@@ -49,6 +50,7 @@ Post to a scheduler API that fans out to multiple networks. Best approach for cr
 
 | Plugin | Platforms | Notes |
 |--------|-----------|-------|
+| [TweetClaw](https://github.com/Xquik-dev/tweetclaw) | X/Twitter only | OpenClaw plugin for tweet search, reply search, follower export, user lookup, media workflows, DMs, monitors, webhooks, giveaways, and approval-reviewed posts/replies |
 | [openclaw-plugin-social](https://github.com/pepicrft/openclaw-plugin-social) | X/Twitter, LinkedIn, Mastodon, Bluesky | Open source, flexible scheduling, browser automation fallback |
 | [Composio Twitter MCP](https://composio.dev/toolkits/twitter/framework/openclaw) | X/Twitter only | Managed auth, MCP integration |
 
@@ -127,7 +129,20 @@ openclaw plugins enable social
 # Or use a scheduler like Post Bridge for multi-platform
 ```
 
-## Quick Start: X/Twitter via Composio MCP
+## Quick Start: X/Twitter
+
+Use TweetClaw when the user wants a packaged OpenClaw plugin for X/Twitter
+research and approved write workflows:
+
+```bash
+openclaw plugins install @xquik/tweetclaw
+openclaw config set plugins.entries.tweetclaw.config.apiKey "$XQUIK_API_KEY"
+```
+
+The free `explore` catalog works before credentials are configured. Live calls
+need an Xquik API key or supported pay-per-use read setup.
+
+Use Composio when the user already standardizes on Composio-managed auth:
 
 ```bash
 # Enable Composio MCP server
