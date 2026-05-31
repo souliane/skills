@@ -88,6 +88,10 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **Acknowledge limitations prominently.** Every tool has rough edges. State them near the beginning, not buried at the end.
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
 
+### Costly Incidents: "Can Happen", Not "Happened to Me" (Non-Negotiable)
+
+A money-losing, security, or data-loss failure mode is publishable as a pattern others can hit — not as a confession that it happened to the author. Default to the conditional framing ("X *can* drain your credits / corrupt your DB — here's why, and how to prevent it"), never the personal one ("X drained *my* credits", a dollar amount lost, "it emptied my account"). The author opts in to sharing a personal incident; the draft never assumes it. This overrides the general "learnings as personal takeaways" guidance for this specific class of incident — scrub every assertion that it occurred down to the conditional unless the author explicitly chooses to disclose it.
+
 ### No Repeated Disclaimers (Non-Negotiable)
 
 When a caveat or qualification is already stated in one place (e.g., "tested most with Claude Code" in the intro), do not add variations of it elsewhere (prerequisites, Get Started, etc.). State it once, trust the reader, stop. When the user gives iterative feedback to simplify, apply the simplification fully in one pass rather than introducing a new hedge that needs another correction round.
