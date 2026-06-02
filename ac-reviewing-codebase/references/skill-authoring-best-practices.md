@@ -105,7 +105,7 @@ When a workflow is deterministic and multi-step, implement it as a callable scri
 - **LLM-judge for subjective rules** (tone, faithfulness, "did it answer") that deterministic matchers can't reach; default to deterministic checks and bound judge cost.
 - **Anthropic's stance:** evals are **suggested for objectively-verifiable skills, optional for subjective ones** — recommend, don't force.
 
-When *reviewing* a repo's AI-evaluated behavior (rather than authoring), see `ai-eval-testing.md` for the full mechanism and the conditional reviewer checklist.
+When *reviewing* a repo's AI-evaluated behavior (rather than authoring), see [`ai-eval-review.md`](ai-eval-review.md) for the full mechanism and the conditional reviewer checklist (and SKILL.md Rule 13 for the suggest-don't-enforce posture).
 
 ## Consistent Terminology
 

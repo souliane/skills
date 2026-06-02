@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 from typing import Annotated, cast
@@ -468,23 +469,62 @@ def _count_lint_violations(root: Path) -> dict[str, object]:
     return {"total": len(violations), "by_category": dict(sorted(by_code.items(), key=lambda x: -x[1])[:20])}
 
 
-def _count_todos(root: Path) -> dict[str, object]:
+_SCAN_INCLUDES = ("*.py", "*.ts", "*.js")
+
+
+def _is_git_repo(root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _scan_lines(root: Path, regex: str, includes: tuple[str, ...] = _SCAN_INCLUDES) -> list[str]:
+    """Grep ``regex`` over ``includes``-matching files under ``root``.
+
+    In a git repo, only **tracked** files are scanned (``git grep``), so a
+    vendored ``.venv`` or a nested agent worktree under ``.claude/worktrees``
+    cannot inflate the count — git grep never sees untracked/ignored paths,
+    and a nested worktree is a separate repo whose files are untracked here.
+    Outside a git repo (e.g. a unit-test ``tmp_path``) it falls back to a
+    filtered recursive grep so the metric still works.
+    """
+    if _is_git_repo(root):
+        result = subprocess.run(
+            ["git", "-C", str(root), "grep", "-nIE", regex, "--", *includes],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        # git grep: 0 = matches, 1 = no matches; >1 = real error -> fs fallback.
+        if result.returncode in {0, 1}:
+            return result.stdout.strip().splitlines() if result.stdout else []
+    includes_glob = [f"--include={g}" for g in includes]
     result = _run_tool(
         [
             "grep",
-            "-rn",
-            r"TODO\|FIXME\|HACK\|XXX",
-            "--include=*.py",
-            "--include=*.ts",
-            "--include=*.js",
+            "-rnIE",
+            regex,
+            *includes_glob,
             "--exclude-dir=.venv",
             "--exclude-dir=node_modules",
             "--exclude-dir=.tox",
+            "--exclude-dir=.git",
+            "--exclude-dir=.claude",
             ".",
         ],
         cwd=root,
     )
-    lines = result.stdout.strip().splitlines() if result.stdout else []
+    return result.stdout.strip().splitlines() if result.stdout else []
+
+
+def _count_todos(root: Path) -> dict[str, object]:
+    lines = _scan_lines(root, "TODO|FIXME|HACK|XXX")
     by_type: dict[str, int] = {"TODO": 0, "FIXME": 0, "HACK": 0, "XXX": 0}
     for line in lines:
         for marker in by_type:
@@ -506,18 +546,33 @@ def _check_coverage(root: Path) -> dict[str, object]:
     coverage_file = root / ".coverage"
     if not coverage_file.exists():
         return {"available": False}
-    result = _run_tool(["coverage", "json", "-o", "/dev/stdout"], cwd=root)
-    try:
-        data = json.loads(result.stdout)
-        return {"available": True, "percent": data.get("totals", {}).get("percent_covered", 0)}
-    except (json.JSONDecodeError, ValueError):
-        return {"available": False, "error": "coverage json failed"}
+    # `coverage json -o /dev/stdout` fails on real repos (coverage opens the
+    # path for atomic-rename write); use a real temp file and read it back.
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "coverage.json"
+        _run_tool(["coverage", "json", "-o", str(out)], cwd=root)
+        try:
+            data = json.loads(out.read_text(encoding="utf-8"))
+            return {"available": True, "percent": data.get("totals", {}).get("percent_covered", 0)}
+        except (FileNotFoundError, json.JSONDecodeError, ValueError):
+            return {"available": False, "error": "coverage json failed"}
 
 
 def _check_outdated_deps(root: Path) -> dict[str, object]:
     if not (root / "pyproject.toml").exists():
         return {"available": False}
-    result = _run_tool(["uv", "pip", "list", "--outdated", "--format", "json"], cwd=root)
+    # `uv pip list` reports the *active* environment. Run from this skill's
+    # runtime it would report the assessor's own deps for every repo
+    # (identical false hits everywhere). Scope to the target repo's venv;
+    # if it has none, the check is genuinely unavailable — never substitute
+    # the assessor's environment.
+    venv_python = root / ".venv" / "bin" / "python"
+    if not venv_python.exists():
+        return {"available": False, "error": "no repo venv (cannot scope dependency check)"}
+    result = _run_tool(
+        ["uv", "pip", "list", "--outdated", "--format", "json", "--python", str(venv_python)],
+        cwd=root,
+    )
     try:
         packages = json.loads(result.stdout) if result.stdout else []
         return {"available": True, "outdated_count": len(packages), "packages": packages[:10]}
@@ -534,20 +589,7 @@ def _count_suppressions(root: Path) -> dict[str, int]:
         "pragma_no_cover": r"# pragma: no cover",
     }
     for name, pattern in patterns.items():
-        result = _run_tool(
-            [
-                "grep",
-                "-rn",
-                pattern,
-                "--include=*.py",
-                "--exclude-dir=.venv",
-                "--exclude-dir=node_modules",
-                "--exclude-dir=.tox",
-                ".",
-            ],
-            cwd=root,
-        )
-        lines = result.stdout.strip().splitlines() if result.stdout else []
+        lines = _scan_lines(root, pattern, includes=("*.py",))
         if lines:
             counts[name] = len(lines)
     return counts

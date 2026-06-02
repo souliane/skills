@@ -1,11 +1,10 @@
 """Tests for repo management functions in ac-reviewing-codebase CLI."""
 
 import importlib.util
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _gitutil import init_repo, run_git
 
 CLI_PATH = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts" / "cli.py"
 SPEC = importlib.util.spec_from_file_location("reviewing_codebase_cli", CLI_PATH)
@@ -15,28 +14,12 @@ cli = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(cli)
 
 
-def _git_binary() -> str:
-    git = shutil.which("git")
-    assert git is not None
-    return git
-
-
-GIT = _git_binary()
-
-
-def _run_git(cwd: Path, *args: str) -> None:
-    subprocess.run([GIT, *args], cwd=cwd, check=True, capture_output=True, text=True)  # noqa: S603
-
-
 def _init_repo(path: Path) -> Path:
     """Create a minimal git repo with one commit."""
-    path.mkdir(parents=True, exist_ok=True)
-    _run_git(path, "init", "-b", "main")
-    _run_git(path, "config", "user.email", "test@test.com")
-    _run_git(path, "config", "user.name", "Test")
+    init_repo(path)
     (path / "README.md").write_text("# test\n", encoding="utf-8")
-    _run_git(path, "add", ".")
-    _run_git(path, "commit", "-m", "init")
+    run_git(path, "add", ".")
+    run_git(path, "commit", "-m", "init")
     return path
 
 
@@ -215,12 +198,12 @@ class TestGitHelpers:
 
     def test_get_stale_branches_detects_merged(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
-        _run_git(repo, "checkout", "-b", "feature")
+        run_git(repo, "checkout", "-b", "feature")
         (repo / "feat.txt").write_text("x", encoding="utf-8")
-        _run_git(repo, "add", ".")
-        _run_git(repo, "commit", "-m", "feat")
-        _run_git(repo, "checkout", "main")
-        _run_git(repo, "merge", "feature")
+        run_git(repo, "add", ".")
+        run_git(repo, "commit", "-m", "feat")
+        run_git(repo, "checkout", "main")
+        run_git(repo, "merge", "feature")
         stale = cli._get_stale_branches(repo)
         assert "feature" in stale
 
@@ -234,7 +217,7 @@ class TestBuildAndFormatStatus:
     def test_clean_repo(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path / "repo")
         # Add a remote so there's an upstream
-        _run_git(repo, "remote", "add", "origin", str(tmp_path / "fake-remote"))
+        run_git(repo, "remote", "add", "origin", str(tmp_path / "fake-remote"))
         info = cli._build_repo_status(repo)
         assert info["dirty"] == 0
         assert info["stale"] == []

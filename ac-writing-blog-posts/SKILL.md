@@ -48,6 +48,34 @@ Save user-provided biographical details as a `user` type memory with a descripti
 - "This works well for my workflow" over "This is the best approach"
 - Acknowledge limitations and experimental status honestly.
 - Avoid superlatives and marketing language.
+- The purpose is **sharing, not showing off.** The author is exploring and has
+  much left to learn — write from a learner's stance ("here's what I tried and
+  what I'm still figuring out"), never from a position of authority or mastery.
+- Never imply the author knows everything or has it all figured out. "I'm
+  scratching the surface" is closer to the truth than "here's how to do it."
+- It is fine — encouraged — to show unfinished thinking, dead ends, and open
+  questions. That is what makes the post worth reading and worth trusting.
+
+### Sound Human, Not AI-Generated (Non-Negotiable)
+
+The post must read as written by a person, not produced by a model. Reviewers
+and readers should never get the "this is AI slop" feeling.
+
+- No formulaic scaffolding: avoid "In this post, we'll explore…", "Let's dive
+  in", "In conclusion", "Here are N key takeaways", section-ending summaries that
+  restate the section.
+- Vary sentence and paragraph length. Allow short, blunt sentences. Avoid the
+  even, list-heavy, every-paragraph-same-shape cadence that signals generation.
+- Cut hedging filler ("it's worth noting", "it's important to remember",
+  "essentially", "fundamentally") and triadic flourishes ("fast, reliable, and
+  scalable") unless each adjective earns its place.
+- Concrete specifics over abstract claims: a real command, a real diff, a real
+  number the agent measured — not "significantly improved performance".
+- Keep contractions and a natural first-person voice. Let opinions be opinions;
+  do not neutralize them into balanced both-sides prose.
+- Em-dash and emoji discipline: sparingly, as a human would, not as decoration.
+- Final self-check before assembly: read it aloud in your head — if a paragraph
+  sounds like a model being helpful rather than a person thinking, rewrite it.
 
 ### Honest and Trustworthy Content (Non-Negotiable)
 
@@ -59,6 +87,10 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **Verify claims before publishing.** Count the files, check the versions, test the commands. Don't write "15 scripts" without counting. Don't say "supported across most agents" without evidence.
 - **Acknowledge limitations prominently.** Every tool has rough edges. State them near the beginning, not buried at the end.
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
+
+### Costly Incidents: "Can Happen", Not "Happened to Me" (Non-Negotiable)
+
+A money-losing, security, or data-loss failure mode is publishable as a pattern others can hit — not as a confession that it happened to the author. Default to the conditional framing ("X *can* drain your credits / corrupt your DB — here's why, and how to prevent it"), never the personal one ("X drained *my* credits", a dollar amount lost, "it emptied my account"). The author opts in to sharing a personal incident; the draft never assumes it. This overrides the general "learnings as personal takeaways" guidance for this specific class of incident — scrub every assertion that it occurred down to the conditional unless the author explicitly chooses to disclose it.
 
 ### No Repeated Disclaimers (Non-Negotiable)
 

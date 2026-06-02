@@ -5,6 +5,7 @@ compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv
 metadata:
   version: 0.3.0
   subagent_safe: false
+  last_research_date: "2026-06-02"
 ---
 
 # Reviewing Codebase
@@ -114,6 +115,7 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
 10. **Factorize aggressively.** Duplicated logic across scripts, repos, or skills is a finding. Extract to a shared module, tool, or reference file. When unsure whether duplication is intentional — **ask the user**.
 11. **Documentation must be current or auto-generated.** Check that docs (README, BLUEPRINT, generated API docs) are up to date with the code. If manually maintained, flag drift. If auto-generated, verify the generation hook exists in pre-commit or CI. Missing auto-generation for documentation that should be generated is a finding.
 12. **Phase 0 fixes are NOT the review (Non-Negotiable).** Phase 0 prerequisite checks (running `cli.py check`, `--help`, `prek` in dry-run, reading `assess` output) routinely surface quick-win fixups — stale refs in a generator script, a pyenv/shim bug, a missing dep declaration. Shipping those is encouraging, but it is not the review. Before declaring the review done, **explicitly list every repo in scope and confirm each has been through Phases 1–4**. A review that touched 2 of 8 in-scope repos is 25% complete, not done. When the user flags this gap, do not retroactively re-scope — acknowledge and run the missing phases. The "Definition of Done" in Phase 6.5 is binding: re-running the review on the same scope must produce zero new findings, which is only possible if the full scope was actually reviewed.
+13. **Behavioral-eval coverage is a SUGGESTION, never an enforcement.** Deterministic tests grade what code *does*; they cannot grade what a skill instructs an agent to do or whether non-deterministic, AI-evaluated behavior holds at runtime. When a reviewed skill encodes a load-bearing rule, or runtime behavior depends on what an LLM agent says/invokes, **suggest** behavioral-eval coverage (per-skill embedded evals and/or upper-level integration AI evals). This is **conditional**: suggest the cheapest layer that reaches the behavior (code-enforceable → deterministic test; LLM-output-only → transcript scenario), suggest it **partially** (the skill's load-bearing rules, not every line), and **never suggest it when the repo already has its own eval/behavioral-test mechanism** — align with that one instead of layering a second. It is a finding the user may decline, not a gate. See [`references/ai-eval-review.md`](references/ai-eval-review.md) for the mechanism so every such finding names a concrete shape.
 
 ---
 
@@ -195,10 +197,6 @@ Before starting the review:
 
 **Hunt for manually suppressed code quality signals** — lowered coverage thresholds, `# noqa` suppressions, excluded files from pre-commit, relaxed per-file-ignores, missing hooks, companion skill violations. See [`references/review-phases.md`](references/review-phases.md) § 3.14 for the full checklist.
 
-### 1.8: AI-Evaluated Behavior — is it under test? (Suggestion, not enforcement)
-
-When the portfolio ships **skills** or other **non-deterministic, AI-evaluated** behavior (agent prompts, routing/composition rules), deterministic metrics cannot tell whether the behavior is actually exercised — a skill can read perfectly and still fail to change what the agent does. Check whether such behavior carries (a) **embedded per-skill behavioral evals** and/or (b) **upper-level integration AI evals**, and — only where a real gap exists and **no equivalent mechanism is already in use** — *suggest* adding them (partly or completely, per case). This is a recommendation, never a gate. See [`references/ai-eval-testing.md`](references/ai-eval-testing.md) for the mechanism (EvalSpec, pass/fail/noop anti-vacuity fixtures, regression+generalization, LLM-judge, deterministic-layer-on-every-PR) and the reviewer checklist.
-
 ---
 
 ## Phases 2–4 — Content, Technical & Quality Review
@@ -206,7 +204,7 @@ When the portfolio ships **skills** or other **non-deterministic, AI-evaluated**
 Read [`references/review-phases.md`](references/review-phases.md) for the full checklists. Summary:
 
 - **Phase 2 — Content Review:** Duplication & diverged copies, conciseness, self-sufficiency & knowledge placement, cross-repo memory scan, skill ↔ repo config boundary, information boundaries, knowledge consolidation, cross-references, no hardcoded paths, guardrail classification, multi-layer overlap.
-- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**, **AI-evaluated behavior under test** (suggest embedded and/or integration AI evals where missing — § 3.17).
+- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, **behavioral-eval coverage for non-deterministic behavior (suggest, don't enforce — see Rule 13 and [`references/ai-eval-review.md`](references/ai-eval-review.md))**, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**.
 - **Phase 4 — Quality Review:** Production-grade standard, attribution, agent agnosticism, attention to detail, formatting consistency, skill authoring best practices.
 
 ---

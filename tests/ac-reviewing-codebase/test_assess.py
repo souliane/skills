@@ -5,6 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 
+from _gitutil import init_repo, run_git
 from typer.testing import CliRunner
 
 CLI_PATH = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts" / "cli.py"
@@ -108,3 +109,76 @@ class TestAssessCommand:
         result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path)])
         assert result.exit_code == 0
         assert "Codebase Metrics" in result.output
+
+
+def _git_add_commit(root: Path) -> None:
+    run_git(root, "add", "-A")
+    run_git(root, "commit", "-qm", "init")
+
+
+class TestRepoScopedScanning:
+    """F3: scans count only git-tracked files.
+
+    Vendored ``.venv`` and nested agent worktrees must not inflate counts.
+    """
+
+    def test_todos_count_only_tracked_files(self, tmp_path: Path) -> None:
+        init_repo(tmp_path)
+        (tmp_path / "app.py").write_text("# TODO: tracked\n", encoding="utf-8")
+        (tmp_path / ".gitignore").write_text(".venv/\n.claude/\n", encoding="utf-8")
+        _git_add_commit(tmp_path)
+        # Phantom copies that must NOT be counted:
+        venv = tmp_path / ".venv" / "lib"
+        venv.mkdir(parents=True)
+        (venv / "vendor.py").write_text("# TODO: vendored\n# FIXME: vendored\n", encoding="utf-8")
+        wt = tmp_path / ".claude" / "worktrees" / "agent-x"
+        wt.mkdir(parents=True)
+        (wt / "copy.py").write_text("# TODO: worktree\n# XXX: worktree\n", encoding="utf-8")
+        result = cli._count_todos(tmp_path)
+        assert result["total"] == 1, f"expected only the tracked TODO, got {result}"
+
+    def test_suppressions_count_only_tracked_files(self, tmp_path: Path) -> None:
+        init_repo(tmp_path)
+        (tmp_path / "app.py").write_text("x = 1  # noqa: E501\n", encoding="utf-8")
+        (tmp_path / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+        _git_add_commit(tmp_path)
+        venv = tmp_path / ".venv"
+        venv.mkdir()
+        (venv / "vendor.py").write_text("a = 1  # noqa\nb = 2  # noqa\nc = 3  # noqa\n", encoding="utf-8")
+        result = cli._count_suppressions(tmp_path)
+        assert result.get("noqa", 0) == 1, f"expected only the tracked noqa, got {result}"
+
+
+class TestOutdatedDepsRepoScoped:
+    """F2: dependency check reflects the target repo's venv.
+
+    It must never fall back to the assessor's own environment (which would
+    yield identical false hits in every repo).
+    """
+
+    def test_no_repo_venv_is_unavailable_not_assessor_deps(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+
+        def _boom(*_a, **_k):
+            msg = "must not shell out to the assessor's own environment"
+            raise AssertionError(msg)
+
+        monkeypatch.setattr(cli, "_run_tool", _boom)
+        result = cli._check_outdated_deps(tmp_path)
+        assert result["available"] is False
+
+
+class TestCoverageNoDevStdout:
+    """F4: coverage json -o /dev/stdout fails on real repos; use a temp file."""
+
+    def test_does_not_use_dev_stdout(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / ".coverage").write_text("x", encoding="utf-8")
+        captured: dict = {}
+
+        def _capture(args, **_kwargs):
+            captured["args"] = args
+            return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
+
+        monkeypatch.setattr(cli, "_run_tool", _capture)
+        cli._check_coverage(tmp_path)
+        assert "/dev/stdout" not in captured.get("args", []), captured
