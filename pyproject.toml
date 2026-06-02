@@ -76,23 +76,28 @@ lint.per-file-ignores."**/scripts/**/*.py" = [
 lint.per-file-ignores."ac-editing-acroforms/scripts/*.py" = [
   "ANN",     # annotations (pikepdf types not installed in this repo)
   "B007",    # unused-loop-control-variable (iteration patterns in PDF parsing)
-  "C901",    # too-complex (content stream parsing is inherently complex)
   "E501",    # line-too-long (long PDF content stream strings)
   "E701",    # multiple-statements-on-one-line (compact PDF ops)
   "E702",    # multiple-statements-on-one-line-semicolon
   "F841",    # local-variable-is-assigned-but-never-used (debug/reference vars)
   "N806",    # non-lowercase-variable-in-function (PDF constants like TM)
-  "PLR0912", # too-many-branches
-  "PLR0913", # too-many-arguments (typer CLI functions)
-  "PLR0914", # too-many-locals
-  "PLR0915", # too-many-statements
-  "PLR0917", # too-many-positional-arguments
   "PLR1702", # too-many-nested-blocks (BT/ET > font > condition > match)
   "PLR2004", # magic-value-comparison (PDF coordinates and thresholds)
   "S101",    # assert (invariant checks in content stream editing)
   "SIM102",  # collapsible-if (readability in multi-condition PDF checks)
   "SIM118",  # in-dict-keys (pikepdf dict iteration)
   "SLF001",  # private-member-access (pypdf _add_object/_root_object have no public API)
+]
+# add_row.py: edit_pdf() is complexity-106 / 362 statements / 103 branches with byte-identical
+# PDF output required and no test coverage — refactoring is deferred until a golden-test harness
+# exists, so the complexity rules stay suppressed here only (souliane/skills#1, scoped decision).
+lint.per-file-ignores."ac-editing-acroforms/scripts/add_row.py" = [
+  "C901",    # too-complex
+  "PLR0912", # too-many-branches
+  "PLR0913", # too-many-arguments
+  "PLR0914", # too-many-locals
+  "PLR0915", # too-many-statements
+  "PLR0917", # too-many-positional-arguments
 ]
 # Tests: assert, private-member access, mock paths, and magic values are inherent to testing.
 lint.per-file-ignores."tests/**/*.py" = [
