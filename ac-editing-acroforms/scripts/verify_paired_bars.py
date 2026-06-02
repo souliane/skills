@@ -8,13 +8,13 @@ their counterpart in the paired column.
 Usage:
     uv run verify_paired_bars.py template.pdf --page 2
     uv run verify_paired_bars.py template.pdf --page 2 --y-range 100-300
-    uv run verify_paired_bars.py template.pdf --page 2 --col1-x 142 --col2-x 358
-    uv run verify_paired_bars.py template.pdf --page 2 --fix  # insert missing bars
+    uv run verify_paired_bars.py template.pdf --page 2 --columns 142,358
+    uv run verify_paired_bars.py template.pdf --page 2 -o fixed.pdf  # insert missing bars
 """
 
+import operator
 import re
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -192,8 +192,6 @@ def insert_missing_bars(
         insertions.append((insert_pos, new_block))
 
     # Apply insertions from end to start
-    import operator
-
     for pos, text in sorted(insertions, key=operator.itemgetter(0), reverse=True):
         stream = stream[:pos] + text + stream[pos:]
 
@@ -205,19 +203,63 @@ def insert_missing_bars(
 # ---------------------------------------------------------------------------
 
 
+def report_missing(missing_in_col2: list[Bar], missing_in_col1: list[Bar]) -> None:
+    for bar in missing_in_col2:
+        print(f"  MISSING col2 bar at y={bar.y:.1f} (col1 has bar at x={bar.x:.1f})")
+    for bar in missing_in_col1:
+        print(f"  MISSING col1 bar at y={bar.y:.1f} (col2 has bar at x={bar.x:.1f})")
+    total_missing = len(missing_in_col2) + len(missing_in_col1)
+    print(f"\n{total_missing} missing bar(s) found.")
+
+
+def reference_x(bars: list[Bar], detected_x: float, tolerance: float) -> float:
+    matching = [b for b in bars if abs(b.x - detected_x) < tolerance]
+    return matching[0].x if matching else detected_x
+
+
+def write_fixed_pdf(pdf_doc: pikepdf.Pdf, page_idx: int, fixed: str, out_path: Path) -> None:
+    page_obj = pdf_doc.pages[page_idx]
+    contents = page_obj.get("/Contents")
+    if isinstance(contents, pikepdf.Array):
+        page_obj[pikepdf.Name.Contents] = pdf_doc.make_stream(fixed.encode("latin-1"))
+    else:
+        contents.write(fixed.encode("latin-1"))
+    pdf_doc.save(out_path, recompress_flate=True)
+
+
+@dataclass
+class ColumnSpec:
+    col1_x: float | None = None
+    col2_x: float | None = None
+    tolerance: float = 5.0
+
+    @classmethod
+    def parse(cls, raw: str | None) -> "ColumnSpec":
+        if not raw:
+            return cls()
+        parts = [float(p) for p in raw.split(",")]
+        col1 = parts[0] if len(parts) >= 1 else None
+        col2 = parts[1] if len(parts) >= 2 else None
+        tol = parts[2] if len(parts) >= 3 else 5.0
+        return cls(col1_x=col1, col2_x=col2, tolerance=tol)
+
+
 def main(
     pdf: Annotated[str, typer.Argument(help="PDF template to check")],
     page: Annotated[int, typer.Option(help="1-based page number")],
     y_range: Annotated[str, typer.Option(help="Y range to check (e.g. 100-300)")] = "0-1000",
-    col1_x: Annotated[float | None, typer.Option(help="Column 1 x-coordinate (auto-detected if omitted)")] = None,
-    col2_x: Annotated[float | None, typer.Option(help="Column 2 x-coordinate (auto-detected if omitted)")] = None,
-    tolerance: Annotated[float, typer.Option(help="X tolerance for column matching")] = 5.0,
-    *,
-    fix: Annotated[bool, typer.Option(help="Insert missing bars and save")] = False,
-    output: Annotated[str | None, typer.Option("-o", help="Output path for fixed PDF")] = None,
+    columns: Annotated[
+        str | None,
+        typer.Option(help="Column geometry 'col1_x,col2_x,tolerance' (auto-detected if omitted)"),
+    ] = None,
+    output: Annotated[
+        str | None,
+        typer.Option("-o", help="Output path; insert missing bars and save here (report-only if omitted)"),
+    ] = None,
 ) -> None:
     """Verify that paired content-stream bars have matching counterparts."""
     y_min, y_max = (float(v) for v in y_range.split("-"))
+    spec = ColumnSpec.parse(columns)
     pdf_path = Path(pdf)
 
     pdf_doc = pikepdf.open(pdf_path)
@@ -228,50 +270,28 @@ def main(
         print(f"No bars found on page {page} in y-range {y_min}-{y_max}")
         raise SystemExit(0)
 
-    detected_col1_x, detected_col2_x = detect_columns(bars, col1_x, col2_x)
+    detected_col1_x, detected_col2_x = detect_columns(bars, spec.col1_x, spec.col2_x)
     print(f"Columns: col1 x≈{detected_col1_x:.0f}, col2 x≈{detected_col2_x:.0f}")
     print(f"Bars found: {len(bars)} in y-range [{y_min}, {y_max}]")
 
-    missing_in_col2, missing_in_col1 = find_missing_pairs(bars, detected_col1_x, detected_col2_x, tolerance)
+    missing_in_col2, missing_in_col1 = find_missing_pairs(bars, detected_col1_x, detected_col2_x, spec.tolerance)
 
     if not missing_in_col2 and not missing_in_col1:
         print("All bars are paired. No issues found.")
         raise SystemExit(0)
 
-    exit_code = 1
-    for bar in missing_in_col2:
-        print(f"  MISSING col2 bar at y={bar.y:.1f} (col1 has bar at x={bar.x:.1f})")
-    for bar in missing_in_col1:
-        print(f"  MISSING col1 bar at y={bar.y:.1f} (col2 has bar at x={bar.x:.1f})")
+    report_missing(missing_in_col2, missing_in_col1)
 
-    total_missing = len(missing_in_col2) + len(missing_in_col1)
-    print(f"\n{total_missing} missing bar(s) found.")
+    if not output:
+        pdf_doc.close()
+        sys.exit(1)
 
-    if fix:
-        col2_ref_x = detected_col2_x
-        col1_ref_x = detected_col1_x
-        col2_bars = [b for b in bars if abs(b.x - detected_col2_x) < tolerance]
-        col1_bars = [b for b in bars if abs(b.x - detected_col1_x) < tolerance]
-        if col2_bars:
-            col2_ref_x = col2_bars[0].x
-        if col1_bars:
-            col1_ref_x = col1_bars[0].x
+    col1_ref_x = reference_x(bars, detected_col1_x, spec.tolerance)
+    col2_ref_x = reference_x(bars, detected_col2_x, spec.tolerance)
+    fixed = insert_missing_bars(stream, missing_in_col2, missing_in_col1, col1_ref_x, col2_ref_x)
 
-        fixed = insert_missing_bars(stream, missing_in_col2, missing_in_col1, col1_ref_x, col2_ref_x)
-
-        page_obj = pdf_doc.pages[page - 1]
-        contents = page_obj.get("/Contents")
-        if isinstance(contents, pikepdf.Array):
-            page_obj[pikepdf.Name.Contents] = pdf_doc.make_stream(fixed.encode("latin-1"))
-        else:
-            contents.write(fixed.encode("latin-1"))
-
-        out_path = Path(output) if output else Path(tempfile.gettempdir()) / "_paired_fix.pdf"
-        pdf_doc.save(out_path, recompress_flate=True)
-        print(f"Fixed PDF saved to {out_path}")
-        if not output:
-            print(f"Copy to template: cp {out_path} {pdf_path}")
-        exit_code = 0
-
+    out_path = Path(output)
+    write_fixed_pdf(pdf_doc, page - 1, fixed, out_path)
+    print(f"Fixed PDF saved to {out_path}")
     pdf_doc.close()
-    sys.exit(exit_code)
+    sys.exit(0)

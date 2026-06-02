@@ -8,7 +8,7 @@ template, and inserts them.
 Usage:
     uv run sync_sibling_bars.py reference.pdf target.pdf --page 2
     uv run sync_sibling_bars.py reference.pdf target.pdf --page 2 --dry-run
-    uv run sync_sibling_bars.py reference.pdf target.pdf --page 2 --y-range 60-210
+    uv run sync_sibling_bars.py reference.pdf target.pdf --page 2 --matching 60-210,1.0
 """
 
 import re
@@ -94,33 +94,94 @@ def _find_shifted(ref_bars: list[Bar], tgt_bars: list[Bar], tolerance: float = 1
     return pairs
 
 
+def _report_diffs(missing: list[Bar], shifted: list[tuple[Bar, Bar]]) -> None:
+    if missing:
+        typer.echo(f"\n{len(missing)} bar(s) in reference but missing in target:")
+        for b in sorted(missing, key=lambda b: (-b.y, b.x)):
+            typer.echo(f"  {b.col} x={b.x:.2f} y={b.y:.2f} sx={b.sx:.3f} len={b.length:.2f}")
+    if shifted:
+        typer.echo(f"\n{len(shifted)} bar(s) with shifted y-position:")
+        for ref_b, tgt_b in shifted:
+            dy = tgt_b.y - ref_b.y
+            typer.echo(f"  {ref_b.col} ref y={ref_b.y:.2f} → tgt y={tgt_b.y:.2f} (dy={dy:+.2f})")
+
+
+def _apply_shifts(stream: str, shifted: list[tuple[Bar, Bar]]) -> str:
+    for ref_b, tgt_b in sorted(shifted, key=lambda p: p[1].offset, reverse=True):
+        old_text = tgt_b.raw
+        new_text = old_text.replace(f" {_fmt(tgt_b.y)} cm", f" {_fmt(ref_b.y)} cm")
+        if new_text != old_text:
+            stream = stream[: tgt_b.offset] + new_text + stream[tgt_b.offset + len(old_text) :]
+            typer.echo(f"  Fixed shift: {tgt_b.col} y={tgt_b.y:.2f} → {ref_b.y:.2f}")
+    return stream
+
+
+def _insert_missing(stream: str, missing: list[Bar], y_min: float, y_max: float) -> str:
+    updated_bars = _extract_bars(stream, y_min, y_max)
+    for mb in sorted(missing, key=lambda b: -b.y):
+        candidates = [b for b in updated_bars if b.y >= mb.y]
+        if candidates:
+            anchor = min(candidates, key=lambda b: b.y)
+        elif updated_bars:
+            anchor = max(updated_bars, key=lambda b: b.offset)
+        else:
+            typer.echo(f"  WARNING: no anchor bar found for y={mb.y:.2f}, skipping")
+            continue
+        insert_pos = anchor.offset + len(anchor.raw)
+        new_block = f"\nq\n{mb.sx} 0 0 1 {mb.x} {mb.y} cm\n0 0 m\n{mb.length} 0 l\nS\nQ"
+        stream = stream[:insert_pos] + new_block + stream[insert_pos:]
+        typer.echo(f"  Inserted: {mb.col} x={mb.x:.2f} y={mb.y:.2f}")
+        updated_bars = _extract_bars(stream, y_min, y_max)
+    return stream
+
+
+def _write_stream(pdf: pikepdf.Pdf, page_idx: int, stream: str, out_path: Path) -> None:
+    page = pdf.pages[page_idx]
+    contents = page.get("/Contents")
+    if isinstance(contents, pikepdf.Array):
+        page[pikepdf.Name.Contents] = pdf.make_stream(stream.encode("latin-1"))
+    else:
+        contents.write(stream.encode("latin-1"))
+    pdf.save(out_path)
+
+
+@dataclass
+class MatchSpec:
+    y_min: float = 0.0
+    y_max: float = 1000.0
+    tolerance: float = 1.0
+
+    @classmethod
+    def parse(cls, raw: str) -> "MatchSpec":
+        range_part, _, tol_part = raw.partition(",")
+        y_min, y_max = (float(v) for v in range_part.split("-"))
+        tolerance = float(tol_part) if tol_part else 1.0
+        return cls(y_min=y_min, y_max=y_max, tolerance=tolerance)
+
+
 @app.command()
 def main(
     reference: str = typer.Argument(help="Reference template PDF (source of truth for bars)"),
-    target: str = typer.Argument(help="Target template PDF to sync bars into"),
+    target: str = typer.Argument(help="Target template PDF to sync bars into (modified in place)"),
     page: int = typer.Option(..., "--page", "-p", help="1-based page number"),
-    y_range: str = typer.Option("0-1000", "--y-range", help="Y range to check (e.g. 60-210)"),
-    tolerance: float = typer.Option(1.0, "--tolerance", help="Y tolerance for matching bars"),
+    *,
+    matching: str = typer.Option("0-1000", "--matching", help="'ymin-ymax[,tolerance]' (e.g. 60-210,1.0)"),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would change without modifying"),
-    output: str | None = typer.Option(None, "-o", "--output", help="Output path (default: overwrite target)"),
 ) -> None:
     """Sync underline bars from reference template to target template."""
-    y_min, y_max = (float(v) for v in y_range.split("-"))
+    spec = MatchSpec.parse(matching)
 
     ref_pdf = pikepdf.open(reference)
     tgt_pdf = pikepdf.open(target)
 
-    ref_stream = _get_stream(ref_pdf, page - 1)
+    ref_bars = _extract_bars(_get_stream(ref_pdf, page - 1), spec.y_min, spec.y_max)
     tgt_stream = _get_stream(tgt_pdf, page - 1)
+    tgt_bars = _extract_bars(tgt_stream, spec.y_min, spec.y_max)
 
-    ref_bars = _extract_bars(ref_stream, y_min, y_max)
-    tgt_bars = _extract_bars(tgt_stream, y_min, y_max)
+    typer.echo(f"Reference: {len(ref_bars)} bars, Target: {len(tgt_bars)} bars (y {spec.y_min}-{spec.y_max})")
 
-    typer.echo(f"Reference: {len(ref_bars)} bars, Target: {len(tgt_bars)} bars (y {y_min}-{y_max})")
-
-    # Find missing bars
-    missing = _find_missing(ref_bars, tgt_bars, tolerance)
-    shifted = _find_shifted(ref_bars, tgt_bars, tolerance)
+    missing = _find_missing(ref_bars, tgt_bars, spec.tolerance)
+    shifted = _find_shifted(ref_bars, tgt_bars, spec.tolerance)
 
     if not missing and not shifted:
         typer.echo("Target bars match reference. Nothing to do.")
@@ -128,16 +189,7 @@ def main(
         tgt_pdf.close()
         return
 
-    if missing:
-        typer.echo(f"\n{len(missing)} bar(s) in reference but missing in target:")
-        for b in sorted(missing, key=lambda b: (-b.y, b.x)):
-            typer.echo(f"  {b.col} x={b.x:.2f} y={b.y:.2f} sx={b.sx:.3f} len={b.length:.2f}")
-
-    if shifted:
-        typer.echo(f"\n{len(shifted)} bar(s) with shifted y-position:")
-        for ref_b, tgt_b in shifted:
-            dy = tgt_b.y - ref_b.y
-            typer.echo(f"  {ref_b.col} ref y={ref_b.y:.2f} → tgt y={tgt_b.y:.2f} (dy={dy:+.2f})")
+    _report_diffs(missing, shifted)
 
     if dry_run:
         typer.echo("\nDry run — no changes made.")
@@ -145,51 +197,11 @@ def main(
         tgt_pdf.close()
         return
 
-    # Apply fixes
-    modified = tgt_stream
+    modified = _apply_shifts(tgt_stream, shifted)
+    modified = _insert_missing(modified, missing, spec.y_min, spec.y_max)
 
-    # 1. Fix shifted bars (replace y in existing bars)
-    for ref_b, tgt_b in sorted(shifted, key=lambda p: p[1].offset, reverse=True):
-        old_text = tgt_b.raw
-        new_text = old_text.replace(f" {_fmt(tgt_b.y)} cm", f" {_fmt(ref_b.y)} cm")
-        if new_text != old_text:
-            modified = modified[: tgt_b.offset] + new_text + modified[tgt_b.offset + len(old_text) :]
-            typer.echo(f"  Fixed shift: {tgt_b.col} y={tgt_b.y:.2f} → {ref_b.y:.2f}")
-
-    # 2. Insert missing bars (after the nearest existing bar)
-    # Re-extract bars from modified stream to get correct offsets
-    updated_bars = _extract_bars(modified, y_min, y_max)
-    for mb in sorted(missing, key=lambda b: -b.y):
-        # Find insertion point: after the bar with closest y above
-        candidates = [b for b in updated_bars if b.y >= mb.y]
-        if candidates:
-            anchor = min(candidates, key=lambda b: b.y)
-            insert_pos = anchor.offset + len(anchor.raw)
-        # Insert after the last bar in range
-        elif updated_bars:
-            anchor = max(updated_bars, key=lambda b: b.offset)
-            insert_pos = anchor.offset + len(anchor.raw)
-        else:
-            typer.echo(f"  WARNING: no anchor bar found for y={mb.y:.2f}, skipping")
-            continue
-
-        new_block = f"\nq\n{mb.sx} 0 0 1 {mb.x} {mb.y} cm\n0 0 m\n{mb.length} 0 l\nS\nQ"
-        modified = modified[:insert_pos] + new_block + modified[insert_pos:]
-        typer.echo(f"  Inserted: {mb.col} x={mb.x:.2f} y={mb.y:.2f}")
-        # Re-extract to keep offsets valid
-        updated_bars = _extract_bars(modified, y_min, y_max)
-
-    # Write back
-    tgt_page = tgt_pdf.pages[page - 1]
-    contents = tgt_page.get("/Contents")
-    if isinstance(contents, pikepdf.Array):
-        tgt_page[pikepdf.Name.Contents] = tgt_pdf.make_stream(modified.encode("latin-1"))
-    else:
-        contents.write(modified.encode("latin-1"))
-
-    out_path = Path(output) if output else Path(target)
-    tgt_pdf.save(out_path)
-    typer.echo(f"\nSaved to {out_path}")
+    _write_stream(tgt_pdf, page - 1, modified, Path(target))
+    typer.echo(f"\nSaved to {target}")
 
     ref_pdf.close()
     tgt_pdf.close()
