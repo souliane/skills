@@ -97,6 +97,20 @@ def process(order: Order) -> Receipt:
     return Receipt(total=total + tax, customer=customer)
 ```
 
+### `dict.get(key, default)` does not defend against an explicit `None`
+
+The default is substituted only when the key is **absent**, not when it is present with a `None` (e.g. JSON `null`) value. Chaining `.get()` on the result then crashes:
+
+```python
+# bad — crashes with AttributeError when payload is {"author": None}
+username = note.get("author", {}).get("username")
+
+# good — coerce a missing OR null value to the empty container
+username = (note.get("author") or {}).get("username")
+```
+
+Any time a value may legitimately be `null` from an external source (API payloads, parsed JSON), use `... or <default>` rather than relying on the `.get` default.
+
 ---
 
 ## Typing: Full Modern Annotations
