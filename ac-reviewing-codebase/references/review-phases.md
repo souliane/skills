@@ -261,6 +261,19 @@ When a skill is extracted from another (e.g., `e2e` from `test`), verify the rou
 5. **Keyword overlap.** Both parent and child should not trigger on the same keywords — the parent should drop the extracted keywords.
 6. **`subagent_safe` consistency.** If the skill is `subagent_safe: false`, it must NOT appear only on agents that are sub-agents with no main-conversation path.
 
+### 3.17 AI-Evaluated Behavior Under Test (Suggestion, not enforcement)
+
+Deterministic test coverage (§ 3.10) checks scripts. It says nothing about whether the portfolio's **non-deterministic, AI-evaluated** behavior is exercised — skills, agent prompts, routing/composition/orchestration rules. A skill can read perfectly and still fail to change what the agent does; a Non-Negotiable the author believes is enforced can silently regress. Where such behavior exists, check whether it is under test and, when a real gap exists, **suggest** putting it under test.
+
+This is a **recommendation, never a gate**. Apply the conditional posture in full — read [`ai-eval-testing.md`](ai-eval-testing.md) for the mechanism and the reviewer checklist:
+
+1. **Already covered?** If the repo has any working eval mechanism for its AI behavior (its own harness, a baseline-vs-skill subagent comparison, the Anthropic skill-creator eval pipeline, a custom LLM-judge), verify it actually bites and **stop — do not propose a second mechanism.** Two competing eval mechanisms in one repo is itself a finding.
+2. **Two altitudes.** Suggest **embedded per-skill evals** (`agent_path` → the changed skill) for a freshly written/changed behavioral rule; suggest **integration AI evals** for a new cross-skill routing/composition rule. Check for both.
+3. **Anti-vacuity is the first thing to verify** on any eval suite present: each scenario ships a fail fixture (and a noop fixture for negative-only specs) with a meta-test asserting RED on fail/noop and GREEN on pass. A suite without this gives false confidence — flag it, like tests with no assertions.
+4. **Regression *and* generalization, positive *and* negative.** Flag pass-only / regression-only suites that can't catch over-fire or fail-to-generalize.
+5. **Cost discipline.** Deterministic, free layers (trigger/activation QA, real-code regression corpus) on every PR; paid model runs at a low cadence with budget caps and a PATH-absent skip. Flag a suite that fires paid model calls on every push.
+6. **Conditional suggestion.** Recommend partly or completely, matched to the observed gap, and **only where it does not conflict with a mechanism the repo already uses.**
+
 ---
 
 ## Phase 4 — Quality Review

@@ -3,7 +3,7 @@ name: ac-reviewing-codebase
 description: Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting. Use when user says "review skills", "audit skills", "audit codebase", "code quality", "repo status", "what needs pushing", "align repos", "backport", "upgrade deps", "assess codebase", "health check", or wants a thorough quality pass on skills and/or code.
 compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv, Typer.
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   subagent_safe: false
 ---
 
@@ -195,6 +195,10 @@ Before starting the review:
 
 **Hunt for manually suppressed code quality signals** — lowered coverage thresholds, `# noqa` suppressions, excluded files from pre-commit, relaxed per-file-ignores, missing hooks, companion skill violations. See [`references/review-phases.md`](references/review-phases.md) § 3.14 for the full checklist.
 
+### 1.8: AI-Evaluated Behavior — is it under test? (Suggestion, not enforcement)
+
+When the portfolio ships **skills** or other **non-deterministic, AI-evaluated** behavior (agent prompts, routing/composition rules), deterministic metrics cannot tell whether the behavior is actually exercised — a skill can read perfectly and still fail to change what the agent does. Check whether such behavior carries (a) **embedded per-skill behavioral evals** and/or (b) **upper-level integration AI evals**, and — only where a real gap exists and **no equivalent mechanism is already in use** — *suggest* adding them (partly or completely, per case). This is a recommendation, never a gate. See [`references/ai-eval-testing.md`](references/ai-eval-testing.md) for the mechanism (EvalSpec, pass/fail/noop anti-vacuity fixtures, regression+generalization, LLM-judge, deterministic-layer-on-every-PR) and the reviewer checklist.
+
 ---
 
 ## Phases 2–4 — Content, Technical & Quality Review
@@ -202,7 +206,7 @@ Before starting the review:
 Read [`references/review-phases.md`](references/review-phases.md) for the full checklists. Summary:
 
 - **Phase 2 — Content Review:** Duplication & diverged copies, conciseness, self-sufficiency & knowledge placement, cross-repo memory scan, skill ↔ repo config boundary, information boundaries, knowledge consolidation, cross-references, no hardcoded paths, guardrail classification, multi-layer overlap.
-- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**.
+- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**, **AI-evaluated behavior under test** (suggest embedded and/or integration AI evals where missing — § 3.17).
 - **Phase 4 — Quality Review:** Production-grade standard, attribution, agent agnosticism, attention to detail, formatting consistency, skill authoring best practices.
 
 ---

@@ -98,6 +98,15 @@ When a workflow is deterministic and multi-step, implement it as a callable scri
 3. Monitor how the agent uses skills in real scenarios — watch for unexpected trajectories.
 4. After each correction, update the skill so the mistake cannot recur ("every correction is a skill bug").
 
+**Put the behavior under test, not just the code.** A skill's "output" is the agent's *behavior*, which is non-deterministic — it can read perfectly and still fail to change what the agent does. Convert "the agent knows this rule" into "the agent's compliance is observable and gated" so a regression surfaces as a red test, not a recurring red-card moment. Convergent framings:
+
+- **Baseline-vs-skill comparison.** Run a pressure scenario in a subagent *without* the skill and document the violation, then re-run *with* the skill and verify compliance — RED/GREEN/REFACTOR applied to skills ("no skill without a failing test first"). Anthropic's skill-creator formalizes this as parallel with-skill / baseline subagent runs, a grader scoring assertions, a benchmark (pass-rate / tokens / time), and an optional blind A/B comparator.
+- **Anti-vacuity.** A scenario built only of "must NOT do X" matchers is satisfied by an agent that does nothing — ship a fail fixture (and a noop fixture for negative-only specs) with a meta-test asserting the scenario goes RED on them and GREEN on a compliant fixture.
+- **LLM-judge for subjective rules** (tone, faithfulness, "did it answer") that deterministic matchers can't reach; default to deterministic checks and bound judge cost.
+- **Anthropic's stance:** evals are **suggested for objectively-verifiable skills, optional for subjective ones** — recommend, don't force.
+
+When *reviewing* a repo's AI-evaluated behavior (rather than authoring), see `ai-eval-testing.md` for the full mechanism and the conditional reviewer checklist.
+
 ## Consistent Terminology
 
 Use one term per concept throughout the skill. If you call it "worktree" in one section, don't call it "workspace" in another.
@@ -119,4 +128,7 @@ Skills improve through use. After each session, ask: "Did the agent make a mista
 - [Agent Skills Overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
 - [Equipping Agents for the Real World](https://claude.com/blog/equipping-agents-for-the-real-world-with-agent-skills) — Anthropic engineering blog
 - [How Boris Cherny Uses Claude Code](https://paddo.dev/blog/how-boris-uses-claude-code/)
+- [Anthropic skill-creator (anthropics/skills)](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md) — built-in skill eval / benchmark / blind-A-B pipeline
+- [Anthropic — Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [obra/superpowers `writing-skills`](https://github.com/obra/superpowers/blob/main/skills/writing-skills/SKILL.md) (MIT) — RED/GREEN/REFACTOR skill testing via subagents
 - [10 Tips from the Claude Code Team](https://paddo.dev/blog/claude-code-team-tips/)
