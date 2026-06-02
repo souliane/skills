@@ -191,6 +191,15 @@ Check each skill's `subagent_safe` metadata field. A skill is safe for sub-agent
 - **Integration-first check.** Happy paths = integration tests; unit tests = edge cases and error branches.
 - **Test conciseness.** Flag: copy-pasted tests (use parametrize), repeated setup (use fixtures), over-mocking.
 
+### 3.10b Behavioral Coverage for Non-Deterministic Behavior (Suggest, Don't Enforce)
+
+Deterministic test coverage (§ 3.10) only reaches what a code path *does*. It cannot reach what a **skill** instructs an agent to do, or whether an **AI-evaluated, non-deterministic** behavior actually holds at runtime — those are graded by *behavioral evals*, not unit tests. When the reviewed portfolio contains skills (`SKILL.md` files) or runtime behavior that depends on what an LLM agent says or invokes, **suggest** behavioral-eval coverage:
+
+- **Per-skill embedded evals.** A skill that encodes a rule ("route founding to the free service, not a DIY form") can carry co-located eval specs that prove a compliant trajectory actually follows it. Look for an `evals/` (or `eval/scenarios/`) directory next to the skill. Absent → *suggest* adding one for the skill's load-bearing rules.
+- **Upper-level integration AI evals.** Cross-skill / cross-overlay behavior (routing, which skill set loads for a given task, end-to-end handoffs) is graded by integration scenarios that exercise the real selection logic, not a single skill in isolation. Absent for behavior that has bitten before → *suggest* it.
+
+This is a **suggestion, conditional, and non-enforcing** (see Rule 13). Read [`references/ai-eval-review.md`](ai-eval-review.md) for the full mechanism (EvalSpec, pass/fail/no-op matchers, anti-vacuous fixtures, regression + generalization axes, the LLM judge, the deterministic/scenario layering) so the finding names a concrete shape — not a vague "add tests." **Do not** propose it when the repo already has an eval/behavioral-test mechanism of its own; align with that one instead of layering a second.
+
 ### 3.11 Upstream First
 
 Look for opportunities to contribute upstream instead of maintaining custom workarounds.
