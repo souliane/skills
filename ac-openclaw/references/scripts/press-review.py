@@ -10,12 +10,14 @@ State files (all under <workspace>/state/):
 
     press-review-seen.json
         {"<normalised_url>": "<iso_date>", ...}
-        URLs already surfaced in a previous run.
+        Date each URL was first surfaced; suppressed on later days only,
+        so same-day re-runs (cron + on-demand) still show today's items.
         Entries older than RETENTION_DAYS pruned.
 
     press-review-feeds.json
-        {"<feed_url>": {"etag": "...", "last_modified": "...", "fetched_at": "..."}}
-        Per-feed conditional-GET headers.
+        {"<feed_url>": {"etag", "last_modified", "fetched_at", "items": [...]}}
+        Per-feed conditional-GET headers + last parsed items, so a 304
+        (or a same-day re-run) re-serves cached items instead of nothing.
 
 Called by the `press-review` cron job (daily at a chosen time) and
 on-demand via messaging ("run press review").
@@ -159,8 +161,14 @@ def fetch(url: str, headers: dict | None = None) -> tuple[str | None, dict]:
     return None, {}
 
 
-def fetch_feed(url: str, feeds_state: dict) -> str | None:
-    """Fetch with conditional GET. Updates feeds_state in place. Returns body or None."""
+def get_feed_items(url: str, feeds_state: dict, limit: int) -> list[dict]:
+    """Conditional GET with same-day idempotence.
+
+    On 200: parse, cache the parsed items in feeds_state, return them.
+    On 304 / transient error: re-serve the last cached items so a second
+    run the same day (cron then on-demand) is not starved into an empty
+    digest. Cross-day dedup is handled separately by `dedupe()`.
+    """
     prior = feeds_state.get(url, {})
     headers = {}
     if prior.get("etag"):
@@ -170,17 +178,20 @@ def fetch_feed(url: str, feeds_state: dict) -> str | None:
 
     body, resp = fetch(url, headers=headers)
     if resp.get("_status") == str(HTTP_NOT_MODIFIED):
-        print(f"  [cache] 304 — {url}", file=sys.stderr)
-        return None
+        cached = prior.get("items", [])
+        print(f"  [cache] 304, re-serving {len(cached)} cached — {url}", file=sys.stderr)
+        return cached
     if body is None:
-        return None
+        return prior.get("items", [])
 
+    items = parse_feed(body, max_items=limit)
     feeds_state[url] = {
         "etag": resp.get("ETag") or resp.get("etag"),
         "last_modified": resp.get("Last-Modified") or resp.get("last-modified"),
         "fetched_at": datetime.now(UTC).isoformat(),
+        "items": items,
     }
-    return body
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -296,11 +307,18 @@ def fetch_hn(limit: int = 25) -> list[dict]:
 
 
 def dedupe(items: list[dict], seen: dict, today_iso: str) -> list[dict]:
-    """Drop items whose normalised URL is in seen. Mark kept items as seen."""
+    """Drop items shown on a PRIOR day; keep new + same-day items.
+
+    Cross-day dedup (an article is shown once, then suppressed on later
+    days) without starving same-day re-runs: items already surfaced
+    *today* are kept, so the cron digest and a later on-demand request
+    show the same content instead of an empty shell.
+    """
     fresh = []
     for it in items:
         norm = normalise_url(it["url"])
-        if norm in seen:
+        prev = seen.get(norm)
+        if prev is not None and prev < today_iso:
             continue
         it["_norm_url"] = norm
         fresh.append(it)
@@ -361,14 +379,10 @@ def main() -> None:
     stats: list[str] = []
 
     for bucket, label, url, limit in SOURCES:
-        raw = fetch_feed(url, feeds_state)
-        if raw is None:
-            stats.append(f"{label}: cached/304/error")
-            continue
-        parsed = parse_feed(raw, max_items=limit)
+        parsed = get_feed_items(url, feeds_state, limit)
         fresh = dedupe(parsed, seen, today_iso)
         buckets.setdefault(bucket, []).append((label, fresh))
-        stats.append(f"{label}: {len(parsed)} fetched, {len(fresh)} fresh")
+        stats.append(f"{label}: {len(parsed)} available, {len(fresh)} fresh")
 
     hn = fetch_hn(25)
     hn_fresh = dedupe(hn, seen, today_iso)
