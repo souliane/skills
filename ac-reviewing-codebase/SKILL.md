@@ -3,8 +3,9 @@ name: ac-reviewing-codebase
 description: Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting. Use when user says "review skills", "audit skills", "audit codebase", "code quality", "repo status", "what needs pushing", "align repos", "backport", "upgrade deps", "assess codebase", "health check", or wants a thorough quality pass on skills and/or code.
 compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv, Typer.
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   subagent_safe: false
+  last_research_date: "2026-06-02"
 ---
 
 # Reviewing Codebase
@@ -114,6 +115,7 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
 10. **Factorize aggressively.** Duplicated logic across scripts, repos, or skills is a finding. Extract to a shared module, tool, or reference file. When unsure whether duplication is intentional — **ask the user**.
 11. **Documentation must be current or auto-generated.** Check that docs (README, BLUEPRINT, generated API docs) are up to date with the code. If manually maintained, flag drift. If auto-generated, verify the generation hook exists in pre-commit or CI. Missing auto-generation for documentation that should be generated is a finding.
 12. **Phase 0 fixes are NOT the review (Non-Negotiable).** Phase 0 prerequisite checks (running `cli.py check`, `--help`, `prek` in dry-run, reading `assess` output) routinely surface quick-win fixups — stale refs in a generator script, a pyenv/shim bug, a missing dep declaration. Shipping those is encouraging, but it is not the review. Before declaring the review done, **explicitly list every repo in scope and confirm each has been through Phases 1–4**. A review that touched 2 of 8 in-scope repos is 25% complete, not done. When the user flags this gap, do not retroactively re-scope — acknowledge and run the missing phases. The "Definition of Done" in Phase 6.5 is binding: re-running the review on the same scope must produce zero new findings, which is only possible if the full scope was actually reviewed.
+13. **Behavioral-eval coverage is a SUGGESTION, never an enforcement.** Deterministic tests grade what code *does*; they cannot grade what a skill instructs an agent to do or whether non-deterministic, AI-evaluated behavior holds at runtime. When a reviewed skill encodes a load-bearing rule, or runtime behavior depends on what an LLM agent says/invokes, **suggest** behavioral-eval coverage (per-skill embedded evals and/or upper-level integration AI evals). This is **conditional**: suggest the cheapest layer that reaches the behavior (code-enforceable → deterministic test; LLM-output-only → transcript scenario), suggest it **partially** (the skill's load-bearing rules, not every line), and **never suggest it when the repo already has its own eval/behavioral-test mechanism** — align with that one instead of layering a second. It is a finding the user may decline, not a gate. See [`references/ai-eval-review.md`](references/ai-eval-review.md) for the mechanism so every such finding names a concrete shape.
 
 ---
 
@@ -202,7 +204,7 @@ Before starting the review:
 Read [`references/review-phases.md`](references/review-phases.md) for the full checklists. Summary:
 
 - **Phase 2 — Content Review:** Duplication & diverged copies, conciseness, self-sufficiency & knowledge placement, cross-repo memory scan, skill ↔ repo config boundary, information boundaries, knowledge consolidation, cross-references, no hardcoded paths, guardrail classification, multi-layer overlap.
-- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**.
+- **Phase 3 — Technical Review:** Script language & conventions, pre-commit hooks, cross-repo infrastructure, script verification, hook scripts, code quality & simplification, **promotion of plugin/overlay platform wrappers to core backends**, security review, CLI vs MCP preference, single CLI entrypoint, sub-agent safety, test coverage, **behavioral-eval coverage for non-deterministic behavior (suggest, don't enforce — see Rule 13 and [`references/ai-eval-review.md`](references/ai-eval-review.md))**, upstream-first, **CLI structure & naming coherence** (consistent commands, arguments, exit codes, file hierarchy across all repos), **documentation freshness**, **factorization**, **silenced quality signals**.
 - **Phase 4 — Quality Review:** Production-grade standard, attribution, agent agnosticism, attention to detail, formatting consistency, skill authoring best practices.
 
 ---
