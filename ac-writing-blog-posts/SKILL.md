@@ -56,6 +56,44 @@ Save user-provided biographical details as a `user` type memory with a descripti
 - It is fine — encouraged — to show unfinished thinking, dead ends, and open
   questions. That is what makes the post worth reading and worth trusting.
 
+### Straight and Short, Not Prosaic (Non-Negotiable)
+
+You are not writing a book. The first draft is roughly twice as long as it
+should be — write it, then cut it in half before showing the user.
+
+- **Every sentence carries information or gets cut.** Throat-clearing,
+  scene-setting, and "beautiful" sentences that exist for rhythm rather than
+  content are deleted. If cutting a sentence loses no fact, cut it.
+- **No story-telling for its own sake.** A one-line concrete anecdote that makes
+  a technical point earns its place; a narrative arc wrapped around the point
+  does not. State the point, show the evidence, move on.
+- **Plain words over elegant ones.** Reflective asides and rhetorical flourishes
+  are voice tics — keep at most one or two per post, not one per section. (An
+  author's own recurring asides, if any, belong in their `styles/` voice
+  profile, not in this generic rule.)
+- **Get to the point in the first two sentences.** Don't warm up. The opener
+  says what the post is about and why it's worth reading; the body delivers it.
+- **Tighten before you assemble.** After the sections are drafted, do one
+  explicit compression pass: per paragraph, ask "what does this add?" — merge or
+  delete anything that fails. Compare word count before and after; if it didn't
+  drop meaningfully, you didn't tighten.
+
+### Match the Author's Voice (Non-Negotiable When a Profile Exists)
+
+**Where profiles live.** The skill reads voice profiles from the directory set as `styles_dir` in `~/.ac-writing-blog-posts.yml` — an absolute or `~`-relative path, so profiles can live in a separate repo (e.g. the author's dotfiles) rather than in this public skill. If `styles_dir` is unset, fall back to this skill's bundled `styles/` directory.
+
+In that directory, profiles are layered on top of this skill:
+
+- **This skill** holds the universal rules (humble, honest, straight, sound-human, off-by-default) — they apply to every author and every voice, and are never repeated in a profile.
+- **A base profile** `<author>.md` holds the traits common to *all* of that author's voices — register, sentence mechanics, structural habits, dos and don'ts. It is derived from **real samples of the author's own writing** (their published work, not AI-assisted drafts), and is the concrete instance of the universal rules; where a profile and a universal rule both apply, the profile's specifics win.
+- **Optional voice variants** `<author>-<voice>.md` hold **only the deltas** for a topic or audience (e.g. a drier reference voice, a punchier opinion voice). A variant extends its base and never repeats base traits.
+
+**Ask which voice first (before Phase A).** Resolve `styles_dir`, then scan it. If a single base profile exists, confirm it. If variants exist, ask the user which voice fits this post's topic and audience, then load the base **plus** the chosen variant. If no profile exists, offer to derive one from samples.
+
+**Verify each sample is the author's own writing before using it.** A file in the author's drive, repo, or blog folder is not proof of authorship — it may be a collaborator's, a received document, or boilerplate. Watch for third-person self-references ("X and I"), co-author names, or received-document markers, and confirm with the author when authorship is ambiguous. A misattributed sample poisons the profile with someone else's voice.
+
+Every profile encodes *how the author writes*, not *what they write about*, and obeys "Off by Default" (below): never the author's private life, emotions, or opinions. If a sample reveals something personal, it stays out of the profile unless the author approved it — when unsure, ask.
+
 ### Sound Human, Not AI-Generated (Non-Negotiable)
 
 The post must read as written by a person, not produced by a model. Reviewers
@@ -88,9 +126,17 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **Acknowledge limitations prominently.** Every tool has rough edges. State them near the beginning, not buried at the end.
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
 
-### Costly Incidents: "Can Happen", Not "Happened to Me" (Non-Negotiable)
+### The Author's Private Life and Feelings: Off by Default (Non-Negotiable)
 
-A money-losing, security, or data-loss failure mode is publishable as a pattern others can hit — not as a confession that it happened to the author. Default to the conditional framing ("X *can* drain your credits / corrupt your DB — here's why, and how to prevent it"), never the personal one ("X drained *my* credits", a dollar amount lost, "it emptied my account"). The author opts in to sharing a personal incident; the draft never assumes it. This overrides the general "learnings as personal takeaways" guidance for this specific class of incident — scrub every assertion that it occurred down to the conditional unless the author explicitly chooses to disclose it.
+What happened to the author and how the author felt about it are **private by default** — they appear in a post only when the author explicitly says to publish them. Hearing it in conversation, in Slack, or in a retro is not authorization to publish it.
+
+This is about the author's personal and emotional life, not the technical work. The work, the findings, and the author's technical opinions are the subject of the post and belong there. What stays out unless the author explicitly clears it:
+
+- **Feelings and emotional states** — frustration, anger, being "pissed", relief, excitement, burnout. Out even when true, even when the author said it to you. ("Every day I have to manually fix it" → publish the recurring failure mode, not the exasperation.)
+- **Personal and life circumstances** — career or employment plans, money, health, relationships, location, what the author is going through.
+- **Costly incidents** (money / security / data-loss) get the strongest form of this rule: publish the failure mode as a pattern others can hit ("X *can* drain your credits — here's why, and how to prevent it"), never as a confession it happened to the author, and never a dollar amount lost, unless the author opts in.
+
+When personal context would genuinely strengthen the post, **ask** — quote the exact sentence you'd add and let the author approve or decline it. Default to leaving it out.
 
 ### No Repeated Disclaimers (Non-Negotiable)
 
@@ -141,7 +187,7 @@ One turn per bullet, in this order:
 - **Tone calibration** (dry-factual, warm-personal, technical-narrative, conversational-brief, reflective, polemical, etc. — tie options to short example phrasings when useful).
 - **The single sentence the reader should walk away with**: generate 4-8 candidate takeaway sentences built from the prior answers. User picks or reshapes.
 
-Before Phase A, check the agent's memory for stored author bio / style preferences and ask only for what's missing. Save new answers as `user` type memories with descriptive titles so the next post can reuse them.
+Before Phase A, run the voice check from "Match the Author's Voice": pick the voice (ask the user which one when more than one exists) and load its base profile plus any chosen variant. Also check the agent's memory for stored author bio / style preferences. Ask only for what's missing. Save new answers as `user` type memories with descriptive titles, and fold durable voice observations back into the base profile (or the relevant variant) so the next post reuses them.
 
 #### Phase B — Structure
 
@@ -178,6 +224,8 @@ After assembling the draft, verify:
 
 - [ ] Every technical claim matches the actual codebase (counts, versions, commands)
 - [ ] No biographical details were invented
+- [ ] No undisclosed personal events or feelings (see "Off by Default")
+- [ ] Tightened — roughly half the natural draft length, no filler sentences
 - [ ] Tone is humble and non-pretentious
 - [ ] No over-selling, inflated language, or false paternity claims
 - [ ] All links are valid
@@ -192,6 +240,7 @@ Phase C iterates section by section. This step reads the *assembled* article as 
 - Redundancy across sections
 - Pacing (too much setup, rushed ending, etc.)
 - Consistency of tense, voice, and level of detail
+- Length — is every paragraph load-bearing? Run the compression pass from "Straight and Short" and confirm the draft is meaningfully shorter than the natural first version.
 
 Present the assembled draft to the user and ask what to adjust. If changes touch the structure, loop back into Phase B/C for the affected sections rather than rewriting inline.
 
