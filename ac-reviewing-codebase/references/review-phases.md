@@ -222,6 +222,7 @@ Every codebase has entrypoints — CLI commands, API endpoints, module paths, fi
 - **Naming coherence.** Are modules, directories, and files named consistently? Same naming convention (kebab-case dirs, snake_case modules, etc.) throughout.
 - **Single entrypoint per skill/package.** One CLI entrypoint (`cli.py`), one main module, one `__init__.py` that exports the public API. Multiple competing entrypoints = confusion.
 - **Private vs public.** Functions/classes not intended for external use should be prefixed with `_`. Public functions that are only called internally are a finding.
+- **Whole-tree organization → § 2h.** This block focuses on entrypoint/CLI coherence. The full file-hierarchy assessment — cohesion/scoping, misplaced files, root clutter, god-module splits, flat-vs-nested balance, test-mirrors-source, and the concrete prioritized `from -> to` reorganization moves — lives in [`codebase-assessment.md`](codebase-assessment.md) § 2h (Phase A), fed by the cheap tree signals in that file's Part 1. Run it for any reorganization finding heavier than a single misplaced entrypoint.
 
 **Cross-repo coherence:**
 

@@ -28,6 +28,39 @@ Run `scripts/cli.py assess` to collect metrics as JSON. The CLI handles:
 - TODOs: `grep -rn 'TODO\|FIXME\|HACK\|XXX' --include='*.py' --include='*.ts'`
 - Dependencies: check package manager's outdated report
 
+### File-hierarchy signals (manual — feed §2h)
+
+Cheap, language-agnostic signals on the **tracked file tree** that surface reorganization candidates. Run over `git ls-files` (never the working tree — skip `.venv`, `node_modules`, build dirs). These are inputs to the §2h architectural judgment, not standalone scores.
+
+```bash
+# Root-level file count — a crowded root is the most common smell.
+git ls-files | grep -vc '/'
+
+# Files per directory — directories far above the median are split candidates.
+git ls-files | sed 's:/[^/]*$::' | sort | uniq -c | sort -rn | head -20
+
+# Max tree depth — over-deep nesting (5+ segments) without reason is a smell.
+git ls-files | awk -F/ '{print NF-1}' | sort -rn | head -1
+
+# Oversized modules — files an order of magnitude above the median split.
+git ls-files '*.py' | xargs wc -l 2>/dev/null | sort -rn | head -15
+
+# Directories mixing many unrelated file types (low cohesion).
+git ls-files | sed 's:/[^/]*$::' | sort -u | while read -r d; do
+  n=$(git ls-files "$d/*" | sed 's:.*\.::' | sort -u | grep -c .); echo "$n $d";
+done | sort -rn | head -15
+```
+
+| Signal | Smell when | Feeds |
+|--------|-----------|-------|
+| Root-level file count | High (clutter at repo root) | §2h cohesion/scoping |
+| Files per directory | A directory far above the median | §2h god-package / split candidate |
+| Max tree depth | 5+ segments without clear reason | §2h over-deep tree |
+| Oversized modules | A file an order of magnitude above the median | §2h god-module split |
+| File-type spread per directory | One directory mixing many unrelated extensions | §2h low-cohesion directory |
+
+A high signal is **evidence, not a verdict** — a monorepo root or a deliberately flat tool legitimately trips some of these. Confirm against §2h judgment before proposing a move.
+
 ## Part 2 — Architectural Judgment (LLM-Driven)
 
 After collecting metrics, perform architectural analysis:
@@ -89,6 +122,47 @@ For each piece of **runtime/persisted state** (lifecycle status, ownership, live
 
 Any hit is **Architecture-dimension** scoring evidence and a ranked improvement item: a multi-store fact with no arbiter **caps the Architecture score** no matter how clean §2a–2f are.
 
+### 2h. File Hierarchy & Module Organization
+
+The signals in Part 1 § "File-hierarchy signals" surface *where* the tree may be wrong; this lens decides *whether* it is and produces the concrete moves. AI-assisted change accretes hierarchy entropy fast — a helper dropped next to its caller, a script left at the repo root, a module that quietly grew into a god-module — and each edit looks locally fine. Assess the **whole tracked tree** (source code *and* every other file type: configs, docs, assets, scripts, fixtures), and **flag reorganization opportunities** so related things are grouped and well-scoped under directories.
+
+**Cohesion & scoping (any file type):**
+
+- **Related files grouped, unrelated concerns separated.** Files that change together or serve one feature belong under one directory; a directory holding several unrelated concerns has low cohesion and should split.
+- **Misplaced files.** A module that belongs inside a subpackage but sits beside it; config, scripts, docs, or fixtures scattered at the repo root instead of under `config/`, `scripts/`, `docs/`, `tests/fixtures/`.
+- **Root-directory clutter.** A crowded repo root (Part 1 root-level count high) is the most common smell — only genuine top-level entries (README, license, build/lint config, lockfiles, the package dir) belong there.
+- **Directory naming consistency.** One convention throughout (e.g. kebab-case dirs, snake_case modules); flag `utils/` next to `helpers/` next to `common/` doing the same job.
+- **Over-deep vs over-flat.** Deep nesting (5+ segments) that adds no semantic value is as bad as a flat dump of dozens of files with no grouping. Aim for a balance where each level adds meaning.
+- **Assets/config/docs under sensible dirs.** Images, sample data, generated artifacts, and docs each under a clear home, not interleaved with source.
+
+**Python specifics:**
+
+- **God-modules.** A module an order of magnitude larger than its siblings (Part 1 oversized-modules signal) that mixes several responsibilities → split into a package with one module per responsibility.
+- **Packages lacking a single clear responsibility.** A package whose name doesn't predict its contents, or that has become a catch-all (`utils`, `misc`, `core` holding unrelated things).
+- **Flat-vs-nested balance.** A flat package with many sibling modules that fall into obvious groups → introduce subpackages; an over-nested package with one module per level → flatten.
+- **Circular-import-prone layouts.** Sibling modules that import each other, or a subpackage importing back up into its parent — restructure so dependencies flow one direction (shared types/abstractions in a lower layer).
+- **`__init__` public surface.** Does `__init__.py` export a deliberate public API, or leak internals / re-export everything? Internal-only modules should not be surfaced.
+- **Test layout mirrors source.** `tests/` should mirror the source package tree (`tests/foo/test_bar.py` ↔ `src/foo/bar.py`); a flat `tests/` against a nested source tree is a finding.
+
+**Output — concrete, prioritized `from -> to` moves (Non-Negotiable).** Do **not** emit vague advice ("improve the structure"). Emit a grouped list of concrete moves/renames, each with a one-line rationale, ordered by impact-then-effort (per the § Ordering rules — root-declutter and god-module splits are usually high-impact quick wins). Mark any move that implies import/reference updates so the follow-through isn't forgotten:
+
+```markdown
+### File hierarchy — [Impact: high/medium/low] | [Effort: small/medium/large]
+
+**Declutter root**
+- `release.sh -> scripts/release.sh` — scripts belong under `scripts/`, not the repo root.
+- `sample_data.json -> tests/fixtures/sample_data.json` — test fixture interleaved with source.
+
+**Scope into subpackages** (implies import updates)
+- `src/foo_helpers.py -> src/foo/helpers.py` — helper belongs inside the `foo` package it serves.
+- split `src/handlers.py` (god-module, ~900 lines) `-> src/handlers/{ingest,transform,export}.py` — one responsibility per module; update `__init__` re-exports.
+
+**Mirror tests to source** (implies import updates)
+- `tests/test_everything.py -> tests/{foo,bar}/test_*.py` — flat test file against a nested source tree.
+```
+
+A move that requires import/reference updates (`-> ... (implies import updates)`) is **not** a Phase-0 quick win — it lands in Phase 5 with the references rewritten and tests re-run. Per Rule 9, implement the safe-blast-radius moves this session; file only the design-ambiguous restructurings. Severe hierarchy smells (a god-module mixing several responsibilities, a root crowded with misplaced files) are **Architecture-dimension** scoring evidence.
+
 ## Output Format
 
 Each assessment produces:
@@ -99,7 +173,7 @@ Each assessment produces:
 |-------|-----------------|
 | **Cleanliness** | Lint violations, formatting consistency, dead code, TODOs |
 | **Maintainability** | Test coverage, naming consistency, complexity, documentation |
-| **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries |
+| **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries, file hierarchy & organization |
 
 ### Ranked Improvement List
 
