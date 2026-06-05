@@ -81,10 +81,20 @@ Aggregate `/tmp/techdebt-scan.json` into:
 
 | Class | Definition | Action |
 |-------|-----------|--------|
-| **Stale** | Rule is ignored but violation count is 0 | Free win — drop unconditionally |
+| **Stale** | Rule ignored, violation count 0, AND the glob matches ≥1 tracked file, AND the rule is NOT a structural/framework ignore (see below) | Free win — drop |
+| **Dead config** | The ignored glob matches **zero** tracked files (the directory was emptied/relocated since the ignore was added) | Drop the whole entry — it pins rules for files that don't exist. Verify with `git ls-files '<glob>'` before deleting (a 0-count is otherwise indistinguishable from genuine staleness) |
 | **Easy auto** | Auto-fixable, ≤20 violations in the file, rule NOT in skip list | Good candidate |
 | **Easy manual** | Manual-fix, ≤5 violations, rule NOT in skip list | Good candidate if fixes are ≤5 lines each |
 | **Skip** | Rule in skip list, OR file >1000 LoC with structural rules, OR comment says "structural/framework/dispatch/out of scope" | Leave alone |
+
+**A 0-count is NOT automatically "drop unconditionally".** A framework-mandated
+ignore on generated files (e.g. `ANN` on Django `migrations/*.py`) scans clean
+today only because no triggering file has been generated *yet* — the next
+`makemigrations` produces an un-annotated file that the rule would flag. Keep
+any 0-count ignore whose inline comment or glob marks it structural/framework
+(the Step 2 skip-comment list applies to stale candidates too). Drop only
+0-count ignores on hand-written code where the source genuinely evolved past
+the rule.
 
 ## Step 2: Skip list — leave these alone
 
@@ -107,10 +117,12 @@ Also skip any ignore whose inline comment says:
 
 ## Step 3: Always start with stale ignores
 
-Before picking between Mode A and Mode B, drop every **stale** entry found
-in Step 1c. These are free — the code has evolved and no longer triggers the
-rule. Do this in its own tiny MR at the start of the session (or fold it
-into the Mode A/B MR if the scope is small).
+Before picking between Mode A and Mode B, drop every **stale** and **dead
+config** entry found in Step 1c (but keep structural/framework 0-count ignores —
+see the note under Step 1c). These are free — the code has evolved and no longer
+triggers the rule, or the glob points at files that no longer exist. Do this in
+its own tiny MR at the start of the session (or fold it into the Mode A/B MR if
+the scope is small).
 
 ```text
 chore: drop stale ruff ignores
@@ -118,6 +130,17 @@ chore: drop stale ruff ignores
 These rules no longer trigger violations in the pinned files — the
 underlying code has evolved since the ignore was added.
 ```
+
+**Watch out for a diff-based relaxation detector.** If the project has a
+commit hook that flags *added* lines matching a ruff-rule-code pattern in
+`pyproject.toml` (an add-only "no new suppressions" guard), editing a trailing
+comment on a kept rule re-writes that line and trips the guard as a false
+positive — the line counts as "added" with no removed/added cancellation.
+When you drop one rule from a multi-rule entry and want to relocate the
+entry's explanatory comment, move it to a **standalone `#` line above the
+block** rather than onto a kept `"RULE",` line. A standalone comment does not
+match the rule-code pattern, and the kept rule lines stay byte-identical and
+out of the diff.
 
 ## Step 4 — Mode A: File-focused
 
