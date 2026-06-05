@@ -28,6 +28,7 @@
 | Putting API keys in `Environment=` lines of a systemd unit file | Unit files are mode 664 by default — every logged-in user on the host can read them | Use `EnvironmentFile=` pointing at a `chmod 600` env file, OR a startup wrapper that reads from `pass` (the user's existing `~/.openclaw/start-gateway.sh` pattern). Rotate any key that was ever in a world/group-readable unit file. |
 | Running `openclaw` CLI commands on the same host as a running `openclaw.service` | In v2026.4.x, `openclaw cron list`/`doctor`/etc. detect the running gateway PID and SIGTERM it before trying to start their own in-process gateway, which then fails to resolve `OPENCLAW_GATEWAY_TOKEN` (not in interactive shells) and exits. Systemd restarts the real service, signal-cli dies for 20-30 s. Every CLI call causes a messaging outage. | Edit `~/.openclaw/cron/jobs.json` directly for cron tweaks, call signal-cli JSON-RPC at `http://127.0.0.1:8080/api/v1/rpc` (no trailing slash) for sends/probes, and use the Tailscale-served dashboard for everything else. If you must use the CLI, do it from a different machine against a remote gateway. |
 | Auto-update landed new code but gateway still errors `ERR_MODULE_NOT_FOUND` | OpenClaw's npm auto-update replaces files on disk but the running Node.js process still references old content-hashed chunk filenames that aren't in the new tarball. Every outbound send throws. | Restart the service: `sudo systemctl restart openclaw.service`. Disk and package.json will show the newer version; `start-gateway.sh` loads the new `dist/index.js` on startup. Consider enabling an auto-restart-after-update hook if OpenClaw doesn't ship one. |
+| **Cron jobs (press-review, heartbeat) silently stop firing for a day or more after an auto-update — no error, no delivery, no run-log row for the missed day(s)** | **Same root CLASS as the `ERR_MODULE_NOT_FOUND` row above: auto-update applied new code to disk but did NOT restart the running process.** A version bump that *migrates the cron store* makes this silent instead of loud. Observed on the 2026-06-04 → 2026.6.1 bump: the new code consolidated the per-feature JSON stores into a single `~/.openclaw/state/openclaw.sqlite` and renamed the old files to `*.migrated` (`cron/jobs.json.migrated`, `cron/jobs-state.json.migrated`, `cron/runs/<id>.jsonl.migrated`, `flows/registry.sqlite.migrated`, `tasks/runs.sqlite.migrated`). But the *still-running* old process kept its in-memory scheduler pointed at the now-renamed `jobs.json` — so the next morning's cron never fired at all (no run-log row), while `systemctl status` showed the service "active (running)" and `NRestarts` low. The journal is the tell: `[gateway] auto-update applied` repeating **every hour** with no `full process restart` / `[gateway] ready` between them means the new code is on disk but never loaded. A manual `sudo systemctl restart openclaw.service` (or any gateway-tool restart) loads the new code, which reads the sqlite store, and cron resumes. | **Restart the gateway after any auto-update that you did not see followed by a `[gateway] ready` line:** `sudo systemctl restart openclaw.service`. Confirm the running PID's start time is **newer** than the mtime of `~/.npm-global/lib/node_modules/openclaw/package.json` (stale = on-disk code is newer than the process). v2026.6.1+ ships an `respawnGatewayProcessForUpdate` / `restartGatewayProcessWithFreshPid` path (in `dist/run-wssker-*.js`) that restarts after update, with an in-process-restart fallback — so the class is largely self-healing forward, but the fallback may not pick up a store migration. **Do not rely on it: install the press-review delivery watchdog (below) as the same-day safety net.** Verify a missed day via the cron store: `sqlite3 -readonly ~/.openclaw/state/openclaw.sqlite "SELECT date(run_at_ms/1000,'unixepoch','localtime') d, count(*), group_concat(status) FROM cron_run_logs WHERE job_id=(SELECT job_id FROM cron_jobs WHERE name='press-review') GROUP BY d ORDER BY d DESC LIMIT 7;"` — a date with **zero rows** is a silent skip. |
 
 ## Troubleshooting Quick Reference
 
@@ -151,6 +152,90 @@ TimeoutStartSec=90
 TimeoutStopSec=15
 KillMode=mixed
 ```
+
+### Press-Review Delivery Watchdog (timer, daily — surfaces a silent miss SAME-day)
+
+The Signal health check above proves the *daemon* is alive; it says nothing about
+whether the daily press review (or any cron-delivered digest) actually went out.
+The failure class in the troubleshooting row "Cron jobs silently stop firing after
+an auto-update" produces a healthy-looking gateway and a silent non-delivery — the
+user only notices days later when they realise no brief arrived. Close that gap
+with a small, dependency-free watchdog that runs once daily *after* the brief is
+due, verifies it delivered today, and alerts the user over the SAME channel
+(signal-cli JSON-RPC) on a miss.
+
+What it checks (all read-only, no `openclaw` CLI — that would cycle the gateway):
+
+1. **Did it deliver today?** Read the press-review job from `~/.openclaw/state/openclaw.sqlite`
+   (`cron_jobs.last_run_at_ms` is *today* AND `last_run_status='ok'` AND
+   `last_delivery_status='delivered'`). Falls back to the legacy `~/.openclaw/cron/jobs.json`
+   if the sqlite store isn't present (version-portable).
+2. **Is the job still there + enabled?** A migration that drops the job is itself an alert.
+3. **Stale-process detector (the root cause):** the on-disk code mtime
+   (`~/.npm-global/lib/node_modules/openclaw/dist/index.js` + `package.json`) is
+   NEWER than the running gateway process's start time (`/proc/<MainPID>` ctime).
+   That is exactly "auto-update landed but no restart". Deterministic — no log
+   scraping. (An early version scraped `current vX.Y` from the journal and
+   false-positived on a stale `update available` line; use the mtime-vs-start-time
+   signal instead.)
+
+On any miss it sends ONE Signal message per day (date-keyed marker under
+`~/.openclaw/state/`) to the press-review recipient, naming the problem and the fix
+(`sudo systemctl restart openclaw.service`). A healthy run sends nothing.
+
+The deployed script lives at `~/bin/press-review-watchdog.py` (Python stdlib only)
+and the canonical copy is [`scripts/press-review-watchdog.py`](scripts/press-review-watchdog.py).
+Gotchas baked in: signal-cli raw JSON-RPC `send` wants a **bare** UUID/E.164 in
+`recipient` (strip OpenClaw's `uuid:` prefix); RPC URL is `http://127.0.0.1:8080/api/v1/rpc`
+with **no trailing slash**; `~/.local` is often root-owned so logs go under the
+openclaw-owned `~/.openclaw/logs/` (file logging degrades gracefully — journald
+captures stderr regardless).
+
+System-level timer + service (mirrors the existing `openclaw-health` units), 09:00
+local = 1 h after the 08:00 brief so the cron's full timeout budget + retries have
+elapsed:
+
+```ini
+# /etc/systemd/system/press-review-watchdog.service
+[Unit]
+Description=OpenClaw press-review delivery watchdog (alerts the user same-day on a silent miss)
+After=openclaw.service
+
+[Service]
+Type=oneshot
+User=openclaw
+Environment=HOME=/home/openclaw
+ExecStart=/usr/bin/python3 /home/openclaw/bin/press-review-watchdog.py
+TimeoutStartSec=90
+TimeoutStopSec=15
+KillMode=mixed
+```
+
+```ini
+# /etc/systemd/system/press-review-watchdog.timer
+[Unit]
+Description=Run the OpenClaw press-review watchdog daily at 09:00 (1h after the 08:00 brief)
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+OnBootSec=10min
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now press-review-watchdog.timer
+# Verify both verdict paths before declaring done:
+python3 ~/bin/press-review-watchdog.py            # healthy day -> "OK ... delivered today", no Signal msg
+# negative test: copy the script, point JOB_NAME at a non-existent name, run -> sends an alert
+```
+
+Tune `OnCalendar` to the brief's schedule + budget. Adapt for a `systemd --user`
+setup by dropping the units in `~/.config/systemd/user/` and using
+`systemctl --user enable --now` (linger must be on).
 
 ### Auto-Update (user timer, weekly — controls the system service via sudo)
 
