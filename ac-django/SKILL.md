@@ -20,7 +20,9 @@ metadata:
 - Adam Johnson — `django-upgrade`: <https://adamj.eu/tech/2021/09/16/introducing-django-upgrade/>
 - Adam Johnson — `django-linear-migrations`: <https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/>
 - Haki Benita — Django Foreign Keys: <https://hakibenita.com/django-foreign-keys>
-- James Bennett — Fat Model / "no service layer": <https://www.b-list.org/weblog/2020/mar/16/no-service/>
+- James Bennett — Fat Model / "no service layer" (default) + followup on breaking up god-methods: <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- DabApps — model encapsulation (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
+- HackSoft Django Styleguide — the service-layer / `selectors.py` camp (one option, not this skill's default): <https://github.com/HackSoftware/Django-Styleguide>
 - DRF API guide: <https://www.django-rest-framework.org/api-guide/>
 - Factory Boy best practices: <https://github.com/camilamaia/factory-boy-best-practices>
 
@@ -89,12 +91,17 @@ User says: "Add a postal_code field to the Address model"
 - Use Django the way Django documents it.
 - Prefer built-ins over dependencies unless Django has a clear documented gap (notably Django 5.2 lacking native Tasks/CSP/Partials).
 
-### Fat Model wins (no domain service layer)
+### Fat Model is the default (not the only answer)
 
-- No `services.py` for domain logic.
-- Business rules and invariants must be discoverable on:
-  - model instance methods (single-object behavior)
-  - QuerySet/Manager methods (collection behavior)
+Fat models win for small and medium models — the default, not a dogma.
+
+- Default home for business rules and invariants:
+  - model instance methods (single-object behavior — Django's "row-level" home)
+  - QuerySet/Manager methods (collection behavior — Django's "table-level" home)
+- This matches the Django docs and James Bennett's "no service layer" position: the models, with their managers/querysets, _are_ the API other code talks to.
+- No `services.py` for domain logic **by default**.
+
+Fat models stop being good once a model turns into a **god object**. A fat model is a model with rich, cohesive behavior over _its own_ data; a god object is one model that has accreted unrelated concerns and orchestration until no one can read it end to end. See "When a fat model becomes a god object" below for the signals and the escalation ladder — the escapes are _not_ a reflex service layer.
 
 ### Locality of behavior (anti-octopus)
 
@@ -187,23 +194,58 @@ Some style choices are equally valid — the "right" answer depends on the team.
 
 Expose domain methods that: validate state → perform mutation → persist changes → schedule side effects safely (after commit).
 
-### Cross-aggregate operations
+Encapsulation rule that keeps fat models honest (DabApps): **never write to a model field or call `save()`/`create()`/bulk ops directly from outside the model** — go through a model method or manager method. View/template code may _read_ any field, but state changes always go through one of those methods. This is what makes "fat model" mean "the model owns its invariants", not "the model has lots of code".
 
-- Choose an aggregate root and implement a coordinating method there (preferred), or
-- Coordinate in the boundary using a single `transaction.atomic()`
-- Do **not** invent a separate "domain service layer".
+### When a fat model becomes a god object
 
-### Narrow exceptions (allowed files)
+Fat models are good for small/medium models. The rule does not scale to a model that has swallowed unrelated concerns. Treat the following as **god-object signals** — when two or more fire on one model, stop adding to it and climb the escalation ladder below:
 
-- `selectors.py`: complex cross-model **read** operations (reporting/dashboards) returning typed DTOs
-- `services.py`: **external API orchestration only** (Stripe, AWS, etc.) with **no DB business logic**
+- **Size:** model class body over ~200 LOC, or more than ~15-20 public methods.
+- **Mixed domains:** methods on one model touch concerns that aren't that model's own data (e.g. `Order` with billing-provider calls _and_ shipping-label generation _and_ loyalty-points math).
+- **Orchestration in `save()`:** `save()` (or a single method) drives a multi-step workflow across several other models / sends notifications / calls external APIs — the "cancelling a billing agreement updates a half-dozen other things in one method" smell.
+- **Method count by responsibility:** clusters of methods that obviously belong to different responsibilities (a `User` that is also auth, also profile, also billing, also feature-flagging).
+- **Tests scream:** unit-testing one method forces you to set up half the schema, or a single test module for one model grows unmanageable.
+
+A long model that is still entirely about _its own_ data and reads cleanly is **not** a god object — don't refactor for LOC alone. The trigger is mixed concerns / orchestration, not size by itself.
+
+### Escalation ladder (climb only as far as a signal forces you)
+
+Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not skip to a service layer.
+
+- **(a) QuerySet / Manager methods.** _WHEN:_ the logic is collection- or table-level (filtering, aggregation, bulk state changes, alternate constructors like `Account.objects.create_trial()`). This is the first place table-level logic goes — Django's own guidance. Most "the model is getting fat" pressure is really table-level logic that belongs here, not on the instance.
+
+- **(b) Cohesive model mixins or a bounded-context model split.** _WHEN:_ the signals are _mixed domains_ / _method-count-by-responsibility_ on a single model — the model is doing several cohesive jobs.
+  - First reach: extract each cohesive cluster into an **abstract model mixin** (`BillingMixin`, `AuditMixin`) so each concern is its own readable unit while the table stays one row. Mixins must be genuinely cohesive — a mixin that is just "the rest of the methods" is the god object with extra files.
+  - Bigger reach: if the concerns are really _separate aggregates_, **split the model** (and often the app) along the bounded context — e.g. pull `Subscription`/`Invoice` out of a god `Account`. Splitting apps by domain capability is the real scaling move; see "Domain-first apps" above.
+
+- **(c) Stateless processor functions (module-level), or a dedicated processor class.** _WHEN:_ the work **orchestrates several models** and has no natural single aggregate root to own it — the cross-aggregate / `save()`-doing-orchestration signals. This is the "broke the over-complex method up" answer (Bennett's followup), not a relocation of the mess.
+  - Default form: **stateless module-level functions** in the app (e.g. `app/operations.py` / `app/processors.py`) that take the participating objects as arguments, do the sequencing inside one `transaction.atomic()`, and schedule side effects via `on_commit`. Functions over classes when there is no state to hold (Luke Plant).
+  - Reach for a **dedicated processor/handler class** only when there genuinely is multi-step state to carry across the orchestration (a builder, a multi-phase import). Name it for the operation (`OrderCheckoutProcessor`), keep it stateless-by-default, and keep the invariants on the models it drives — the processor sequences, the models still own correctness.
+  - This rung is _coordination_, not a domain service layer: it calls model/manager methods, it does not re-implement the business rules that live on them.
+
+- **(d) Service layer — last resort, external-API orchestration only.** _WHEN:_ the orchestration is dominated by **talking to the outside world** (Stripe, AWS, a third-party API) and the sequencing/error-handling/retry of those calls is the actual complexity. Then a `services.py` _scoped to that external integration_ is fine.
+  - Constraint: `services.py` holds **no DB business logic / no invariants** — those still live on the models. The service orchestrates external calls and hands results to model/manager methods.
+  - This is deliberately the top of the ladder: a general "all business logic goes in `services.py`" layer (the HackSoft / enterprise pattern) is a real, defensible style, but it is **not** this skill's default — it trades the model-as-API for a parallel layer, and for most apps the rungs above cover the need. Adopt a project-wide service layer only as an explicit, documented team decision, not as a default reflex when one model got fat.
+
+**Companion reads (`selectors.py`).** Independently of the write-side ladder, complex cross-model **read** operations (reporting/dashboards) that don't belong on any one QuerySet can live in `selectors.py` returning typed DTOs. Selectors are read-only; they never mutate.
+
+### Sources for this doctrine
+
+- Django docs — Managers: row-level → Model methods, table-level → Manager/QuerySet methods: <https://docs.djangoproject.com/en/6.0/topics/db/managers/#adding-extra-manager-methods>
+- James Bennett — "Against service layers in Django" + followup ("More on service layers"): <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- DabApps — "Django models, encapsulation and data integrity" (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
+- Luke Plant — "Django Views — The Right Way" (functions over classes, anti-over-abstraction): <https://spookylukey.github.io/django-views-the-right-way/>
+- HackSoft Django Styleguide — the service-layer / `selectors.py` camp (the rung-(d) style, presented as one option not the default): <https://github.com/HackSoftware/Django-Styleguide>
+- Carlton Gibson / Vinta — "beyond the Fat Models vs. service-layer binary" (module-level functions as the middle ground): <https://www.vintasoftware.com/lessons-learned/djangoservicelayersbeyondfatmodelsvsenterprisepatterns>
 
 ## Review Checklists
 
 ### Domain rules / Fat Model
 
-- [ ] business rules live on models/querysets
+- [ ] business rules live on models/querysets (the default home)
 - [ ] boundaries only orchestrate
+- [ ] no field writes / `save()` / bulk ops from outside model + manager methods
+- [ ] no god-object: a fat model touching mixed domains, or a `save()`/method driving multi-model orchestration, has climbed the escalation ladder (queryset → mixin/split → processor function/class → service for external APIs only) rather than just growing
 
 ### ORM performance
 
@@ -237,11 +279,12 @@ Expose domain methods that: validate state → perform mutation → persist chan
 
 Apply to **full files** touched by the diff, not just changed lines:
 
-- [ ] Fat Model enforced: business logic on models/querysets, not in views/commands/CLI
+- [ ] Fat Model is the default: business logic on models/querysets, not in views/commands/CLI
 - [ ] views and management commands only orchestrate — no invariants, no workflow rules
-- [ ] no god-module (single file mixing unrelated concerns)
+- [ ] no god-module (single file mixing unrelated concerns) and no god-object (single model that has accreted unrelated concerns / multi-model orchestration)
+- [ ] multi-model orchestration sits in a stateless processor function / class (or on an aggregate-root method), not crammed onto one model's `save()`
 - [ ] no complexity rule suppressions (`C901`, `PLR09xx`) in `pyproject.toml` beyond the `python-boilerplate` baseline
-- [ ] `services.py` only for external API orchestration (Stripe, AWS), never for domain logic
+- [ ] `services.py` (if present) is scoped to external API orchestration (Stripe, AWS) and holds no DB business logic — a project-wide service layer is a documented team decision, not the default
 
 ### Testing
 
