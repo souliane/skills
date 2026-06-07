@@ -190,6 +190,7 @@ Check each skill's `subagent_safe` metadata field. A skill is safe for sub-agent
 - Verify existing tests pass.
 - **Integration-first check.** Happy paths = integration tests; unit tests = edge cases and error branches.
 - **Test conciseness.** Flag: copy-pasted tests (use parametrize), repeated setup (use fixtures), over-mocking.
+- **A regression test must fail against the un-fixed code.** A test added alongside a bugfix guards nothing if it stays green when the fix is reverted. Confirm it would go red on the pre-fix behavior — mentally trace it against the old code path, or actually revert the fix and watch it fail. This is the anti-vacuous pairing already described for behavioral evals (see [`ai-eval-review.md`](ai-eval-review.md) § "Pass / fail / no-op — the anti-vacuous pairing"), applied to ordinary deterministic tests.
 
 ### 3.10b Behavioral Coverage for Non-Deterministic Behavior (Suggest, Don't Enforce)
 
@@ -246,6 +247,10 @@ Hunt for manually suppressed code quality signals — these represent deliberate
 - **Missing hooks.** Compare against the infrastructure baseline.
 - **Stale type-checker allowlists.** `ty`/`mypy`/`pyright` allowlists for unresolved imports accumulate — third-party libs get proper stubs over time. Test each entry by removing it and re-running the type checker; zero new errors = stale.
 - **Companion skill violations.** When `ac-python` or `ac-django` are loaded, verify the codebase follows their conventions (integration-first testing, fat models, proper typing, correct manager usage).
+
+### 3.14b Ratchet a Structural Rule onto Grandfathered Debt
+
+When a structural rule — an import contract, a complexity bound, a "no raw HTTP outside this module" check — has many pre-existing violations, neither a big-bang cleanup nor a warn-only check is ideal: the cleanup is risky and a warn-only check never converges. Prefer a deterministic check with a committed baseline *count* that can only decrease — new violations fail CI, and the baseline is lowered as cleanup proceeds until it reaches zero. Recommend this shape when a rule is worth enforcing but has too many existing violations to fix at once.
 
 ### 3.15 Override Contract Verification (Non-Negotiable)
 
