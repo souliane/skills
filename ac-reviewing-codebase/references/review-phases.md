@@ -316,6 +316,8 @@ Always commit after implementation. Suggest squashing fixup commits. **Never rew
 
 Full second review pass. Changes can introduce regressions: broken cross-references, new duplication, formatting inconsistencies.
 
+**Scope the re-review to the nature of the delta.** When already-reviewed code is revised, calibrate the depth: a mechanical, docs-only, or merge-conflict-resolution edit only needs that delta re-verified — re-reading settled, already-approved work is wasted effort. New or changed *logic*, however small, gets a fresh pass; "it's just a small change" is how regressions slip through. This refines, and does not contradict, the full second pass above: that pass is for the first complete review of a change; this calibrates *re*-review after an already-approved change is revised.
+
 ### 6.3 Pre-Commit Verification
 
 Run `prek run --all-files`. Fix failures.
