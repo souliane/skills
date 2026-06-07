@@ -28,6 +28,7 @@
 | Putting API keys in `Environment=` lines of a systemd unit file | Unit files are mode 664 by default — every logged-in user on the host can read them | Use `EnvironmentFile=` pointing at a `chmod 600` env file, OR a startup wrapper that reads from `pass` (the user's existing `~/.openclaw/start-gateway.sh` pattern). Rotate any key that was ever in a world/group-readable unit file. |
 | Running `openclaw` CLI commands on the same host as a running `openclaw.service` | In v2026.4.x, `openclaw cron list`/`doctor`/etc. detect the running gateway PID and SIGTERM it before trying to start their own in-process gateway, which then fails to resolve `OPENCLAW_GATEWAY_TOKEN` (not in interactive shells) and exits. Systemd restarts the real service, signal-cli dies for 20-30 s. Every CLI call causes a messaging outage. | Edit `~/.openclaw/cron/jobs.json` directly for cron tweaks, call signal-cli JSON-RPC at `http://127.0.0.1:8080/api/v1/rpc` (no trailing slash) for sends/probes, and use the Tailscale-served dashboard for everything else. If you must use the CLI, do it from a different machine against a remote gateway. |
 | Auto-update landed new code but gateway still errors `ERR_MODULE_NOT_FOUND` | OpenClaw's npm auto-update replaces files on disk but the running Node.js process still references old content-hashed chunk filenames that aren't in the new tarball. Every outbound send throws. | Restart the service: `sudo systemctl restart openclaw.service`. Disk and package.json will show the newer version; `start-gateway.sh` loads the new `dist/index.js` on startup. Consider enabling an auto-restart-after-update hook if OpenClaw doesn't ship one. |
+| **Cron jobs (press-review, heartbeat) silently stop firing for a day or more after an auto-update — no error, no delivery, no run-log row for the missed day(s)** | **Same root CLASS as the `ERR_MODULE_NOT_FOUND` row above: auto-update applied new code to disk but did NOT restart the running process.** A version bump that *migrates the cron store* makes this silent instead of loud. Observed on the 2026-06-04 → 2026.6.1 bump: the new code consolidated the per-feature JSON stores into a single `~/.openclaw/state/openclaw.sqlite` and renamed the old files to `*.migrated` (`cron/jobs.json.migrated`, `cron/jobs-state.json.migrated`, `cron/runs/<id>.jsonl.migrated`, `flows/registry.sqlite.migrated`, `tasks/runs.sqlite.migrated`). But the *still-running* old process kept its in-memory scheduler pointed at the now-renamed `jobs.json` — so the next morning's cron never fired at all (no run-log row), while `systemctl status` showed the service "active (running)" and `NRestarts` low. The journal is the tell: `[gateway] auto-update applied` repeating **every hour** with no `full process restart` / `[gateway] ready` between them means the new code is on disk but never loaded. A manual `sudo systemctl restart openclaw.service` (or any gateway-tool restart) loads the new code, which reads the sqlite store, and cron resumes. | **Restart the gateway after any auto-update that you did not see followed by a `[gateway] ready` line:** `sudo systemctl restart openclaw.service`. Confirm the running PID's start time is **newer** than the mtime of `~/.npm-global/lib/node_modules/openclaw/package.json` (stale = on-disk code is newer than the process). v2026.6.1+ ships an `respawnGatewayProcessForUpdate` / `restartGatewayProcessWithFreshPid` path (in `dist/run-wssker-*.js`) that restarts after update, with an in-process-restart fallback — so the class is largely self-healing forward, but the fallback may not pick up a store migration. **Do not rely on it: install the press-review delivery watchdog (below) as the same-day safety net.** Verify a missed day via the cron store: `sqlite3 -readonly ~/.openclaw/state/openclaw.sqlite "SELECT date(run_at_ms/1000,'unixepoch','localtime') d, count(*), group_concat(status) FROM cron_run_logs WHERE job_id=(SELECT job_id FROM cron_jobs WHERE name='press-review') GROUP BY d ORDER BY d DESC LIMIT 7;"` — a date with **zero rows** is a silent skip. |
 
 ## Troubleshooting Quick Reference
 
@@ -56,6 +57,9 @@
 | Cron job fails with `⚠️ Agent couldn't generate a response` | OpenRouter / model-side empty completion, NOT a budget issue. Adding more time doesn't help. Likely causes: provider rate-limit, transient model error, or a model recently moved to "reasoning mandatory" without `"reasoning": true` in the agent's `models.json` (see `press-review.md` § "Model reasoning flag"). Add a fallback model under the agent's `models.fallback` chain. |
 | Press review (or any digest) arrives **empty / near-empty** — only the `## Press Review — <date>` header, ~150 output tokens, even though the *first* run of the day was full | The aggregator script's dedup + conditional-GET cache **starves repeat runs**: once any run (the cron, or a manual test) marks the day's items seen and stores feed ETags, the next run the same day returns "0 fresh" for every source and a 304 skips each feed entirely — so an on-demand pull *after* the cron gets nothing. **Fix lives in `press-review.py`:** dedup suppresses a URL only on a *later* day (same-day re-runs re-show today's items) and a 304 re-serves the last parsed items cached in `press-review-feeds.json` instead of returning nothing. Verify by running the script twice back-to-back — both runs must report the same non-empty `N fresh` counts. |
 | OpenRouter credits can drain unexpectedly — `402 Insufficient credits` after what should be free/BYOK usage; `https://openrouter.ai/activity` shows requests served by an **unexpected provider** (e.g. Azure) | **OpenRouter routes a model across many providers at very different prices, and falls back across them by default.** Two traps: (1) the BYOK *"Always use for this provider"* toggle only forces *your* key for *that* provider — it does NOT stop OpenRouter falling back to a *different* provider serving the same model, which bills your OpenRouter credits; (2) a normally-routed model (e.g. `openai/gpt-oss-120b` spans roughly $0.039–$0.95 per-M-token across providers) can silently land on an expensive one. **Fix: pin provider routing so OpenRouter only ever uses providers you chose and *fails* rather than falling back.** In OpenClaw set it under `models.providers.openrouter.params.provider`, e.g. `{"only": ["deepinfra","dekallm","novita"], "sort": "price"}` (use provider *slugs* from `GET /api/v1/models/<model>/endpoints` — the part before the `/` in each `tag` — not display names). A failed request then drops to the agent's free-model fallback instead of a pricey provider. Belt-and-braces: set a per-key spend cap at `https://openrouter.ai/settings/keys` (keys have **no limit** by default) and audit spend at `https://openrouter.ai/activity`. |
+| Cron (press-review/heartbeat) **recurring `status=error`, `error="LLM request failed."`** after a long run (often 100–240 s), `error-then-ok` across days, gateway otherwise healthy (`[gateway] ready`, restart-after-update worked) | NOT the auto-update silent-miss — the agent's OpenRouter route is hitting **unreliable providers**. Either the agent's `params.provider` is **empty** (no pin → OpenRouter default routing) or pinned to the **cheapest** tier (`sort: price` → deepinfra/dekallm/novita = the flakiest). A daily-digest turn is long, so one bad provider fails the whole run. **Fix: pin to reliable, still-cheap *paid* providers and sort by throughput, not price** — `params.provider = {"only": ["groq","together","baseten"], "sort": "throughput"}` (Groq is fast + reliable, also cuts the 100 s+ latency). ~30k tokens/day ≈ **$0.20/mo** — reliability dwarfs the price gap. **Free models are a poor cron fallback** (low rate-limit / daily-quota → fails exactly when relied on). **Per-agent gotcha:** the cron agent (e.g. `souliane`) has its OWN `~/.openclaw/agents/<agent>/agent/plugins/openrouter/catalog.json` — `main`'s pin does NOT cover it; fix every cron-running agent. This is the reliability counter-weight to the cost-pin row above: for a *must-deliver* cron, favour throughput over price. |
+| Gateway crash-loops on restart: `Gateway failed to start: Invalid config at .../openclaw.json` → `agents.defaults.model: Invalid input` | You hand-edited `agents.defaults.model` (e.g. appended to `fallbacks` + `models`) and the shape failed schema validation; systemd then restart-loops the dead gateway. **Don't hand-edit `agents.defaults.model` for routing/reliability — set provider routing in the openrouter plugin catalog `params.provider` instead** (rows above). The config is validated only at gateway **startup**, so a bad edit isn't caught until the failed restart. Always `cp openclaw.json openclaw.json.bak-<ts>` before editing; recover with `cp` back + `sudo systemctl reset-failed openclaw.service && sudo systemctl restart openclaw.service`. Reuse a *proven* shape (copy another working agent's block) rather than authoring `model` config blind. |
+| Running a cron on demand fails: `unknown cron job id: <name>` or `GatewaySecretRefUnavailableError: gateway.auth.token ... unavailable` | v2026.6.1 cron CLI is **gateway-routed** — it does NOT kill the running service (the v2026.4.x kill-the-gateway behaviour in the earlier row is fixed for cron commands). Two gotchas: (1) `cron run` takes the **job ID, not the name** (get it from `openclaw cron list` or the journal `[cron:<id>]`); (2) it needs the gateway token in your shell: `export OPENCLAW_GATEWAY_TOKEN="$(pass show openclaw/gateway-token)"` (the systemd unit injects it at boot; an interactive shell doesn't). Then `node ~/.npm-global/lib/node_modules/openclaw/openclaw.mjs cron run <jobId>` → `{"ok":true,"enqueued":true}` and runs **async** — read the outcome from `cron_run_logs` in `~/.openclaw/state/openclaw.sqlite`, not the CLI's return. |
 | Proactive cron delivery (e.g. press-review `announce` mode) fails `Delivering to Signal requires target <…uuid:ID…>` even though `delivery.to` is a valid `uuid:` and chat **replies** to the same recipient succeed | Seen when OpenClaw talks to an **external/containerised** signal-cli daemon (`autoStart:false` + `httpUrl`, or a docker shim). The reply path resolves its target from the incoming message's session and works; the cron's *explicit* `uuid:` target resolution does not, across single/multi-account and autoStart on/off. Generation itself succeeds (the run record shows a full `summary` + token usage). **Workaround:** message the bot to get an on-demand briefing (chat path works). Root cause correlates with the external-daemon connection (native-spawned signal-cli resolves the same explicit target) rather than the target string. |
 | Where's the actual run history for a cron job? | The `state` block inside `~/.openclaw/cron/jobs.json` is a stale schema slot — recent OpenClaw versions write runtime state to `~/.openclaw/cron/jobs-state.json` (latest only) and per-run records to `~/.openclaw/cron/runs/<jobId>.jsonl`. The jsonl is append-only; tail it for the duration trend. The `lastErrorReason: "timeout"` field in `jobs-state.json` distinguishes a hard budget hit from a model-side failure. |
 | Gateway crash-loops every ~30-60 s; logs show `[plugins] bonjour: ... re-advertise ... state=probing` then `Unhandled promise rejection: CIAO PROBING CANCELLED` / `CIAO ANNOUNCEMENT CANCELLED`, `Main process exited, code=exited, status=1/FAILURE`, `Scheduled restart job` (rising `NRestarts`) | The `bonjour` (mDNS/CIAO) plugin's re-advertise watchdog throws an **unhandled** promise rejection that kills the Node process; systemd `Restart=always` loops it forever, so signal-cli never stays up and no cron/heartbeat runs. A cloud VPS has no LAN to advertise to, so the plugin is useless. **Fix: disable it** - add `"bonjour": { "enabled": false }` under `plugins.entries` in `~/.openclaw/openclaw.json`, then `sudo systemctl reset-failed openclaw.service && sudo systemctl restart openclaw.service`. Confirm via the startup log: `bonjour` no longer appears in `ready (N plugins: ...)`. NOTE: the repeated SIGKILLs from this loop frequently corrupt signal-cli's SQLite store - see the next row. |
@@ -151,6 +155,90 @@ TimeoutStartSec=90
 TimeoutStopSec=15
 KillMode=mixed
 ```
+
+### Press-Review Delivery Watchdog (timer, daily — surfaces a silent miss SAME-day)
+
+The Signal health check above proves the *daemon* is alive; it says nothing about
+whether the daily press review (or any cron-delivered digest) actually went out.
+The failure class in the troubleshooting row "Cron jobs silently stop firing after
+an auto-update" produces a healthy-looking gateway and a silent non-delivery — the
+user only notices days later when they realise no brief arrived. Close that gap
+with a small, dependency-free watchdog that runs once daily *after* the brief is
+due, verifies it delivered today, and alerts the user over the SAME channel
+(signal-cli JSON-RPC) on a miss.
+
+What it checks (all read-only, no `openclaw` CLI — that would cycle the gateway):
+
+1. **Did it deliver today?** Read the press-review job from `~/.openclaw/state/openclaw.sqlite`
+   (`cron_jobs.last_run_at_ms` is *today* AND `last_run_status='ok'` AND
+   `last_delivery_status='delivered'`). Falls back to the legacy `~/.openclaw/cron/jobs.json`
+   if the sqlite store isn't present (version-portable).
+2. **Is the job still there + enabled?** A migration that drops the job is itself an alert.
+3. **Stale-process detector (the root cause):** the on-disk code mtime
+   (`~/.npm-global/lib/node_modules/openclaw/dist/index.js` + `package.json`) is
+   NEWER than the running gateway process's start time (`/proc/<MainPID>` ctime).
+   That is exactly "auto-update landed but no restart". Deterministic — no log
+   scraping. (An early version scraped `current vX.Y` from the journal and
+   false-positived on a stale `update available` line; use the mtime-vs-start-time
+   signal instead.)
+
+On any miss it sends ONE Signal message per day (date-keyed marker under
+`~/.openclaw/state/`) to the press-review recipient, naming the problem and the fix
+(`sudo systemctl restart openclaw.service`). A healthy run sends nothing.
+
+The deployed script lives at `~/bin/press-review-watchdog.py` (Python stdlib only)
+and the canonical copy is [`scripts/press-review-watchdog.py`](scripts/press-review-watchdog.py).
+Gotchas baked in: signal-cli raw JSON-RPC `send` wants a **bare** UUID/E.164 in
+`recipient` (strip OpenClaw's `uuid:` prefix); RPC URL is `http://127.0.0.1:8080/api/v1/rpc`
+with **no trailing slash**; `~/.local` is often root-owned so logs go under the
+openclaw-owned `~/.openclaw/logs/` (file logging degrades gracefully — journald
+captures stderr regardless).
+
+System-level timer + service (mirrors the existing `openclaw-health` units), 09:00
+local = 1 h after the 08:00 brief so the cron's full timeout budget + retries have
+elapsed:
+
+```ini
+# /etc/systemd/system/press-review-watchdog.service
+[Unit]
+Description=OpenClaw press-review delivery watchdog (alerts the user same-day on a silent miss)
+After=openclaw.service
+
+[Service]
+Type=oneshot
+User=openclaw
+Environment=HOME=/home/openclaw
+ExecStart=/usr/bin/python3 /home/openclaw/bin/press-review-watchdog.py
+TimeoutStartSec=90
+TimeoutStopSec=15
+KillMode=mixed
+```
+
+```ini
+# /etc/systemd/system/press-review-watchdog.timer
+[Unit]
+Description=Run the OpenClaw press-review watchdog daily at 09:00 (1h after the 08:00 brief)
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+OnBootSec=10min
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now press-review-watchdog.timer
+# Verify both verdict paths before declaring done:
+python3 ~/bin/press-review-watchdog.py            # healthy day -> "OK ... delivered today", no Signal msg
+# negative test: copy the script, point JOB_NAME at a non-existent name, run -> sends an alert
+```
+
+Tune `OnCalendar` to the brief's schedule + budget. Adapt for a `systemd --user`
+setup by dropping the units in `~/.config/systemd/user/` and using
+`systemctl --user enable --now` (linger must be on).
 
 ### Auto-Update (user timer, weekly — controls the system service via sudo)
 
