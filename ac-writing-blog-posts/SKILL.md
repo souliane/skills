@@ -244,6 +244,15 @@ Phase C iterates section by section. This step reads the *assembled* article as 
 
 Present the assembled draft to the user and ask what to adjust. If changes touch the structure, loop back into Phase B/C for the affected sections rather than rewriting inline.
 
+### 3b. Reviewing an Existing Draft Together (Non-Negotiable Protocol)
+
+When the user asks to review an already-assembled draft "together" (or to apply their change requests to one), do not paste the whole article and wait. Walk it:
+
+1. **Print one section at a time** in the conversation — the actual prose, not a summary — and wait for the user's verdict on that section.
+2. **When the user requires a change, apply it, then re-check every FOLLOWING section for fit** before printing the next one. A changed claim in section 1 routinely invalidates a transition, a callback, or a metaphor later — update those follow-on sections as part of the same change, not as a separate round. Tell the user which later sections you touched and why.
+3. **Show the diff.** After any edit pass on an existing post, show the `git diff` of the post file before pushing or syncing. The user reviews changes as diffs, not as re-pasted prose.
+4. A change request phrased as a direction ("this feels weak, say X instead") is a rewrite instruction for that section, not an invitation to restructure the post. Keep the blast radius to the section plus its fit-ups.
+
 ### 4. Promote the Article
 
 After the user is happy with the draft (or after publishing), ask:
@@ -393,6 +402,10 @@ cover_image: assets/banner.jpg   # Rewritten to CDN URL by CI
 ---
 ```
 
+### The Platform Draft Is a Second Writing Surface (Non-Negotiable)
+
+Once a post has a platform draft (a dev.to `id` in its frontmatter), the author may edit on the platform at any time. **Before any local edit to such a post, run the pull/diff against the platform first** and fold the author's on-platform edits into the source. Editing locally without syncing clobbers their work on the next push. The order is always: pull → edit → push.
+
 ### Pulling Changes Back from dev.to
 
 If the author edits a post directly on dev.to (typos, formatting, wording), those changes can be pulled back into the source markdown without breaking mermaid blocks, local image paths, or cross-article links.
@@ -409,6 +422,7 @@ The blog CLI should support a `pull` command (or equivalent) that:
 ### Platform Limitations (as of March 2026)
 
 - **dev.to:** no public image upload API — images must be hosted externally.
+- **dev.to frontmatter parser is stricter than YAML** (observed June 2026): a folded multi-line `description:` value that a YAML normalizer happily emits makes the API reject the whole document (422 "Title can't be blank"). Keep frontmatter values on a single line — or sidestep frontmatter entirely by sending the API's structured fields (`title`, `description`, `tags`, `series`, `published`, `body_markdown` without frontmatter) on create/update. The structured-field path is the more robust default for programmatic publishing.
 - **Medium:** deprecated their write API, stopped issuing new tokens in January 2025.
 
 ## References
