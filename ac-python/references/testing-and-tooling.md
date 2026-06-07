@@ -89,7 +89,7 @@ uv run <cmd>       # run in project venv
 uv sync            # sync venv with lockfile
 ```
 
-Always commit `uv.lock`. Never commit `.venv/`.
+Always commit `uv.lock`. Never commit `.venv/`. Set `add-bounds = "major"` under `[tool.uv]` so `uv add` writes upper-bounded constraints (e.g. `>=2.1,<3`) instead of an open-ended floor.
 
 ### Linting and formatting: `ruff`
 

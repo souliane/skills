@@ -113,6 +113,20 @@ Deployment checklist: <https://docs.djangoproject.com/en/6.0/howto/deployment/ch
 
 Use `django-version-checks` to fail fast when prod/test/dev drift (Python, Postgres, etc.).
 
+### 12.5 Image-slimming risk checklist
+
+Slimming a Django image is risky because Django imports modules dynamically (apps, migrations, templatetags) that static analysis can't see.
+
+- **Multi-stage `uv` build first.** A builder stage with full toolchain + a runtime stage copying only `.venv` and the app is the safe default. Reach for a slimming tool (`docker-slim` etc.) only if multi-stage isn't enough.
+- **If you slim, run the Django smoke matrix after slimming** — all must pass before any MR:
+  - admin renders (`/admin/` returns the login page)
+  - locale/i18n loads (translations resolve, no `LANG`/locale errors)
+  - `collectstatic --noinput` succeeds
+  - `libpq` and native deps import (`import psycopg`, Pillow, etc.)
+  - one real management command runs end to end (`migrate --check`, a custom command)
+- **Keep `--include-path` lists for Django's dynamic imports** — installed apps, `migrations/`, `templatetags/`, any module loaded by string. Slimming tools prune these because nothing imports them statically.
+- **Pin the slimming tool version** and verify the slimmed image actually boots and serves a request before opening the MR — a passing build is not a running image.
+
 ---
 
 ## 13. Observability (logging, metrics, audit)

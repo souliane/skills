@@ -82,6 +82,46 @@ parsed = parse(data)
 result = transform(parsed)
 ```
 
+### Exception handling
+
+Catch the narrowest exception the operation can actually raise. A broad `except Exception` swallows the bugs you most need to see.
+
+Never catch bug-exceptions — `NameError`, `AttributeError`, or a `TypeError` from a wrong call signature. These signal a defect in your own code; catching them turns a loud crash into silent wrong behaviour. Let them propagate.
+
+```python
+# bad — a typo'd attribute is now invisible
+try:
+    total = order.subttl * rate
+except Exception:
+    total = 0
+```
+
+Prefer preemptive validation over `try`/except when the check is cheap:
+
+```python
+# bad
+try:
+    value = config["timeout"]
+except KeyError:
+    value = DEFAULT_TIMEOUT
+
+# good
+value = config.get("timeout", DEFAULT_TIMEOUT)
+```
+
+Broad `except Exception` is justified only at a **fail-soft seam** — a daemon loop that must survive one bad iteration, a plugin boundary that must not let one plugin crash the host. There, always log and either re-raise or record; never swallow silently:
+
+```python
+for job in queue:
+    try:
+        run(job)
+    except Exception:
+        logger.exception("job failed: %s", job.id)
+        job.mark_failed()
+```
+
+`except BaseException` is reserved for cleanup-then-raise (it also catches `KeyboardInterrupt`/`SystemExit`); always re-raise after the cleanup.
+
 ### Vertical whitespace for grouping
 
 Group related lines together, separated by a blank line from unrelated logic:
@@ -144,6 +184,24 @@ type Headers = dict[str, str]
 
 def apply(m: Matrix, headers: Headers) -> Matrix: ...
 ```
+
+### `NewType` for non-interchangeable primitives
+
+A `type X = ...` alias is **transparent**: `UserId = int` and a bare `int` are interchangeable, so the checker won't catch you passing an `OrderId` where a `UserId` is expected. Use `NewType` when two values share a primitive but must never cross — it creates a **distinct, opaque** type the checker enforces:
+
+```python
+from typing import NewType
+
+UserId = NewType("UserId", int)
+OrderId = NewType("OrderId", int)
+
+def cancel_order(order: OrderId) -> None: ...
+
+uid = UserId(42)
+cancel_order(uid)  # type error — UserId is not OrderId
+```
+
+Rule of thumb: `type` alias for readability of a structurally-complex type; `NewType` when the danger is mixing up two same-primitive values (ids, tokens, raw vs. sanitized strings).
 
 ### No duck-typing — narrow types instead
 
