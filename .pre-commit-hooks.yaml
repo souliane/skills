@@ -1,0 +1,29 @@
+# ac-django testing-convention checkers, consumable by any repo via:
+#   - repo: https://github.com/souliane/skills
+#     rev: <sha>
+#     hooks:
+#       - id: ac-django-no-pytest-django-db
+# Tolerance is fail-closed by default; pass --allow / --baseline from the
+# consuming repo's args. See ac-django/SKILL.md § "Enforcement via prek".
+- id: ac-django-no-pytest-django-db
+  name: ac-django · no @pytest.mark.django_db (use django.test.TestCase)
+  description: Fail when a test uses @pytest.mark.django_db instead of django.test.TestCase.
+  entry: ac-django/hooks/cli.py no-django-db
+  language: script
+  types: [python]
+  files: (^|/)(test_.*|.*_test|tests/.*)\.py$
+
+- id: ac-django-testcase-no-pytest-parametrize
+  name: ac-django · no @pytest.mark.parametrize inside a TestCase (use unittest_parametrize)
+  description: Fail when @pytest.mark.parametrize decorates a method inside a TestCase subclass (pytest ignores it silently).
+  entry: ac-django/hooks/cli.py testcase-no-parametrize
+  language: script
+  types: [python]
+  files: (^|/)(test_.*|.*_test|tests/.*)\.py$
+
+- id: ac-django-no-complexity-suppressions
+  name: ac-django · no C901/PLR09xx suppressions
+  description: "Fail on a C901/PLR09xx noqa suppression in source/tests and on the same codes in a pyproject ruff ignore list."
+  entry: ac-django/hooks/cli.py no-complexity-suppressions
+  language: script
+  types_or: [python, toml]

@@ -290,3 +290,43 @@ Apply to **full files** touched by the diff, not just changed lines:
 
 - [ ] traits used for nullable/optional data
 - [ ] tests explicit about preconditions
+
+## Enforcement via prek
+
+The testing conventions above that are deterministically checkable ship as prek
+hooks in this repo (`.pre-commit-hooks.yaml` + `ac-django/hooks/`). A consuming
+repo references them by URL and rev:
+
+```yaml
+- repo: https://github.com/souliane/skills
+  rev: <commit-sha>
+  hooks:
+    - id: ac-django-no-pytest-django-db
+    - id: ac-django-testcase-no-pytest-parametrize
+    - id: ac-django-no-complexity-suppressions
+```
+
+| Hook id | Fails on |
+|---|---|
+| `ac-django-no-pytest-django-db` | `@pytest.mark.django_db` on a test — use `django.test.TestCase` |
+| `ac-django-testcase-no-pytest-parametrize` | `@pytest.mark.parametrize` on a method **inside a `TestCase` subclass** (pytest silently ignores it there) — use `unittest_parametrize`. Module-level pytest-style functions are not flagged. |
+| `ac-django-no-complexity-suppressions` | `# noqa: C901`/`PLR09xx` in source/tests, and `C901`/`PLR09xx` in a `pyproject.toml` ruff ignore list |
+
+**They ratchet, fail-closed.** With no tolerance configured every violation
+fails (a fresh consumer gets full enforcement immediately). To grandfather
+existing violations while still blocking new ones, pass tolerance from the
+consuming repo's `args`:
+
+- `--allow=<path-or-glob>` (repeatable) — inline, for a handful of files.
+- `--baseline=<file>` — a committed, newline-delimited path list, for large
+  legacy sets. Regenerate it with `--update-baseline`.
+
+`--allow` and `--baseline` compose. The baseline only tightens: a run whose
+baseline still lists a path that no longer violates fails, so the committed
+baseline must shrink as the code improves. The baseline data lives in the
+**consuming** repo (e.g. `.ac-django/no_django_db.baseline`), never here.
+
+**Review-only conventions (deliberately not hard-gated).** Factory Boy usage
+and `setUpTestData()` for shared setup are house conventions, but a hook on them
+is too noisy — there are many legitimate non-factory `create()` calls and
+per-test `setUp()` needs. These stay review checklist items, not blocking hooks.
