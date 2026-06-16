@@ -71,13 +71,13 @@ lint.per-file-ignores."**/scripts/**/*.py" = [
   "S607",    # start-process-with-partial-path
   "T201",    # print (print is the CLI UI)
 ]
-# prek-hook CLI: typer's API requires boolean Option defaults; PT028 misfires on
-# the command functions; B008 is the typer.Option(...) default pattern.
-lint.per-file-ignores."ac-django/hooks/cli.py" = [
-  "B008",   # function-call-in-default-argument (typer.Option pattern)
-  "FBT001", # boolean-typed-positional-argument (typer command flags)
-  "FBT002", # boolean-default-positional-argument (typer command flags)
-  "PT028",  # test-function-default-arg (false positive: these are typer commands, not tests)
+# ac-django ast-grep wrapper + pyproject hook: print() is the UI, subprocess is the
+# mechanism (uvx/ast-grep invocation), and the hooks run as standalone scripts.
+lint.per-file-ignores."ac-django/rules/*.py" = [
+  "S404", # suspicious-subprocess-import (subprocess is the mechanism)
+  "S603", # subprocess-without-shell-equals-true
+  "S607", # start-process-with-partial-path (uvx/ast-grep resolved from PATH)
+  "T201", # print (the hook's UI is stderr/stdout)
 ]
 # PDF manipulation scripts: magic coordinate values, complex content stream parsing, and
 # deeply nested block structures are inherent to PDF editing. assert used for invariants.
@@ -119,6 +119,7 @@ lint.per-file-ignores."tests/**/*.py" = [
   "S101",    # assert (pytest uses assert)
   "S108",    # hardcoded-temp-file
   "S404",    # suspicious-subprocess-import (tests mock subprocess)
+  "S603",    # subprocess-without-shell-equals-true (tests invoke the hooks)
   "SIM201",  # use-not-equal (pytest skipif with `not X == []` is more readable)
   "SLF001",  # private-member-access
   "T201",    # print (fixture generation scripts use print)
@@ -165,11 +166,6 @@ allowed-unresolved-imports = [
   # Test-only sibling helper; resolved via pytest's sys.path injection at
   # runtime (the dir name has hyphens so it is not an importable package).
   "_gitutil",
-  "_loader",
-  # The ac-django hooks package, imported by tests via sys.path injection of
-  # the hyphenated ac-django/ skill dir (not importable as a dotted package).
-  "hooks",
-  "hooks.ratchet",
 ]
 
 [tool.ty]

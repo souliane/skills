@@ -294,8 +294,10 @@ Apply to **full files** touched by the diff, not just changed lines:
 ## Enforcement via prek
 
 The testing conventions above that are deterministically checkable ship as prek
-hooks in this repo (`.pre-commit-hooks.yaml` + `ac-django/hooks/`). A consuming
-repo references them by URL and rev:
+hooks in this repo (`.pre-commit-hooks.yaml` + `ac-django/rules/`). The AST-shaped
+checks are [ast-grep](https://ast-grep.github.io) YAML rules; the
+`pyproject.toml` surface (which ast-grep cannot parse — no TOML language) is a
+tiny standalone Python hook. A consuming repo references them by URL and rev:
 
 ```yaml
 - repo: https://github.com/souliane/skills
@@ -304,27 +306,38 @@ repo references them by URL and rev:
     - id: ac-django-no-pytest-django-db
     - id: ac-django-testcase-no-pytest-parametrize
     - id: ac-django-no-complexity-suppressions
+    - id: ac-django-no-pyproject-complexity
 ```
 
-| Hook id | Fails on |
-|---|---|
-| `ac-django-no-pytest-django-db` | `@pytest.mark.django_db` on a test — use `django.test.TestCase` |
-| `ac-django-testcase-no-pytest-parametrize` | `@pytest.mark.parametrize` on a method **inside a `TestCase` subclass** (pytest silently ignores it there) — use `unittest_parametrize`. Module-level pytest-style functions are not flagged. |
-| `ac-django-no-complexity-suppressions` | `# noqa: C901`/`PLR09xx` in source/tests, and `C901`/`PLR09xx` in a `pyproject.toml` ruff ignore list |
+| Hook id | Engine | Fails on |
+|---|---|---|
+| `ac-django-no-pytest-django-db` | ast-grep | any `pytest.mark.django_db` use — the `@pytest.mark.django_db` decorator **and** a module-level `pytestmark = pytest.mark.django_db` (or list). Use `django.test.TestCase`. |
+| `ac-django-testcase-no-pytest-parametrize` | ast-grep | `@pytest.mark.parametrize` on a method **inside a `TestCase` subclass** (pytest silently ignores it there) — use `unittest_parametrize`. Module-level pytest-style functions are not flagged. |
+| `ac-django-no-complexity-suppressions` | ast-grep | a `# noqa: C901`/`PLR09xx` comment in source/tests |
+| `ac-django-no-pyproject-complexity` | standalone | a `C901`/`PLR09xx` entry in a `pyproject.toml` ruff `lint.ignore` / `lint.extend-ignore` / `lint.per-file-ignores` list |
 
-**They ratchet, fail-closed.** With no tolerance configured every violation
-fails (a fresh consumer gets full enforcement immediately). To grandfather
-existing violations while still blocking new ones, pass tolerance from the
-consuming repo's `args`:
+**ast-grep is pinned to `0.42.3`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
+resolves it hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv`
+is on PATH (no system install needed), falling back to a system `ast-grep`.
 
-- `--allow=<path-or-glob>` (repeatable) — inline, for a handful of files.
-- `--baseline=<file>` — a committed, newline-delimited path list, for large
-  legacy sets. Regenerate it with `--update-baseline`.
+**They fail-closed, grandfathered INLINE.** With nothing grandfathered every
+violation fails (a fresh consumer gets full enforcement immediately). There is
+**no baseline file and no count cap** — existing violations are grandfathered in
+place:
 
-`--allow` and `--baseline` compose. The baseline only tightens: a run whose
-baseline still lists a path that no longer violates fails, so the committed
-baseline must shrink as the code improves. The baseline data lives in the
-**consuming** repo (e.g. `.ac-django/no_django_db.baseline`), never here.
+- **ast-grep rules** — add ast-grep's native opt-out comment on the line above
+  the violation: `# ast-grep-ignore[<rule-id>]` (e.g.
+  `# ast-grep-ignore[ac-django-no-pytest-django-db]`). It silences only that one
+  rule on that one node; every new (un-ignored) occurrence still fails.
+- **`ac-django-no-pyproject-complexity`** — list each existing entry inline in
+  the consuming repo's hook `args` as `--grandfather <code>@<location>` (e.g.
+  `--grandfather C901@lint.per-file-ignores.scripts/**/*.py`). Any new entry not
+  on the list fails; the list only shrinks as the code improves.
+
+This keeps the ratchet's "tighten-only" property without a data file: the
+grandfather record lives where the violation lives (an inline comment, or the
+consumer's own `.pre-commit-config.yaml`), so it can never drift out of sync with
+the tree.
 
 **Review-only conventions (deliberately not hard-gated).** Factory Boy usage
 and `setUpTestData()` for shared setup are house conventions, but a hook on them
