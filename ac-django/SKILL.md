@@ -290,3 +290,56 @@ Apply to **full files** touched by the diff, not just changed lines:
 
 - [ ] traits used for nullable/optional data
 - [ ] tests explicit about preconditions
+
+## Enforcement via prek
+
+The testing conventions above that are deterministically checkable ship as prek
+hooks in this repo (`.pre-commit-hooks.yaml` + `ac-django/rules/`). The AST-shaped
+checks are [ast-grep](https://ast-grep.github.io) YAML rules; the
+`pyproject.toml` surface (which ast-grep cannot parse — no TOML language) is a
+tiny standalone Python hook. A consuming repo references them by URL and rev:
+
+```yaml
+- repo: https://github.com/souliane/skills
+  rev: <commit-sha>
+  hooks:
+    - id: ac-django-no-pytest-django-db
+    - id: ac-django-testcase-no-pytest-parametrize
+    - id: ac-django-no-complexity-suppressions
+    - id: ac-django-no-pyproject-complexity
+```
+
+| Hook id | Engine | Fails on |
+|---|---|---|
+| `ac-django-no-pytest-django-db` | ast-grep | any `pytest.mark.django_db` use — the `@pytest.mark.django_db` decorator **and** a module-level `pytestmark = pytest.mark.django_db` (or list). Use `django.test.TestCase`. |
+| `ac-django-testcase-no-pytest-parametrize` | ast-grep | `@pytest.mark.parametrize` on a method **inside a `TestCase` subclass** (pytest silently ignores it there) — use `unittest_parametrize`. Module-level pytest-style functions are not flagged. |
+| `ac-django-no-complexity-suppressions` | ast-grep | a `# noqa: C901`/`PLR09xx` comment in source/tests |
+| `ac-django-no-pyproject-complexity` | standalone | a `C901`/`PLR09xx` entry in a `pyproject.toml` ruff `lint.ignore` / `lint.extend-ignore` / `lint.per-file-ignores` list |
+
+**ast-grep is pinned to `0.42.3`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
+resolves it hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv`
+is on PATH (no system install needed), falling back to a system `ast-grep`.
+
+**They fail-closed, grandfathered INLINE.** With nothing grandfathered every
+violation fails (a fresh consumer gets full enforcement immediately). There is
+**no baseline file and no count cap** — existing violations are grandfathered in
+place:
+
+- **ast-grep rules** — add ast-grep's native opt-out comment on the line above
+  the violation: `# ast-grep-ignore[<rule-id>]` (e.g.
+  `# ast-grep-ignore[ac-django-no-pytest-django-db]`). It silences only that one
+  rule on that one node; every new (un-ignored) occurrence still fails.
+- **`ac-django-no-pyproject-complexity`** — list each existing entry inline in
+  the consuming repo's hook `args` as `--grandfather <code>@<location>` (e.g.
+  `--grandfather C901@lint.per-file-ignores.scripts/**/*.py`). Any new entry not
+  on the list fails; the list only shrinks as the code improves.
+
+This keeps the ratchet's "tighten-only" property without a data file: the
+grandfather record lives where the violation lives (an inline comment, or the
+consumer's own `.pre-commit-config.yaml`), so it can never drift out of sync with
+the tree.
+
+**Review-only conventions (deliberately not hard-gated).** Factory Boy usage
+and `setUpTestData()` for shared setup are house conventions, but a hook on them
+is too noisy — there are many legitimate non-factory `create()` calls and
+per-test `setUp()` needs. These stay review checklist items, not blocking hooks.

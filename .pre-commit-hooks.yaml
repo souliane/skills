@@ -1,0 +1,48 @@
+# ac-django testing-convention checkers, consumable by any repo via:
+#   - repo: https://github.com/souliane/skills
+#     rev: <sha>
+#     hooks:
+#       - id: ac-django-no-pytest-django-db
+#
+# The AST-shaped checks run ast-grep, PINNED to 0.42.3. The wrapper resolves it
+# hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv` is on
+# PATH (no system install needed), falling back to a system `ast-grep`.
+# Grandfathering is INLINE: a violation is silenced with ast-grep's native
+# `# ast-grep-ignore[<rule-id>]` comment on the line above. There is NO count cap
+# and NO baseline file — every existing occurrence in a consuming repo carries an
+# inline ignore; every new (un-ignored) occurrence fails the hook.
+#
+# The pyproject.toml ruff ignore-list surface (which ast-grep 0.42.3 cannot parse
+# — it has no TOML language) ships as the standalone `ac-django-no-pyproject-complexity`
+# hook; it grandfathers existing entries inline via repeated `--grandfather` args.
+# See ac-django/SKILL.md § "Enforcement via prek".
+
+- id: ac-django-no-pytest-django-db
+  name: ac-django · no @pytest.mark.django_db (use django.test.TestCase)
+  description: Fail when a test uses @pytest.mark.django_db instead of django.test.TestCase.
+  entry: ac-django/rules/astgrep_scan.py no-pytest-django-db
+  language: script
+  types: [python]
+  files: (^|/)(test_.*|.*_test|tests/.*)\.py$
+
+- id: ac-django-testcase-no-pytest-parametrize
+  name: ac-django · no @pytest.mark.parametrize inside a TestCase (use unittest_parametrize)
+  description: Fail when @pytest.mark.parametrize decorates a method inside a TestCase subclass (pytest ignores it silently).
+  entry: ac-django/rules/astgrep_scan.py testcase-no-pytest-parametrize
+  language: script
+  types: [python]
+  files: (^|/)(test_.*|.*_test|tests/.*)\.py$
+
+- id: ac-django-no-complexity-suppressions
+  name: ac-django · no C901/PLR09xx noqa suppressions
+  description: Fail on a C901/PLR09xx noqa suppression in source/tests (refactor, do not silence).
+  entry: ac-django/rules/astgrep_scan.py no-complexity-suppressions
+  language: script
+  types: [python]
+
+- id: ac-django-no-pyproject-complexity
+  name: ac-django · no NEW C901/PLR09xx in a pyproject ruff ignore list
+  description: Fail on a C901/PLR09xx ruff ignore entry in pyproject.toml that is not inline-grandfathered (--grandfather code@location).
+  entry: ac-django/rules/pyproject_complexity.py
+  language: script
+  files: (^|/)pyproject\.toml$

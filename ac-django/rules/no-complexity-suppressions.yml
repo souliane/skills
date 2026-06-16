@@ -1,0 +1,7 @@
+id: ac-django-no-complexity-suppressions
+language: python
+rule:
+  kind: comment
+  regex: '#\s*noqa:[^#\n]*\b(C901|PLR09\d{2})\b'
+message: "Refactor the function; do not suppress C901/PLR09xx with a noqa comment."
+severity: error

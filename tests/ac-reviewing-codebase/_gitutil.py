@@ -19,7 +19,7 @@ GIT = _git_binary()
 
 
 def run_git(cwd: Path, *args: str) -> None:
-    subprocess.run([GIT, *args], cwd=cwd, check=True, capture_output=True, text=True)  # noqa: S603
+    subprocess.run([GIT, *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 def init_repo(path: Path) -> Path:
