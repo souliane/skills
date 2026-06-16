@@ -1,0 +1,15 @@
+id: ac-django-testcase-no-pytest-parametrize
+language: python
+rule:
+  any:
+    - pattern: pytest.mark.parametrize
+    - pattern: mark.parametrize
+  inside:
+    kind: class_definition
+    stopBy: end
+    has:
+      field: superclasses
+      regex: '\b(TestCase|TransactionTestCase|SimpleTestCase|LiveServerTestCase)\b'
+      stopBy: end
+message: "@pytest.mark.parametrize inside a TestCase subclass is silently ignored; use unittest_parametrize."
+severity: error

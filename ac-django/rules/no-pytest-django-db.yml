@@ -1,0 +1,8 @@
+id: ac-django-no-pytest-django-db
+language: python
+rule:
+  any:
+    - pattern: pytest.mark.django_db
+    - pattern: mark.django_db
+message: "Use django.test.TestCase, not @pytest.mark.django_db."
+severity: error
