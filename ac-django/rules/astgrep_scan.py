@@ -30,13 +30,13 @@ RULES_DIR = Path(__file__).resolve().parent
 ASTGREP_PIN = "0.42.3"
 
 
-def _astgrep_argv() -> list[str] | None:
-    """The pinned ast-grep invocation prefix, or None if no runner is available."""
+def _astgrep_argv() -> list[str]:
+    """The pinned ast-grep invocation prefix, or an empty list when unavailable."""
     if shutil.which("uv") is not None:
         return ["uvx", "--from", f"ast-grep-cli=={ASTGREP_PIN}", "ast-grep"]
     if shutil.which("ast-grep") is not None:
         return ["ast-grep"]
-    return None
+    return []
 
 
 def main(argv: list[str]) -> int:
@@ -49,7 +49,7 @@ def main(argv: list[str]) -> int:
         sys.stderr.write(f"astgrep_scan: no rule file at {rule_path}\n")
         return 2
     runner = _astgrep_argv()
-    if runner is None:
+    if not runner:
         sys.stderr.write(
             f"astgrep_scan: need `uv` (preferred, pins ast-grep-cli=={ASTGREP_PIN}) or a system `ast-grep` on PATH.\n",
         )
