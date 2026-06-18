@@ -125,12 +125,26 @@ class TestPyprojectComplexityHook:
         f.write_text(body, encoding="utf-8")
         return str(f)
 
+    def test_has_no_tomllib_runtime_dependency(self) -> None:
+        assert "tomllib" not in PYPROJECT_HOOK.read_text(encoding="utf-8")
+
     def test_flags_new_global_ignore(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, '[tool.ruff]\nlint.ignore = ["C901", "D100"]\n')
         assert _pyproject([path]) == 1
 
+    def test_flags_multiline_global_ignore(self, tmp_path: Path) -> None:
+        path = self._write(
+            tmp_path,
+            '[tool.ruff.lint]\nignore = [\n  "D100",\n  "PLR0915",\n]\n',
+        )
+        assert _pyproject([path]) == 1
+
     def test_flags_new_per_file_ignore(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, '[tool.ruff.lint.per-file-ignores]\n"tests/*.py" = ["PLR0912"]\n')
+        assert _pyproject([path]) == 1
+
+    def test_flags_dotted_per_file_ignore(self, tmp_path: Path) -> None:
+        path = self._write(tmp_path, '[tool.ruff]\nlint.per-file-ignores."scripts/**/*.py" = ["C901"]\n')
         assert _pyproject([path]) == 1
 
     def test_grandfathered_entry_passes(self, tmp_path: Path) -> None:

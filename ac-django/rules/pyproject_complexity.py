@@ -23,34 +23,63 @@ string, e.g. ``--grandfather "C901@lint.per-file-ignores.scripts/**/*.py"``.
 
 import re
 import sys
-import tomllib
 from collections.abc import Iterable
 from pathlib import Path
 
 COMPLEXITY_CODES_RE = re.compile(r"\b(C901|PLR09\d{2})\b")
+SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
+ASSIGNMENT_RE = re.compile(r"^\s*([^=#]+?)\s*=\s*(.*)$")
+
+
+def _normalise_key(key: str) -> str:
+    return key.strip().replace('"', "").replace("'", "")
+
+
+def _collect_value(lines: list[str], start: int, initial: str) -> tuple[str, int]:
+    value = initial
+    index = start
+    balance = initial.count("[") - initial.count("]")
+    while balance > 0 and index + 1 < len(lines):
+        index += 1
+        value = f"{value}\n{lines[index]}"
+        balance += lines[index].count("[") - lines[index].count("]")
+    return value, index
+
+
+def _location(section: str, key: str) -> str:
+    normalized_key = _normalise_key(key)
+    if section in {"tool.ruff.lint.per-file-ignores", "tool.ruff.per-file-ignores"}:
+        return f"lint.per-file-ignores.{normalized_key}"
+    if section == "tool.ruff.lint":
+        return f"lint.{normalized_key}"
+    if section == "tool.ruff":
+        if normalized_key.startswith("lint."):
+            return normalized_key
+        return f"lint.{normalized_key}"
+    return ""
 
 
 def _entries(source: str) -> list[str]:
     """Return ``<code>@<location>`` keys for every complexity ignore in a pyproject."""
-    try:
-        data = tomllib.loads(source)
-    except tomllib.TOMLDecodeError:
-        return []
-    ruff = data.get("tool", {}).get("ruff", {})
-    lint = ruff.get("lint", ruff)
-    found = [
-        f"{code}@lint.{key}"
-        for key in ("ignore", "extend-ignore")
-        for code in lint.get(key, []) or []
-        if COMPLEXITY_CODES_RE.fullmatch(str(code))
-    ]
-    per_file = lint.get("per-file-ignores", {}) or {}
-    found.extend(
-        f"{code}@lint.per-file-ignores.{pattern}"
-        for pattern, codes in per_file.items()
-        for code in codes or []
-        if COMPLEXITY_CODES_RE.fullmatch(str(code))
-    )
+    found: list[str] = []
+    section = ""
+    lines = source.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        section_match = SECTION_RE.match(line)
+        if section_match:
+            section = section_match.group(1).strip()
+            index += 1
+            continue
+        assignment = ASSIGNMENT_RE.match(line)
+        if assignment:
+            key, raw_value = assignment.groups()
+            location = _location(section, key)
+            value, index = _collect_value(lines, index, raw_value)
+            if location in {"lint.ignore", "lint.extend-ignore"} or location.startswith("lint.per-file-ignores."):
+                found.extend(f"{code}@{location}" for code in COMPLEXITY_CODES_RE.findall(value))
+        index += 1
     return found
 
 
