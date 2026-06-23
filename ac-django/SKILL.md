@@ -263,6 +263,7 @@ Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not 
 - [ ] linear migrations enforced (one leaf per app — `django-linear-migrations` or manual review)
 - [ ] `makemigrations --check` passes
 - [ ] migration safe/reviewable
+- [ ] comments-as-code (per ac-python): no signature-echo docstring, no inline comment restating the RunPython body — a data migration's intent is its function name, not a 6-line docstring
 
 ### Tasks
 
