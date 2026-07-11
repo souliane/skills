@@ -10,7 +10,7 @@ compatibility: macOS/Linux, any AI coding agent (Claude Code, Codex, Copilot, Ge
 metadata:
   version: 0.0.1
   subagent_safe: false
-  last_research_date: "2026-03-14"
+  last_research_date: "2026-04-13"
 ---
 
 # Bootstrap OpenClaw

@@ -36,7 +36,7 @@ repos:
         language: script
         entry: scripts/hooks/check-banned-terms.sh
         types: [text]
-        exclude: ^(\.pre-commit-config\.yaml|scripts/hooks/)$
+        exclude: ^(\.pre-commit-config\.yaml$|scripts/hooks/)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: <sha> # <version>
@@ -63,6 +63,18 @@ repos:
       - id: text-unicode-replacement-char
   - repo: local
     hooks:
+      - id: scripts-have-uv-shebang
+        name: scripts-have-uv-shebang
+        language: pygrep
+        entry: '#!/usr/bin/env -S uv run --script'
+        args: [--negate]
+        files: '.*/scripts/cli\.py$'
+      - id: scripts-have-inline-metadata
+        name: scripts-have-inline-metadata
+        language: pygrep
+        entry: '# /// script'
+        args: [--negate]
+        files: '.*/scripts/cli\.py$'
       - id: scripts-no-raw-sys-argv
         name: scripts-no-raw-sys-argv
         language: pygrep

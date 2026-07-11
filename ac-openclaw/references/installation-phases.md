@@ -181,6 +181,11 @@ curl -fsSL https://openclaw.ai/install.sh | bash
 openclaw onboard --install-daemon
 ```
 
+> **Container-based alternative:** to run OpenClaw's helper services (e.g. the
+> signal-cli REST API) under Docker instead of native packages, use the
+> ready-made [`docker-compose.yml`](docker-compose.yml) template as a starting
+> point — copy it to `~/.openclaw/docker-compose.yml` and `docker compose up -d`.
+
 The onboarding wizard will ask about:
 
 - Model provider (configure in Phase 6)
@@ -906,6 +911,8 @@ Only ask the user to send a Signal message for the final human-in-the-loop test 
 ### 12.4 Recap for the user
 
 Present a complete summary of what was installed, how to access it, and what secrets/bookmarks to save. The user should walk away knowing everything without re-reading the conversation.
+
+Record the final server configuration for future reference using the [`server-config-template.md`](server-config-template.md) template — fill it in with the real values and save it to the user's personal agent memory/config (never commit real IPs, numbers, or secrets to a skill repo).
 
 ```
 Installation complete!

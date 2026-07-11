@@ -6,6 +6,7 @@
 """Auto-update the skills catalogue in README.md from SKILL.md frontmatter."""
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -55,10 +56,30 @@ def _parse_frontmatter(path: Path) -> dict[str, str]:
     return meta
 
 
-def _build_table() -> str:
+def _skill_md_files(root: Path = ROOT_DIR) -> list[Path]:
+    """Return tracked ``SKILL.md`` files under ``root``, sorted by path.
+
+    Uses ``git ls-files`` so untracked or gitignored files never leak into the
+    catalogue (an ``rglob`` scan once shipped a phantom ``typer`` entry from an
+    untracked scratch dir). Falls back to a filesystem walk outside a git repo
+    (e.g. a unit-test ``tmp_path``) so the generator still works there.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return sorted(root.rglob("SKILL.md"))
+    return sorted(root / line for line in result.stdout.split("\0") if line.endswith("SKILL.md"))
+
+
+def _build_table(root: Path = ROOT_DIR) -> str:
     skills: list[tuple[str, str, str]] = []  # (name, version, description)
 
-    for skill_md in sorted(ROOT_DIR.rglob("SKILL.md")):
+    for skill_md in _skill_md_files(root):
         meta = _parse_frontmatter(skill_md)
         name = meta.get("name", skill_md.parent.name)
         desc = meta.get("description", "")

@@ -14,7 +14,7 @@ tests/                 Tests for scripts
 
 - `SKILL.md` is the entry point. Keep it focused on workflow and rules.
 - Move detailed content to `references/` — one level deep only.
-- Never change `version:` in YAML frontmatter — auto-managed.
+- Set `metadata.version` manually and bump it when a skill changes materially; there is no automation that manages it.
 - Skill naming: gerund form with `ac-` prefix (e.g., `ac-editing-acroforms`, `ac-adopting-ruff`). Domain skills keep plain names (`ac-django`, `ac-python`).
 
 ## Python Scripts
