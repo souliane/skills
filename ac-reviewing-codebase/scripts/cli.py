@@ -19,7 +19,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import tomllib
 from pathlib import Path
 from typing import Annotated, cast
 
@@ -39,19 +38,13 @@ REQUIRED_FRONTMATTER = ("name", "description")
 REQUIRED_METADATA_FRONTMATTER = ("version",)
 IGNORED_TOP_LEVEL_DIRS = {"external"}
 MAX_SCAN_DEPTH = 3
-BYTES_PER_UNIT = 1024
 COVERAGE_GOOD_THRESHOLD = 80
 COVERAGE_WARN_THRESHOLD = 60
 CONFIG_PATH = Path("~/.ac-reviewing-codebase").expanduser()
 
 CONFIG_FILES: dict[str, str] = {
-    "~/.teatree.toml": ("Teatree core config (TOML). Provides workspace_dir, auto_squash, review_skill."),
-    "~/.ac-reviewing-codebase": ("Codebase review config (shell). MAINTAINED_SKILLS, MANAGED_REPOS, BOILERPLATE_MAP."),
-}
-
-DATA_DIRS: dict[str, str] = {
-    "${XDG_DATA_HOME:-~/.local/share}/teatree": (
-        "Teatree runtime data (ticket cache, MR reminders, followup dashboard)."
+    "~/.ac-reviewing-codebase": (
+        "Codebase review config (shell). WORKSPACE_DIR, MAINTAINED_SKILLS, MANAGED_REPOS, BOILERPLATE_MAP."
     ),
 }
 
@@ -78,19 +71,17 @@ def _parse_shell_config(path: Path) -> dict[str, str]:
 
 
 def _expand(value: str) -> str:
-    """Expand $HOME and ~ in a config value."""
-    return value.replace("$HOME", str(Path.home())).replace("~", str(Path.home()))
+    """Expand a leading ``~`` (or ``$HOME``) to the home directory.
 
-
-def _expand_env(path: str) -> str:
-    """Expand ${VAR:-default} patterns and ~."""
-
-    def _repl(m: re.Match) -> str:
-        var = m.group(1)
-        default = m.group(2) or ""
-        return os.environ.get(var, _expand(default))
-
-    return re.sub(r"\$\{(\w+):-([^}]*)\}", _repl, path)
+    Only the leading path component is expanded; a ``~`` elsewhere in the value
+    is a literal character (e.g. a backup-file suffix like ``foo~``), not a home
+    reference, so it is left untouched.
+    """
+    home = str(Path.home())
+    expanded = value.replace("$HOME", home)
+    if expanded.startswith("~"):
+        expanded = home + expanded[1:]
+    return expanded
 
 
 def _load_config() -> dict[str, str]:
@@ -101,31 +92,11 @@ def _load_config() -> dict[str, str]:
     return _parse_shell_config(CONFIG_PATH)
 
 
-def _parse_toml(path: Path) -> dict:
-    """Parse a TOML file, returning empty dict if missing or invalid."""
-    if not path.exists():
-        return {}
-    with path.open("rb") as f:
-        return tomllib.load(f)
-
-
-def _flatten_toml(data: dict, prefix: str = "") -> dict[str, str]:
-    """Flatten nested TOML dict to dot-separated keys for display."""
-    result: dict[str, str] = {}
-    for key, value in data.items():
-        full_key = f"{prefix}.{key}" if prefix else key
-        if isinstance(value, dict):
-            result.update(_flatten_toml(value, full_key))
-        else:
-            result[full_key] = str(value)
-    return result
-
-
 def _get_workspace_dir() -> Path:
-    """Read workspace_dir from ~/.teatree.toml or fall back to ~/workspace."""
-    toml = _parse_toml(Path("~/.teatree.toml").expanduser())
-    raw = toml.get("teatree", {}).get("workspace_dir", "~/workspace")
-    return Path(_expand(str(raw))).resolve()
+    """Read ``WORKSPACE_DIR`` from ~/.ac-reviewing-codebase, defaulting to ~/workspace."""
+    config = _parse_shell_config(CONFIG_PATH)
+    raw = config.get("WORKSPACE_DIR", "~/workspace")
+    return Path(_expand(raw)).resolve()
 
 
 # ---------------------------------------------------------------------------
@@ -164,15 +135,23 @@ class Finding:
         return f"  ERROR: {rel}: {self.message}"
 
 
+BLOCK_SCALAR_INDICATORS = {">", "|", ">-", "|-"}
+
+
 def _parse_frontmatter(text: str) -> dict[str, object]:
     match = FRONTMATTER_RE.match(text)
     if not match:
         return {}
     meta: dict[str, object] = {}
     nested_key: str | None = None
+    folded_key: str | None = None
     for raw_line in match.group(1).splitlines():
         line = raw_line.rstrip()
         if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line.startswith(" ") and folded_key:
+            existing = cast("str", meta.get(folded_key, ""))
+            meta[folded_key] = f"{existing} {line.strip()}".strip()
             continue
         if line.startswith(" ") and nested_key:
             stripped = line.strip()
@@ -183,12 +162,19 @@ def _parse_frontmatter(text: str) -> dict[str, object]:
             nested[key.strip()] = value.strip().strip('"').strip("'")
             continue
         nested_key = None
+        folded_key = None
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
         cleaned_key = key.strip()
         cleaned_value = value.strip().strip('"').strip("'")
-        if cleaned_value:
+        if cleaned_value in BLOCK_SCALAR_INDICATORS:
+            # YAML folded (``>``) / literal (``|``) scalar: the value is on the
+            # following indented lines. Accumulate them (space-joined) rather
+            # than storing the ``>`` marker as the value.
+            meta[cleaned_key] = ""
+            folded_key = cleaned_key
+        elif cleaned_value:
             meta[cleaned_key] = cleaned_value
         else:
             meta[cleaned_key] = {}
@@ -313,17 +299,35 @@ def _get_dirty_count(repo: Path) -> int:
     return len(raw.splitlines()) if raw else 0
 
 
+def _default_branch(repo: Path) -> str:
+    """Resolve the repo's default branch.
+
+    Prefer ``origin/HEAD`` (the real remote default); fall back to the local
+    ``init.defaultBranch`` config, then ``main``. Single source of truth so
+    every caller detects the default the same way.
+    """
+    origin_head = _git_output(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "--short")
+    if origin_head:
+        return origin_head.removeprefix("origin/")
+    return _git_output(repo, "config", "init.defaultBranch") or "main"
+
+
+def _strip_branch_marker(line: str) -> str:
+    """Strip git's ``* `` (current) / ``+ `` (worktree-checked-out) branch markers."""
+    return line.strip().removeprefix("* ").removeprefix("+ ")
+
+
 def _get_stale_branches(repo: Path) -> list[str]:
     raw = _git_output(repo, "branch", "--merged", "HEAD", "--no-color")
     if not raw:
         return []
     current = _git_output(repo, "branch", "--show-current")
-    default = _git_output(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "--short").removeprefix("origin/")
+    default = _default_branch(repo)
     skip = {current, default, "main", "master"}
     return [
-        b.strip().removeprefix("* ")
+        _strip_branch_marker(b)
         for b in raw.splitlines()
-        if b.strip().removeprefix("* ") not in skip and not b.strip().startswith("remotes/")
+        if _strip_branch_marker(b) not in skip and not b.strip().startswith("remotes/")
     ]
 
 
@@ -333,16 +337,12 @@ def _get_stash_count(repo: Path) -> int:
 
 
 def _get_non_main_branches(repo: Path) -> list[str]:
-    default = _git_output(repo, "config", "init.defaultBranch") or "main"
+    default = _default_branch(repo)
     raw = _git_output(repo, "branch", "--no-merged", default, "--no-color")
     if not raw:
         return []
     current = _git_output(repo, "branch", "--show-current")
-    return [
-        b.strip().removeprefix("* ").removeprefix("+ ")
-        for b in raw.splitlines()
-        if b.strip().removeprefix("* ").removeprefix("+ ") != current
-    ]
+    return [_strip_branch_marker(b) for b in raw.splitlines() if _strip_branch_marker(b) != current]
 
 
 def _get_dirty_files(repo: Path, limit: int = 5) -> list[str]:
@@ -669,13 +669,13 @@ def status(
             _print_repo_detail(name, info)
     if not has_work:
         console.print("\n[green]All repos are clean.[/green]")
-    elif has_work:
+    else:
         raise typer.Exit(1)
 
 
 @app.command("config")
 def show_config() -> None:
-    """Inventory all config, data, and cache files for managed repos."""
+    """Inventory config files and run health checks for managed repos."""
     table = Table(title="Configuration Files", show_lines=True)
     table.add_column("File", style="bold")
     table.add_column("Exists")
@@ -686,7 +686,7 @@ def show_config() -> None:
         exists = path.exists()
         exists_str = "[green]yes[/green]" if exists else "[red]no[/red]"
         if exists:
-            parsed = _flatten_toml(_parse_toml(path)) if raw_path.endswith(".toml") else _parse_shell_config(path)
+            parsed = _parse_shell_config(path)
             keys_str = (
                 "\n".join(f"[cyan]{k}[/cyan]={_truncate(str(v), 60)}" for k, v in parsed.items())
                 if parsed
@@ -696,20 +696,6 @@ def show_config() -> None:
             keys_str = "-"
         table.add_row(raw_path, exists_str, purpose, keys_str)
     console.print(table)
-    console.print()
-    table2 = Table(title="Data / Cache Directories", show_lines=True)
-    table2.add_column("Directory", style="bold")
-    table2.add_column("Exists")
-    table2.add_column("Purpose")
-    table2.add_column("Size")
-    for raw_path, purpose in DATA_DIRS.items():
-        expanded = _expand_env(raw_path)
-        path = Path(expanded).expanduser()
-        exists = path.exists()
-        exists_str = "[green]yes[/green]" if exists else "[red]no[/red]"
-        size_str = _dir_size(path) if exists else "-"
-        table2.add_row(raw_path, exists_str, purpose, size_str)
-    console.print(table2)
     console.print()
     console.print("[bold]Health Checks:[/bold]")
     _check_config_health()
@@ -788,6 +774,8 @@ def _print_deps(deps: dict) -> None:
         n = deps["outdated_count"]
         color = "green" if n == 0 else "yellow"
         console.print(f"  Outdated deps: [{color}]{n}[/{color}]")
+    elif deps.get("error"):
+        console.print(f"  Outdated deps: [dim]{deps['error']}[/dim]")
     else:
         console.print("  Outdated deps: [dim]not a uv project[/dim]")
 
@@ -828,15 +816,6 @@ def _check_config_health() -> None:
 
 def _truncate(value: str, max_len: int) -> str:
     return value if len(value) <= max_len else value[: max_len - 3] + "..."
-
-
-def _dir_size(path: Path) -> str:
-    total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
-    for unit in ("B", "KB", "MB", "GB"):
-        if total < BYTES_PER_UNIT:
-            return f"{total:.0f} {unit}"
-        total /= BYTES_PER_UNIT
-    return f"{total:.1f} TB"
 
 
 if __name__ == "__main__":  # pragma: no cover

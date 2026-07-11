@@ -3,7 +3,6 @@
 import importlib.util
 from pathlib import Path
 
-import pytest
 from _gitutil import init_repo, run_git
 
 CLI_PATH = Path(__file__).resolve().parents[2] / "ac-reviewing-codebase" / "scripts" / "cli.py"
@@ -284,40 +283,35 @@ class TestTruncate:
 
 
 # ---------------------------------------------------------------------------
-# _expand_env
+# _expand — leading-only tilde expansion
 # ---------------------------------------------------------------------------
 
 
-class TestExpandEnv:
-    def test_expands_default_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("MY_CUSTOM_VAR", raising=False)
-        result = cli._expand_env("${MY_CUSTOM_VAR:-~/.fallback}/data")
-        assert str(Path.home()) in result
-        assert result.endswith(".fallback/data")
+class TestExpandLeadingOnly:
+    def test_leading_tilde_expands(self) -> None:
+        assert cli._expand("~/workspace") == f"{Path.home()}/workspace"
 
-    def test_expands_env_var_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MY_CUSTOM_VAR", "/custom/path")
-        result = cli._expand_env("${MY_CUSTOM_VAR:-~/.fallback}/data")
-        assert result == "/custom/path/data"
+    def test_non_leading_tilde_is_literal(self) -> None:
+        # A ``~`` mid-value (e.g. a backup-file suffix) must not be expanded.
+        assert cli._expand("uv.lock~") == "uv.lock~"
+        assert cli._expand("/a/b~c") == "/a/b~c"
 
 
 # ---------------------------------------------------------------------------
-# _dir_size
+# _default_branch
 # ---------------------------------------------------------------------------
 
 
-class TestDirSize:
-    def test_empty_dir(self, tmp_path: Path) -> None:
-        assert cli._dir_size(tmp_path) == "0 B"
+class TestDefaultBranch:
+    def test_falls_back_to_main_without_origin(self, tmp_path: Path) -> None:
+        repo = _init_repo(tmp_path / "repo")
+        assert cli._default_branch(repo) in {"main", "master"}
 
-    def test_small_files(self, tmp_path: Path) -> None:
-        (tmp_path / "a.txt").write_text("hello", encoding="utf-8")
-        result = cli._dir_size(tmp_path)
-        assert "B" in result
-
-    def test_nested_files(self, tmp_path: Path) -> None:
-        sub = tmp_path / "sub"
-        sub.mkdir()
-        (sub / "big.bin").write_bytes(b"\x00" * 2048)
-        result = cli._dir_size(tmp_path)
-        assert "KB" in result
+    def test_prefers_origin_head(self, tmp_path: Path) -> None:
+        repo = _init_repo(tmp_path / "repo")
+        run_git(repo, "checkout", "-b", "trunk")
+        run_git(repo, "remote", "add", "origin", str(repo))
+        # Point origin/HEAD at trunk without a network fetch.
+        run_git(repo, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+        run_git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+        assert cli._default_branch(repo) == "trunk"

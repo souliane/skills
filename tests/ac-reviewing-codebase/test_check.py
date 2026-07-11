@@ -40,6 +40,28 @@ class TestParseFrontmatter:
         assert parsed["name"] == "quoted"
         assert parsed["metadata"]["version"] == "0.0.1"
 
+    def test_folded_scalar_description_is_assembled(self) -> None:
+        # A YAML folded (``>``) description must be joined from its indented
+        # continuation lines, not stored as the literal ``>`` marker.
+        text = (
+            "---\n"
+            "name: demo\n"
+            "description: >\n"
+            "  First line of the description.\n"
+            "  Second line continues it.\n"
+            "metadata:\n"
+            "  version: 0.0.1\n"
+            "---\n"
+        )
+        parsed = check_frontmatter._parse_frontmatter(text)
+        assert parsed["description"] == "First line of the description. Second line continues it."
+        assert parsed["metadata"]["version"] == "0.0.1"
+
+    def test_literal_scalar_description_is_assembled(self) -> None:
+        text = "---\nname: demo\ndescription: |\n  Line one.\n  Line two.\n---\n"
+        parsed = check_frontmatter._parse_frontmatter(text)
+        assert parsed["description"] == "Line one. Line two."
+
 
 class TestCheckFrontmatter:
     def test_valid_skill_passes(self, tmp_path: Path) -> None:

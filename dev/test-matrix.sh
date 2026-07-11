@@ -11,4 +11,5 @@ run_one() {
 export -f run_one
 export PWD
 
-parallel --tag --line-buffer run_one ::: 3.12 3.13 3.14
+# Python floor is >=3.13 (see pyproject requires-python); mirror CI's matrix.
+parallel --tag --line-buffer run_one ::: 3.13 3.14

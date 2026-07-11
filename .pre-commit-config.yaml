@@ -83,7 +83,7 @@ repos:
       - id: ty-check
         name: ty-check
         language: system
-        entry: uv run ty check --exclude "ac-editing-acroforms/scripts/fix_*.py" --exclude "ac-editing-acroforms/scripts/verify_*.py"
+        entry: uv run ty check --exclude "ac-editing-acroforms/scripts/verify_*.py"
         pass_filenames: false
 
   # Phase 6 - Security & custom
@@ -110,13 +110,12 @@ repos:
         language: pygrep
         entry: 'sys\.argv'
         files: '.*/scripts/[^_][^/]*\.py$'
-        exclude: 'ac-editing-acroforms/scripts/fix_'
       - id: banned-terms
         name: banned-terms
         language: script
         entry: scripts/hooks/check-banned-terms.sh --config ~/.skills
         types: [text]
-        exclude: ^(\.pre-commit-config\.yaml|scripts/hooks/)$
+        exclude: ^(\.pre-commit-config\.yaml$|scripts/hooks/)
 
   # Phase 7 - Project-specific
   - repo: local
