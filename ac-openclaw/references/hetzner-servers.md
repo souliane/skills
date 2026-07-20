@@ -1,5 +1,14 @@
 # Hetzner Cloud — CAX (ARM64/Ampere) Server Reference
 
+> **One cached provider among several — not the default.** Start from
+> [`provider-selection.md`](provider-selection.md), which holds the provider-agnostic method and
+> a dated snapshot of other EU options. Use this file only once the user has chosen Hetzner.
+>
+> **Two caveats before recommending CAX:** (1) an ARM line can be listed and priced while being
+> unavailable in every datacenter — check availability, not the catalogue; (2) arm64 has no
+> usable native libsignal, so Signal must run from a container
+> ([`channel-setup.md`](channel-setup.md) § ARM64). x86-64 avoids both.
+>
 > **Last updated:** 2026-03-14
 > **Source:** [hetzner.com/cloud](https://www.hetzner.com/cloud), [costgoat.com/pricing/hetzner](https://costgoat.com/pricing/hetzner)
 
@@ -25,6 +34,11 @@
 | US (Ashburn, Hillsboro) | ash, hil | **No** (AMD only) |
 
 ## Recommendations for OpenClaw
+
+> These size **OpenClaw and a local model only**. If the host will also run agent orchestration
+> (parallel pytest workers, Node builds, headless Chromium), budget **3–6 GB per concurrent job**
+> on top and size for peak concurrency — see [`../SKILL.md`](../SKILL.md) § 1.4a. Sizing a shared
+> host from this table undersizes it badly.
 
 | Use case | Recommended | Monthly cost |
 |----------|-------------|-------------|
