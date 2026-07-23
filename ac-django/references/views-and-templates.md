@@ -173,7 +173,7 @@ class Document(models.Model):
 ### 16a.3 Storage backends
 
 - Use `django-storages` for S3/GCS/Azure.
-- Configure `STORAGES["default"]` (Django 4.2+). The legacy `DEFAULT_FILE_STORAGE` setting is deprecated.
+- Configure `STORAGES["default"]`. The legacy `DEFAULT_FILE_STORAGE` setting is deprecated.
 - Use signed URLs for private file access instead of serving files through Django.
 
 ---

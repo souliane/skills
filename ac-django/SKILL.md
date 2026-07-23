@@ -11,7 +11,7 @@ metadata:
 
 # Django Bible (Django 6.x baseline · Django 5.2 deltas · optional DRF)
 
-**Baseline:** Django **6.x** + Python **3.12+** · **Compat:** Django **5.2 LTS** · **API:** DRF _when you choose it_
+**Baseline:** Django **6.x** + Python **3.13+** · **Compat:** Django **5.2 LTS** · **API:** DRF _when you choose it_
 
 ## Canonical Sources
 
@@ -138,6 +138,14 @@ Upgrade posture:
   - `# TODO(Django6): switch @shared_task -> @task and .delay() -> .enqueue()`
   - `# TODO(Django6): remove {% load partials %} (partials become native)`
   - `# TODO(Django6): replace django-csp with built-in CSP middleware`
+
+Django 7.0 deprecation watch (flagged during the 6.1 cycle, removal in 7.0 — avoid writing new code against these):
+
+- Flat `EMAIL_*` settings (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, etc.) are deprecated in favor of a `MAILERS` dict setting (mirrors `DATABASES`/`CACHES`); new code should not add to the flat settings.
+- `QuerySet.select_related()` called with no arguments, and `ModelAdmin.list_select_related = True` — always pass explicit field names.
+- `QuerySet.values_list(flat=True)` without an explicit field name.
+- `django.db.transaction.savepoint()` — use `savepoint_create()`.
+- The default HMAC algorithm for `salted_hmac()`/`base64_hmac()` flips from `sha1` to `sha256` — don't hardcode `sha1` expectations.
 
 ## Project Layout & Boundaries
 
@@ -316,8 +324,8 @@ tiny standalone Python hook. A consuming repo references them by URL and rev:
 | `ac-django-no-complexity-suppressions` | ast-grep | a `# noqa: C901`/`PLR09xx` comment in source/tests |
 | `ac-django-no-pyproject-complexity` | standalone | a `C901`/`PLR09xx` entry in a `pyproject.toml` ruff `lint.ignore` / `lint.extend-ignore` / `lint.per-file-ignores` list |
 
-**ast-grep is pinned to `0.42.3`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
-resolves it hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv`
+**ast-grep is pinned to `0.44.1`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
+resolves it hermetically via `uvx --from ast-grep-cli==0.44.1 ast-grep` when `uv`
 is on PATH (no system install needed), falling back to a system `ast-grep`.
 
 **They fail-closed, grandfathered INLINE.** With nothing grandfathered every
