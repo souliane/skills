@@ -68,6 +68,7 @@ User says: "Add a `LoanApplication` data model with validation"
 - Use list comprehensions, walrus operator (`:=`), `itertools`, `operator` where they clarify intent.
 - Avoid intermediate variables that are only used once.
 - On Python 3.14+, prefer t-strings (`t"..."`, PEP 750) over f-strings or manual concatenation when building SQL/HTML/templates from interpolated values — the interpolated values stay separate from literal text instead of being flattened into one `str`, avoiding injection risk.
+- On Python 3.14+, use the stdlib `compression.zstd` module instead of the third-party `zstandard` package for zstd compression.
 
 ### Types are documentation
 
