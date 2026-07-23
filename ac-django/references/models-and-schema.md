@@ -24,6 +24,7 @@
 
 - `null` controls DB nullability; `blank` controls validation.
 - Avoid `null=True` on strings unless tri-state semantics are required.
+- `choices` can be a callable (Django 5.0+) instead of a static list/mapping — use it for choices that change without a schema change (settings-driven, looked up from another table, a third-party inventory like currencies/timezones). Migrations serialize the function reference, not the values, so the list changing never produces a no-op migration ([Adam Johnson](https://adamj.eu/tech/2025/05/03/django-choices-change-without-migration/)). Doesn't help if the choices are also enforced by a DB-level constraint — that still needs its own migration.
 
 ### 4.3 Constraints and indexes (correctness-first)
 
@@ -40,6 +41,7 @@ Rule: indexes are not decoration.
 - Always set `related_name` intentionally.
 - Choose `on_delete` intentionally.
 - Avoid accidental cascades on core domain data.
+- Django 6.1+ adds DB-level `on_delete` options — `DB_CASCADE`, `DB_SET_NULL`, `DB_SET_DEFAULT` — which push the delete into the database's own `ON DELETE` clause instead of Django loading the referencing rows first. Faster for large fan-out deletes, but `DB_CASCADE` does **not** fire `pre_delete`/`post_delete` signals — don't reach for it on a relation whose deletion something else listens for.
 
 #### 4.4.1 ForeignKey discipline (indexing + locks + migrations)
 
@@ -112,6 +114,7 @@ Patterns:
 - reverse FK/M2M: `prefetch_related()`
 - filtered prefetch: `Prefetch(...)`
 - templates must not trigger queries
+- Django 6.1+ adds fetch modes (`django.db.models.FETCH_ONE` / `FETCH_PEERS` / `RAISE`) on deferred/relation fields. `FETCH_PEERS` auto-batches an on-demand fetch across every instance from the same QuerySet — closing most N+1s to two queries with no explicit `select_related()`/`prefetch_related()` list to maintain. `RAISE` raises `FieldFetchBlocked` instead of silently querying, useful for asserting a hot path stays N+1-free.
 
 ### 5.4 Query hygiene
 
