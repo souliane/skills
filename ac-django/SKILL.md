@@ -19,8 +19,12 @@ metadata:
 - Django 6.0 release notes: <https://docs.djangoproject.com/en/6.0/releases/6.0/>
 - Adam Johnson — `django-upgrade`: <https://adamj.eu/tech/2021/09/16/introducing-django-upgrade/>
 - Adam Johnson — `django-linear-migrations`: <https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/>
-- Haki Benita — Django Foreign Keys: <https://hakibenita.com/django-foreign-keys>
+- Adam Johnson — Test for pending migrations: <https://adamj.eu/tech/2024/06/23/django-test-pending-migrations/>
+- Adam Johnson — Model field choices that can change without a migration: <https://adamj.eu/tech/2025/05/03/django-choices-change-without-migration/>
+- Haki Benita — "How to Get Foreign Keys Horribly Wrong": <https://hakibenita.com/django-foreign-keys>
+- Haki Benita — Reliable Django Signals (django-tasks-db production pattern): <https://hakibenita.com/django-reliable-signals>
 - James Bennett — Fat Model / "no service layer" (default) + followup on breaking up god-methods: <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- James Bennett — "Litestar is worth a look" (reaffirms no-service-layer specifically for Django, while allowing it for less-opinionated frameworks): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — model encapsulation (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
 - HackSoft Django Styleguide — the service-layer / `selectors.py` camp (one option, not this skill's default): <https://github.com/HackSoftware/Django-Styleguide>
 - DRF API guide: <https://www.django-rest-framework.org/api-guide/>
@@ -241,6 +245,7 @@ Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not 
 
 - Django docs — Managers: row-level → Model methods, table-level → Manager/QuerySet methods: <https://docs.djangoproject.com/en/6.0/topics/db/managers/#adding-extra-manager-methods>
 - James Bennett — "Against service layers in Django" + followup ("More on service layers"): <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- James Bennett — "Litestar is worth a look" (reaffirms the no-service-layer position specifically for Django): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — "Django models, encapsulation and data integrity" (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
 - Luke Plant — "Django Views — The Right Way" (functions over classes, anti-over-abstraction): <https://spookylukey.github.io/django-views-the-right-way/>
 - HackSoft Django Styleguide — the service-layer / `selectors.py` camp (the rung-(d) style, presented as one option not the default): <https://github.com/HackSoftware/Django-Styleguide>

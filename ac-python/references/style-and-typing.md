@@ -122,6 +122,38 @@ for job in queue:
 
 `except BaseException` is reserved for cleanup-then-raise (it also catches `KeyboardInterrupt`/`SystemExit`); always re-raise after the cleanup.
 
+### Exception groups for concurrent/batch failures
+
+When an operation can fail in multiple independent ways at once — fanning out over `asyncio.TaskGroup`, a thread pool, or validating a batch where every error matters, not just the first — raise an `ExceptionGroup` instead of surfacing one exception and discarding the rest:
+
+```python
+# bad — only the first validation error surfaces, the rest are silently lost
+def validate(items: list[Item]) -> None:
+    for item in items:
+        item.validate()  # raises on the first bad item; later items never checked
+
+# good — collect every failure, report them all
+def validate(items: list[Item]) -> None:
+    errors = [e for item in items if (e := _validate_one(item)) is not None]
+    if errors:
+        raise ExceptionGroup("validation failed", errors)
+```
+
+Catch with `except*`, which pulls out only the matching subset by type — unmatched exceptions keep propagating in a new group:
+
+```python
+try:
+    async with asyncio.TaskGroup() as tg:
+        tg.create_task(fetch(url_a))
+        tg.create_task(fetch(url_b))
+except* TimeoutError as eg:
+    for e in eg.exceptions:
+        logger.warning("timed out: %s", e)
+except* ValueError as eg:
+    for e in eg.exceptions:
+        logger.error("bad response: %s", e)
+```
+
 ### Vertical whitespace for grouping
 
 Group related lines together, separated by a blank line from unrelated logic:

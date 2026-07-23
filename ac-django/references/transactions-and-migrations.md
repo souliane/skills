@@ -87,6 +87,17 @@ Architectural-review detector for this smell: `ac-reviewing-codebase` codebase-a
 python manage.py makemigrations --check
 ```
 
+- Same check as a test ([Adam Johnson](https://adamj.eu/tech/2024/06/23/django-test-pending-migrations/)), so it shows up in normal test output rather than a separate CI step:
+
+```py
+from django.core.management import call_command
+from django.test import TestCase
+
+class PendingMigrationsTests(TestCase):
+    def test_no_pending_migrations(self):
+        call_command("makemigrations", check=True)  # check=True implies dry-run, no files written
+```
+
 - Linear migrations: [`django-linear-migrations`](https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/) enforces one leaf migration per app at dev time via `max_migration.txt` files and Django system checks (`dlm.E001`–`dlm.E004`). Not a CI step — it prevents conflicts locally before they reach CI.
 
 ### 7.2 Migration merge conflicts (Non-Negotiable)
