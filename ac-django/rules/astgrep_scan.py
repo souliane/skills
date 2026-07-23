@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 RULES_DIR = Path(__file__).resolve().parent
-ASTGREP_PIN = "0.42.3"
+ASTGREP_PIN = "0.44.1"
 
 
 def _astgrep_argv() -> list[str]:

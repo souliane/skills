@@ -7,9 +7,9 @@ metadata:
   subagent_safe: true
 ---
 
-# Python Bible (Python 3.12+ baseline)
+# Python Bible (Python 3.13+ baseline)
 
-**Baseline:** Python **3.12+** · **Tooling:** uv · ruff · mypy/ty · prek · pytest
+**Baseline:** Python **3.13+** · **Tooling:** uv · ruff · mypy/ty · prek · pytest
 
 ## Canonical Sources
 
@@ -67,11 +67,12 @@ User says: "Add a `LoanApplication` data model with validation"
 - Prefer the idiomatic Python solution over a generic one.
 - Use list comprehensions, walrus operator (`:=`), `itertools`, `operator` where they clarify intent.
 - Avoid intermediate variables that are only used once.
+- On Python 3.14+, prefer t-strings (`t"..."`, PEP 750) over f-strings or manual concatenation when building SQL/HTML/templates from interpolated values — the interpolated values stay separate from literal text instead of being flattened into one `str`, avoiding injection risk.
 
 ### Types are documentation
 
 - Full, modern annotations everywhere: `list[str]`, `str | None`, `dict[str, int]`.
-- Use the `type` statement (Python 3.12+) for recurring complex types.
+- Use the `type` statement for recurring complex types.
 - No duck-typing: if you are checking for attribute existence before acting, the type hint is too broad — narrow it.
 
 ### No docstrings — names are the docs

@@ -176,7 +176,7 @@ def find(id: int) -> User | None: ...
 def merge(a: str | bytes) -> str: ...
 ```
 
-### `type` statement for recurring complex types (Python 3.12+)
+### `type` statement for recurring complex types
 
 ```python
 type Matrix = list[list[float]]
@@ -235,6 +235,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 ```
+
+On Python 3.14+, this import is no longer necessary anywhere — PEP 649 makes annotation evaluation lazy by default, so forward references never need quoting or the `__future__` import. Keep writing it while the baseline includes 3.13, which still evaluates annotations eagerly.
 
 ### Annotate everything public
 
