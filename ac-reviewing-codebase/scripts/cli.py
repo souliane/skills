@@ -6,6 +6,8 @@
 """Deterministic checks and metrics for codebase review.
 
 Subcommands:
+    review-checklist — Render the review manifest into a working checklist (run FIRST).
+    review-verify    — Completion gate; non-zero until every mandatory item is evidenced.
     check   — Validate SKILL.md frontmatter in a tracked skills repo.
     status  — Show delivery status across all managed repos.
     config  — Inventory config files and health checks.
@@ -734,6 +736,99 @@ def show_config() -> None:
     console.print()
     console.print("[bold]Health Checks:[/bold]")
     _check_config_health()
+
+
+# ---------------------------------------------------------------------------
+# Review completion gate
+# ---------------------------------------------------------------------------
+
+MANIFEST_PATH = Path(__file__).resolve().parent.parent / "references" / "review-manifest.md"
+_ITEM_RE = re.compile(r"^- \[( |x|X)\]\s+`([^`]+)`\s+(.*)$")
+_EVIDENCE_RE = re.compile(r"^\s*evidence:\s*(.*)$")
+_NON_NEGOTIABLE = "(non-negotiable)"
+
+
+class ReviewItem:
+    def __init__(self, item_id: str, description: str, *, checked: bool) -> None:
+        self.id = item_id
+        self.description = description
+        self.checked = checked
+        self.evidence = ""
+
+    @property
+    def mandatory(self) -> bool:
+        return _NON_NEGOTIABLE in self.description.lower()
+
+
+def parse_manifest(text: str) -> list[ReviewItem]:
+    items: list[ReviewItem] = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            # The manifest documents its own line format inside a fence. Parsing
+            # that example as an item would put a permanently-unsatisfiable
+            # `<id>` in every checklist.
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = _ITEM_RE.match(line)
+        if match:
+            items.append(ReviewItem(match.group(2), match.group(3), checked=match.group(1).lower() == "x"))
+            continue
+        evidence = _EVIDENCE_RE.match(line)
+        if evidence and items:
+            items[-1].evidence = evidence.group(1).strip()
+    return items
+
+
+def verify_items(items: list[ReviewItem]) -> list[str]:
+    """Reasons the review is not complete. Empty means it is."""
+    failures = [
+        f"{i.id}: unchecked, and it is non-negotiable — {i.description}" for i in items if i.mandatory and not i.checked
+    ]
+    # A tick with no evidence is the failure mode this gate exists for: it costs
+    # one keystroke and looks identical to real work in a diff.
+    failures += [f"{i.id}: checked but no evidence recorded" for i in items if i.checked and not i.evidence]
+    return failures
+
+
+@app.command("review-checklist")
+def review_checklist(
+    out: Annotated[Path, typer.Option(help="Where to write the working checklist")] = Path(".review-checklist.md"),
+) -> None:
+    """Render the review manifest into a working checklist for this review."""
+    if not MANIFEST_PATH.exists():
+        console.print(f"[red]Manifest missing: {MANIFEST_PATH}[/red]")
+        raise typer.Exit(1)
+    out.write_text(MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    items = parse_manifest(out.read_text(encoding="utf-8"))
+    mandatory = sum(1 for i in items if i.mandatory)
+    console.print(f"Wrote [bold]{out}[/bold] — {len(items)} items, [yellow]{mandatory}[/yellow] non-negotiable.")
+    console.print("Tick each item and record evidence, then run [bold]review-verify[/bold].")
+
+
+@app.command("review-verify")
+def review_verify(
+    checklist: Annotated[Path, typer.Argument(help="The filled-in checklist")] = Path(".review-checklist.md"),
+) -> None:
+    """Fail unless every non-negotiable item is ticked and every tick has evidence."""
+    if not checklist.exists():
+        console.print(f"[red]No checklist at {checklist}.[/red] Run `review-checklist` first.")
+        console.print("A review with no checklist is not a review that can be called complete.")
+        raise typer.Exit(1)
+    items = parse_manifest(checklist.read_text(encoding="utf-8"))
+    if not items:
+        console.print(f"[red]{checklist} parsed to zero items[/red] — wrong file, or the format drifted.")
+        raise typer.Exit(1)
+    failures = verify_items(items)
+    done = sum(1 for i in items if i.checked)
+    if failures:
+        console.print(f"[red]Review INCOMPLETE[/red] — {done}/{len(items)} ticked, {len(failures)} problem(s):")
+        for failure in failures:
+            console.print(f"  [red]x[/red] {failure}")
+        raise typer.Exit(1)
+    console.print(f"[green]Review complete[/green] — {done}/{len(items)} items ticked, all evidenced.")
 
 
 @app.command()
