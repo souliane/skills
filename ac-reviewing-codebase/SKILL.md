@@ -32,12 +32,15 @@ Standalone. No hard dependencies on other skills.
 On startup, load `~/.ac-reviewing-codebase` (hardcoded path) if it exists. Shell-sourceable config file with uppercase variable names.
 
 ```bash
+# Root the repo scan walks. Every repo path below is relative to it.
+WORKSPACE_DIR="~/workspace"
+
 # Regex matched against resolved skill paths.
 # Skills whose real path matches are owned by the user and can be modified.
 MAINTAINED_SKILLS="my-repo/|other-repo/internal/(my-skill/)"
 
-# Regex matched against repo paths relative to T3_WORKSPACE_DIR.
-# All git repos under T3_WORKSPACE_DIR whose relative path matches are managed.
+# Regex matched against repo paths relative to WORKSPACE_DIR.
+# All git repos under WORKSPACE_DIR whose relative path matches are managed.
 MANAGED_REPOS="<org>/(repo-a|repo-b|repo-c)$"
 
 # Boilerplate -> dependent repos mapping.
@@ -53,14 +56,16 @@ SWEEP_POLICY="<owned-org>/(repo-a|repo-b):serial-merge"
 
 | Variable | Purpose | Fallback when missing |
 |----------|---------|----------------------|
+| `WORKSPACE_DIR` | Root directory the repo scan walks | `~/workspace` |
 | `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
-| `MANAGED_REPOS` | Regex to discover repos under `T3_WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
+| `MANAGED_REPOS` | Regex to discover repos under `WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
 | `BOILERPLATE_MAP` | Maps boilerplate repos to their dependents for backport workflow | No backporting |
 | `SWEEP_POLICY` | Per-repo policy for the `sweeping-prs` skill — `bulk-update` only refreshes the PR from `main`; `serial-merge` also squash-merges before moving to the next PR (avoids conflict cascades on owned repos) | All repos default to `bulk-update` (refresh-only) |
 
-**Dependencies on other config files:**
-
-- **Workspace config** (e.g., `~/.teatree.toml` or equivalent) — `workspace_dir` (where to scan for repos), `auto_squash` (squash behavior). TOML format.
+This file is the only configuration the CLI reads. Earlier revisions pointed at a
+second, TOML-format workspace config as the source of `workspace_dir`; no code
+ever read it, so a reader who set the workspace root there got the `~/workspace`
+fallback and a silently wrong repo list.
 
 **This file may be shared with a lifecycle tool** (which references it for workspace and ownership config). Users of such tools can generate it during setup. Otherwise, create it manually.
 
@@ -145,7 +150,7 @@ Before starting the review:
 
    **Stash & stale-branch triage (Non-Negotiable).** For every leftover stash or branch ahead of the default branch, before deciding apply-vs-drop **verify the content is not already present elsewhere in the portfolio** — a CLI command, a sibling skill or reference file, or an already-merged (often squash-merged) PR. If it is, the content is not unique: apply only the genuinely-new delta and reconcile against the canonical home rather than creating a divergent third copy; drop the rest. Detecting "is this branch already merged?" by commit count or `git diff` content-equality is **unreliable under squash-merge workflows** (squash creates a new SHA and the default branch moves on) — use **PR merge-state** as the authoritative signal, or a project-provided worktree-cleanup command if one exists, rather than hand-rolling heuristics.
 4. **Open-PR sweep (Non-Negotiable).** The review must run against the latest state — outstanding PRs that are about to land would produce stale findings and force a re-review.
-   - **Preferred path:** if a dedicated PR-sweep skill is available in the session (e.g. teatree's `sweeping-prs`), invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
+   - **Preferred path:** if the session offers a dedicated PR-sweep skill from a lifecycle tool, invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
    - **If unavailable:** ask the user whether they have one to install. If they decline, sweep manually by asking the user the few questions needed to do it correctly (which repos, which PRs to include/exclude, conflict-resolution preference, whether to wait for CI, **whether to also merge each PR after CI greens for fully-owned repos**), then walk each open PR — update from base, push, monitor CI, fix root causes (never `--no-verify`), and (for repos the user wants drained) squash-merge before the next PR — and surface any skipped PR in the final report.
 5. **Determine review scope.** Use `MAINTAINED_SKILLS` from config to discover all repos and skills in scope. List discovered skills grouped by repo and ask the user to confirm or narrow.
 6. **Discover agent memory and config files dynamically.** Scan platform-specific locations (e.g., `~/.claude/projects/*/memory/`, `~/.codex/`, `~/.cursor/`) for memory files. Check for repo-level agent config (`AGENTS.md`, `.cursorrules`, or similar) in each project root. Include all discovered files in the asset inventory for cross-review.

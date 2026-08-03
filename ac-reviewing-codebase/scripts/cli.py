@@ -523,14 +523,38 @@ def _scan_lines(root: Path, regex: str, includes: tuple[str, ...] = _SCAN_INCLUD
     return result.stdout.strip().splitlines() if result.stdout else []
 
 
+_TODO_MARKER_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
+
+
+def _strip_grep_location(line: str) -> str:
+    """Drop the ``path:lineno:`` prefix ``grep -n`` emits, keeping the content.
+
+    Without this a path like ``fixtures/XXX/a.py`` counts as a marker, and the
+    line number column can never be told apart from code.
+    """
+    return line.split(":", 2)[-1]
+
+
 def _count_todos(root: Path) -> dict[str, object]:
-    lines = _scan_lines(root, "TODO|FIXME|HACK|XXX")
+    # `total` and `by_type` must describe the same thing. Counting `total` as
+    # matched *lines* while incrementing every marker whose name appears
+    # anywhere in the line made them disagree (a dict literal naming all four
+    # markers scored 4), so attribute each line to its first marker only and
+    # derive the total from the buckets.
+    #
+    # The grep stays a plain alternation: `git grep -E` is POSIX ERE and has no
+    # `\b`, so a word-boundary pattern there matches nothing at all rather than
+    # erroring. Word-boundary precision belongs in Python, where the dialect is
+    # ours — grep only has to over-select.
     by_type: dict[str, int] = {"TODO": 0, "FIXME": 0, "HACK": 0, "XXX": 0}
-    for line in lines:
-        for marker in by_type:
-            if marker in line:
-                by_type[marker] += 1
-    return {"total": len(lines), "by_type": {k: v for k, v in by_type.items() if v > 0}}
+    for line in _scan_lines(root, "TODO|FIXME|HACK|XXX"):
+        match = _TODO_MARKER_RE.search(_strip_grep_location(line))
+        if match:
+            by_type[match.group(1)] += 1
+    return {
+        "total": sum(by_type.values()),
+        "by_type": {k: v for k, v in by_type.items() if v > 0},
+    }
 
 
 def _count_complexity(root: Path) -> dict[str, object]:
@@ -581,15 +605,26 @@ def _check_outdated_deps(root: Path) -> dict[str, object]:
 
 
 def _count_suppressions(root: Path) -> dict[str, int]:
-    """Count lint suppressions (noqa, type: ignore, pragma: no cover)."""
+    """Count lint suppressions (noqa, type: ignore, pragma: no cover).
+
+    A suppression only counts as one when it is a real trailing comment. The
+    same text inside a string literal is a *mention* — a linter's own pattern
+    table, a test fixture asserting on the marker — and counting those made
+    every repo that reasons about suppressions look like it was drowning in
+    them. Requiring the ``#`` not to be immediately preceded by a quote drops
+    the mentions without needing to parse Python.
+    """
     counts: dict[str, int] = {}
     patterns = {
-        "noqa": r"# noqa",
-        "type_ignore": r"# type: ignore",
-        "pragma_no_cover": r"# pragma: no cover",
+        "noqa": "# noqa",
+        "type_ignore": "# type: ignore",
+        "pragma_no_cover": "# pragma: no cover",
     }
     for name, pattern in patterns.items():
-        lines = _scan_lines(root, pattern, includes=("*.py",))
+        real = re.compile(rf"""(?:^|[^"'#]){re.escape(pattern)}""")
+        lines = [
+            line for line in _scan_lines(root, pattern, includes=("*.py",)) if real.search(_strip_grep_location(line))
+        ]
         if lines:
             counts[name] = len(lines)
     return counts
@@ -795,6 +830,33 @@ def _print_suppressions(supps: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+_REPO_ALTERNATION_RE = re.compile(r"([\w.-]+)/\(([^)]+)\)")
+_REPO_LITERAL_RE = re.compile(r"^([\w.-]+/[\w.-]+)\$?$")
+
+
+def unresolvable_managed_repos(config: dict[str, str]) -> list[str]:
+    """Repos named literally in MANAGED_REPOS that are not git repos on disk.
+
+    MANAGED_REPOS is a regex, so the set of repos it *intends* cannot be
+    enumerated in general — but the literal alternations people actually write
+    (``org/(a|b|c)$``) can be. Without this, a repo that is renamed or deleted
+    just stops matching: it silently drops out of every review while the config
+    still claims it, which is how two long-dead repos stayed listed for months.
+    """
+    workspace = _get_workspace_dir()
+    pattern = config.get("MANAGED_REPOS", "")
+    named: set[str] = set()
+    for org, alternatives in _REPO_ALTERNATION_RE.findall(pattern):
+        named |= {f"{org}/{alt.strip()}" for alt in alternatives.split("|") if alt.strip()}
+    # Whatever is left once the `org/(a|b)` groups are removed splits cleanly on
+    # `|`, because the only pipes that survive are the top-level alternation.
+    for branch in _REPO_ALTERNATION_RE.sub("", pattern).split("|"):
+        literal = _REPO_LITERAL_RE.match(branch.strip())
+        if literal:
+            named.add(literal.group(1))
+    return sorted(repo for repo in named if not (workspace / repo / ".git").exists())
+
+
 def _check_config_health() -> None:
     issues: list[str] = []
     config = _parse_shell_config(CONFIG_PATH)
@@ -802,6 +864,10 @@ def _check_config_health() -> None:
         issues.append("[yellow]MANAGED_REPOS not set in ~/.ac-reviewing-codebase[/yellow]")
     if not config.get("MAINTAINED_SKILLS"):
         issues.append("[yellow]MAINTAINED_SKILLS not set in ~/.ac-reviewing-codebase[/yellow]")
+    issues += [
+        f"[yellow]MANAGED_REPOS names '{repo}', which is not a git repo under {_get_workspace_dir()}[/yellow]"
+        for repo in unresolvable_managed_repos(config)
+    ]
     if not issues:
         console.print("  [green]All checks passed.[/green]")
     else:

@@ -4,15 +4,15 @@
 #     hooks:
 #       - id: ac-django-no-pytest-django-db
 #
-# The AST-shaped checks run ast-grep, PINNED to 0.42.3. The wrapper resolves it
-# hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv` is on
+# The AST-shaped checks run ast-grep, PINNED to 0.44.1. The wrapper resolves it
+# hermetically via `uvx --from ast-grep-cli==0.44.1 ast-grep` when `uv` is on
 # PATH (no system install needed), falling back to a system `ast-grep`.
 # Grandfathering is INLINE: a violation is silenced with ast-grep's native
 # `# ast-grep-ignore[<rule-id>]` comment on the line above. There is NO count cap
 # and NO baseline file — every existing occurrence in a consuming repo carries an
 # inline ignore; every new (un-ignored) occurrence fails the hook.
 #
-# The pyproject.toml ruff ignore-list surface (which ast-grep 0.42.3 cannot parse
+# The pyproject.toml ruff ignore-list surface (which ast-grep 0.44.1 cannot parse
 # — it has no TOML language) ships as the standalone `ac-django-no-pyproject-complexity`
 # hook; it grandfathers existing entries inline via repeated `--grandfather` args.
 # See ac-django/SKILL.md § "Enforcement via prek".

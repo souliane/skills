@@ -1,12 +1,13 @@
 """Meta-tests for the ac-django ast-grep rules + the standalone pyproject hook.
 
 The AST-shaped checks ship as ast-grep YAML rules run via ``astgrep_scan.py``;
-the ``pyproject.toml`` ruff ignore-list surface (which ast-grep 0.42.3 cannot
+the ``pyproject.toml`` ruff ignore-list surface (which ast-grep 0.44.1 cannot
 parse) ships as the standalone ``pyproject_complexity.py`` hook. Both grandfather
 INLINE — ast-grep via ``# ast-grep-ignore[<rule-id>]``, the pyproject hook via
 ``--grandfather`` args — with no baseline file and no count cap.
 """
 
+import re
 import shutil
 import subprocess
 import sys
@@ -158,3 +159,42 @@ class TestPyprojectComplexityHook:
     def test_passes_without_complexity_codes(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, '[tool.ruff]\nlint.ignore = ["D100", "COM812"]\n')
         assert _pyproject([path]) == 0
+
+
+class TestAstGrepPinIsSingleSourced:
+    """The ast-grep version appears in prose that consumers read, not just in code.
+
+    `.pre-commit-hooks.yaml` is the public contract a consuming repo reads before
+    wiring these hooks, and it stated 0.42.3 while the wrapper resolved 0.44.1 —
+    the pin drifted because it is written down in four places and enforced in
+    none. This walks every one of them and holds them to the wrapper's constant.
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parents[2]
+    VERSION_RE = re.compile(r"ast[- ]grep(?:-cli)?[^0-9\n]{0,40}?(\d+\.\d+\.\d+)")
+
+    def _pin(self) -> str:
+        source = (RULES_DIR / "astgrep_scan.py").read_text(encoding="utf-8")
+        match = re.search(r'^ASTGREP_PIN\s*=\s*"([^"]+)"', source, re.MULTILINE)
+        assert match, "astgrep_scan.py no longer defines ASTGREP_PIN"
+        return match.group(1)
+
+    def test_every_written_version_matches_the_wrapper_constant(self) -> None:
+        pin = self._pin()
+        git = shutil.which("git")
+        assert git, "git is required to enumerate tracked files"
+        tracked = subprocess.run(
+            [git, "-C", str(self.REPO_ROOT), "ls-files", "*.md", "*.yaml", "*.yml", "*.py"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        drifted: list[str] = []
+        for rel in tracked:
+            path = self.REPO_ROOT / rel
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            drifted += [f"{rel}: {found}" for found in self.VERSION_RE.findall(text) if found != pin]
+        assert not drifted, f"ast-grep version drifted from ASTGREP_PIN={pin}: {drifted}"
