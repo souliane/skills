@@ -268,7 +268,24 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 ```
 
-On Python 3.14+, this import is no longer necessary anywhere — PEP 649 makes annotation evaluation lazy by default, so forward references never need quoting or the `__future__` import. Keep writing it while the baseline includes 3.13, which still evaluates annotations eagerly.
+On Python 3.14+, PEP 649 makes annotation evaluation lazy by default, so the `__future__`
+import is no longer needed *for the annotations themselves* — a forward reference in a
+signature resolves without quoting. Keep writing it while the baseline includes 3.13,
+which still evaluates annotations eagerly.
+
+**Lazy is not the same as never evaluated.** Anything that *materializes* annotations
+evaluates them for real, and a name imported only under `TYPE_CHECKING` is not bound at
+runtime — so it raises `NameError` at the point of materialization, not at import. The
+eager readers to watch for:
+
+- `typing.get_type_hints()` and anything built on it
+- `dataclasses.dataclass` field resolution, and Pydantic model construction
+- Django's `as_view()` and system checks, which walk annotations during startup
+
+So the `TYPE_CHECKING` guard still earns its place on 3.14+: it keeps the import cost out
+of the runtime path. What changes is only that you no longer need the `__future__` import
+to make the annotation itself parse. If a type is read back at runtime by any of the above,
+import it normally rather than under the guard.
 
 ### Annotate everything public
 
