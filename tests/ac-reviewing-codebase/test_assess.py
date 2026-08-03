@@ -30,6 +30,27 @@ class TestCountTodos:
         assert result["by_type"]["TODO"] >= 1
         assert result["by_type"]["FIXME"] >= 1
 
+    def test_total_always_equals_the_sum_of_its_buckets(self, tmp_path: Path) -> None:
+        # A line naming several markers used to increment every bucket while
+        # `total` counted the line once, so the two halves of the same metric
+        # disagreed (12 vs 22 on this repo) and neither was the real number.
+        (tmp_path / "app.py").write_text(
+            'MARKERS = {"TODO": 0, "FIXME": 0, "HACK": 0, "XXX": 0}\n# TODO: a real one\n',
+            encoding="utf-8",
+        )
+        result = cli._count_todos(tmp_path)
+        assert result["total"] == sum(result["by_type"].values())
+
+    def test_a_line_counts_once_under_its_first_marker(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text("# TODO then FIXME on one line\n", encoding="utf-8")
+        result = cli._count_todos(tmp_path)
+        assert result["total"] == 1
+        assert result["by_type"] == {"TODO": 1}
+
+    def test_marker_inside_a_longer_word_is_not_a_todo(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text("VALID_XXXY = 1\nclass TODOList:\n    pass\n", encoding="utf-8")
+        assert cli._count_todos(tmp_path)["total"] == 0
+
 
 class TestCountSuppressions:
     def test_empty_dir(self, tmp_path: Path) -> None:
@@ -41,6 +62,12 @@ class TestCountSuppressions:
         result = cli._count_suppressions(tmp_path)
         assert result.get("noqa", 0) >= 1
         assert result.get("type_ignore", 0) >= 1
+
+    def test_a_quoted_marker_is_a_mention_not_a_suppression(self, tmp_path: Path) -> None:
+        # A tool that reasons about suppressions names them in its own pattern
+        # table. Counting those made every such repo look like it was drowning.
+        (tmp_path / "app.py").write_text('PATTERNS = {"noqa": "# noqa"}\n', encoding="utf-8")
+        assert cli._count_suppressions(tmp_path) == {}
 
 
 class TestCountLintViolations:
@@ -182,3 +209,37 @@ class TestCoverageNoDevStdout:
         monkeypatch.setattr(cli, "_run_tool", _capture)
         cli._check_coverage(tmp_path)
         assert "/dev/stdout" not in captured.get("args", []), captured
+
+
+class TestUnresolvableManagedRepos:
+    """MANAGED_REPOS is a regex, so a dead repo just stops matching, silently.
+
+    Two repos stayed listed for months after being deleted: they contributed no
+    rows to `status` and no warning anywhere, so nothing ever said the config
+    had drifted off the disk.
+    """
+
+    def _workspace(self, tmp_path: Path, *repos: str) -> Path:
+        for repo in repos:
+            (tmp_path / repo / ".git").mkdir(parents=True)
+        return tmp_path
+
+    def test_reports_alternation_members_with_no_repo_on_disk(self, tmp_path: Path, monkeypatch) -> None:
+        self._workspace(tmp_path, "org/alive")
+        monkeypatch.setattr(cli, "_get_workspace_dir", lambda: tmp_path)
+        assert cli.unresolvable_managed_repos({"MANAGED_REPOS": r"org/(alive|deleted)$"}) == ["org/deleted"]
+
+    def test_reports_bare_literal_branches_too(self, tmp_path: Path, monkeypatch) -> None:
+        self._workspace(tmp_path)
+        monkeypatch.setattr(cli, "_get_workspace_dir", lambda: tmp_path)
+        missing = cli.unresolvable_managed_repos({"MANAGED_REPOS": r"org/(a)$|other/solo$"})
+        assert missing == ["org/a", "other/solo"]
+
+    def test_silent_when_every_named_repo_exists(self, tmp_path: Path, monkeypatch) -> None:
+        self._workspace(tmp_path, "org/a", "org/b", "other/solo")
+        monkeypatch.setattr(cli, "_get_workspace_dir", lambda: tmp_path)
+        assert cli.unresolvable_managed_repos({"MANAGED_REPOS": r"org/(a|b)$|other/solo$"}) == []
+
+    def test_unset_config_names_nothing(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr(cli, "_get_workspace_dir", lambda: tmp_path)
+        assert cli.unresolvable_managed_repos({}) == []

@@ -6,6 +6,8 @@
 """Deterministic checks and metrics for codebase review.
 
 Subcommands:
+    review-checklist — Render the review manifest into a working checklist (run FIRST).
+    review-verify    — Completion gate; non-zero until every mandatory item is evidenced.
     check   — Validate SKILL.md frontmatter in a tracked skills repo.
     status  — Show delivery status across all managed repos.
     config  — Inventory config files and health checks.
@@ -523,14 +525,38 @@ def _scan_lines(root: Path, regex: str, includes: tuple[str, ...] = _SCAN_INCLUD
     return result.stdout.strip().splitlines() if result.stdout else []
 
 
+_TODO_MARKER_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
+
+
+def _strip_grep_location(line: str) -> str:
+    """Drop the ``path:lineno:`` prefix ``grep -n`` emits, keeping the content.
+
+    Without this a path like ``fixtures/XXX/a.py`` counts as a marker, and the
+    line number column can never be told apart from code.
+    """
+    return line.split(":", 2)[-1]
+
+
 def _count_todos(root: Path) -> dict[str, object]:
-    lines = _scan_lines(root, "TODO|FIXME|HACK|XXX")
+    # `total` and `by_type` must describe the same thing. Counting `total` as
+    # matched *lines* while incrementing every marker whose name appears
+    # anywhere in the line made them disagree (a dict literal naming all four
+    # markers scored 4), so attribute each line to its first marker only and
+    # derive the total from the buckets.
+    #
+    # The grep stays a plain alternation: `git grep -E` is POSIX ERE and has no
+    # `\b`, so a word-boundary pattern there matches nothing at all rather than
+    # erroring. Word-boundary precision belongs in Python, where the dialect is
+    # ours — grep only has to over-select.
     by_type: dict[str, int] = {"TODO": 0, "FIXME": 0, "HACK": 0, "XXX": 0}
-    for line in lines:
-        for marker in by_type:
-            if marker in line:
-                by_type[marker] += 1
-    return {"total": len(lines), "by_type": {k: v for k, v in by_type.items() if v > 0}}
+    for line in _scan_lines(root, "TODO|FIXME|HACK|XXX"):
+        match = _TODO_MARKER_RE.search(_strip_grep_location(line))
+        if match:
+            by_type[match.group(1)] += 1
+    return {
+        "total": sum(by_type.values()),
+        "by_type": {k: v for k, v in by_type.items() if v > 0},
+    }
 
 
 def _count_complexity(root: Path) -> dict[str, object]:
@@ -581,15 +607,26 @@ def _check_outdated_deps(root: Path) -> dict[str, object]:
 
 
 def _count_suppressions(root: Path) -> dict[str, int]:
-    """Count lint suppressions (noqa, type: ignore, pragma: no cover)."""
+    """Count lint suppressions (noqa, type: ignore, pragma: no cover).
+
+    A suppression only counts as one when it is a real trailing comment. The
+    same text inside a string literal is a *mention* — a linter's own pattern
+    table, a test fixture asserting on the marker — and counting those made
+    every repo that reasons about suppressions look like it was drowning in
+    them. Requiring the ``#`` not to be immediately preceded by a quote drops
+    the mentions without needing to parse Python.
+    """
     counts: dict[str, int] = {}
     patterns = {
-        "noqa": r"# noqa",
-        "type_ignore": r"# type: ignore",
-        "pragma_no_cover": r"# pragma: no cover",
+        "noqa": "# noqa",
+        "type_ignore": "# type: ignore",
+        "pragma_no_cover": "# pragma: no cover",
     }
     for name, pattern in patterns.items():
-        lines = _scan_lines(root, pattern, includes=("*.py",))
+        real = re.compile(rf"""(?:^|[^"'#]){re.escape(pattern)}""")
+        lines = [
+            line for line in _scan_lines(root, pattern, includes=("*.py",)) if real.search(_strip_grep_location(line))
+        ]
         if lines:
             counts[name] = len(lines)
     return counts
@@ -701,6 +738,99 @@ def show_config() -> None:
     _check_config_health()
 
 
+# ---------------------------------------------------------------------------
+# Review completion gate
+# ---------------------------------------------------------------------------
+
+MANIFEST_PATH = Path(__file__).resolve().parent.parent / "references" / "review-manifest.md"
+_ITEM_RE = re.compile(r"^- \[( |x|X)\]\s+`([^`]+)`\s+(.*)$")
+_EVIDENCE_RE = re.compile(r"^\s*evidence:\s*(.*)$")
+_NON_NEGOTIABLE = "(non-negotiable)"
+
+
+class ReviewItem:
+    def __init__(self, item_id: str, description: str, *, checked: bool) -> None:
+        self.id = item_id
+        self.description = description
+        self.checked = checked
+        self.evidence = ""
+
+    @property
+    def mandatory(self) -> bool:
+        return _NON_NEGOTIABLE in self.description.lower()
+
+
+def parse_manifest(text: str) -> list[ReviewItem]:
+    items: list[ReviewItem] = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            # The manifest documents its own line format inside a fence. Parsing
+            # that example as an item would put a permanently-unsatisfiable
+            # `<id>` in every checklist.
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = _ITEM_RE.match(line)
+        if match:
+            items.append(ReviewItem(match.group(2), match.group(3), checked=match.group(1).lower() == "x"))
+            continue
+        evidence = _EVIDENCE_RE.match(line)
+        if evidence and items:
+            items[-1].evidence = evidence.group(1).strip()
+    return items
+
+
+def verify_items(items: list[ReviewItem]) -> list[str]:
+    """Reasons the review is not complete. Empty means it is."""
+    failures = [
+        f"{i.id}: unchecked, and it is non-negotiable — {i.description}" for i in items if i.mandatory and not i.checked
+    ]
+    # A tick with no evidence is the failure mode this gate exists for: it costs
+    # one keystroke and looks identical to real work in a diff.
+    failures += [f"{i.id}: checked but no evidence recorded" for i in items if i.checked and not i.evidence]
+    return failures
+
+
+@app.command("review-checklist")
+def review_checklist(
+    out: Annotated[Path, typer.Option(help="Where to write the working checklist")] = Path(".review-checklist.md"),
+) -> None:
+    """Render the review manifest into a working checklist for this review."""
+    if not MANIFEST_PATH.exists():
+        console.print(f"[red]Manifest missing: {MANIFEST_PATH}[/red]")
+        raise typer.Exit(1)
+    out.write_text(MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    items = parse_manifest(out.read_text(encoding="utf-8"))
+    mandatory = sum(1 for i in items if i.mandatory)
+    console.print(f"Wrote [bold]{out}[/bold] — {len(items)} items, [yellow]{mandatory}[/yellow] non-negotiable.")
+    console.print("Tick each item and record evidence, then run [bold]review-verify[/bold].")
+
+
+@app.command("review-verify")
+def review_verify(
+    checklist: Annotated[Path, typer.Argument(help="The filled-in checklist")] = Path(".review-checklist.md"),
+) -> None:
+    """Fail unless every non-negotiable item is ticked and every tick has evidence."""
+    if not checklist.exists():
+        console.print(f"[red]No checklist at {checklist}.[/red] Run `review-checklist` first.")
+        console.print("A review with no checklist is not a review that can be called complete.")
+        raise typer.Exit(1)
+    items = parse_manifest(checklist.read_text(encoding="utf-8"))
+    if not items:
+        console.print(f"[red]{checklist} parsed to zero items[/red] — wrong file, or the format drifted.")
+        raise typer.Exit(1)
+    failures = verify_items(items)
+    done = sum(1 for i in items if i.checked)
+    if failures:
+        console.print(f"[red]Review INCOMPLETE[/red] — {done}/{len(items)} ticked, {len(failures)} problem(s):")
+        for failure in failures:
+            console.print(f"  [red]x[/red] {failure}")
+        raise typer.Exit(1)
+    console.print(f"[green]Review complete[/green] — {done}/{len(items)} items ticked, all evidenced.")
+
+
 @app.command()
 def assess(
     root: Annotated[Path, typer.Option(help="Repository root to assess")] = Path.cwd(),
@@ -795,6 +925,33 @@ def _print_suppressions(supps: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+_REPO_ALTERNATION_RE = re.compile(r"([\w.-]+)/\(([^)]+)\)")
+_REPO_LITERAL_RE = re.compile(r"^([\w.-]+/[\w.-]+)\$?$")
+
+
+def unresolvable_managed_repos(config: dict[str, str]) -> list[str]:
+    """Repos named literally in MANAGED_REPOS that are not git repos on disk.
+
+    MANAGED_REPOS is a regex, so the set of repos it *intends* cannot be
+    enumerated in general — but the literal alternations people actually write
+    (``org/(a|b|c)$``) can be. Without this, a repo that is renamed or deleted
+    just stops matching: it silently drops out of every review while the config
+    still claims it, which is how two long-dead repos stayed listed for months.
+    """
+    workspace = _get_workspace_dir()
+    pattern = config.get("MANAGED_REPOS", "")
+    named: set[str] = set()
+    for org, alternatives in _REPO_ALTERNATION_RE.findall(pattern):
+        named |= {f"{org}/{alt.strip()}" for alt in alternatives.split("|") if alt.strip()}
+    # Whatever is left once the `org/(a|b)` groups are removed splits cleanly on
+    # `|`, because the only pipes that survive are the top-level alternation.
+    for branch in _REPO_ALTERNATION_RE.sub("", pattern).split("|"):
+        literal = _REPO_LITERAL_RE.match(branch.strip())
+        if literal:
+            named.add(literal.group(1))
+    return sorted(repo for repo in named if not (workspace / repo / ".git").exists())
+
+
 def _check_config_health() -> None:
     issues: list[str] = []
     config = _parse_shell_config(CONFIG_PATH)
@@ -802,6 +959,10 @@ def _check_config_health() -> None:
         issues.append("[yellow]MANAGED_REPOS not set in ~/.ac-reviewing-codebase[/yellow]")
     if not config.get("MAINTAINED_SKILLS"):
         issues.append("[yellow]MAINTAINED_SKILLS not set in ~/.ac-reviewing-codebase[/yellow]")
+    issues += [
+        f"[yellow]MANAGED_REPOS names '{repo}', which is not a git repo under {_get_workspace_dir()}[/yellow]"
+        for repo in unresolvable_managed_repos(config)
+    ]
     if not issues:
         console.print("  [green]All checks passed.[/green]")
     else:

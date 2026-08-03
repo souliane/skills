@@ -32,12 +32,15 @@ Standalone. No hard dependencies on other skills.
 On startup, load `~/.ac-reviewing-codebase` (hardcoded path) if it exists. Shell-sourceable config file with uppercase variable names.
 
 ```bash
+# Root the repo scan walks. Every repo path below is relative to it.
+WORKSPACE_DIR="~/workspace"
+
 # Regex matched against resolved skill paths.
 # Skills whose real path matches are owned by the user and can be modified.
 MAINTAINED_SKILLS="my-repo/|other-repo/internal/(my-skill/)"
 
-# Regex matched against repo paths relative to T3_WORKSPACE_DIR.
-# All git repos under T3_WORKSPACE_DIR whose relative path matches are managed.
+# Regex matched against repo paths relative to WORKSPACE_DIR.
+# All git repos under WORKSPACE_DIR whose relative path matches are managed.
 MANAGED_REPOS="<org>/(repo-a|repo-b|repo-c)$"
 
 # Boilerplate -> dependent repos mapping.
@@ -53,14 +56,16 @@ SWEEP_POLICY="<owned-org>/(repo-a|repo-b):serial-merge"
 
 | Variable | Purpose | Fallback when missing |
 |----------|---------|----------------------|
+| `WORKSPACE_DIR` | Root directory the repo scan walks | `~/workspace` |
 | `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
-| `MANAGED_REPOS` | Regex to discover repos under `T3_WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
+| `MANAGED_REPOS` | Regex to discover repos under `WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
 | `BOILERPLATE_MAP` | Maps boilerplate repos to their dependents for backport workflow | No backporting |
 | `SWEEP_POLICY` | Per-repo policy for the `sweeping-prs` skill — `bulk-update` only refreshes the PR from `main`; `serial-merge` also squash-merges before moving to the next PR (avoids conflict cascades on owned repos) | All repos default to `bulk-update` (refresh-only) |
 
-**Dependencies on other config files:**
-
-- **Workspace config** (e.g., `~/.teatree.toml` or equivalent) — `workspace_dir` (where to scan for repos), `auto_squash` (squash behavior). TOML format.
+This file is the only configuration the CLI reads. Earlier revisions pointed at a
+second, TOML-format workspace config as the source of `workspace_dir`; no code
+ever read it, so a reader who set the workspace root there got the `~/workspace`
+fallback and a silently wrong repo list.
 
 **This file may be shared with a lifecycle tool** (which references it for workspace and ownership config). Users of such tools can generate it during setup. Otherwise, create it manually.
 
@@ -74,6 +79,12 @@ SWEEP_POLICY="<owned-org>/(repo-a|repo-b):serial-merge"
 Single entry point at [`scripts/cli.py`](scripts/cli.py).
 
 ```bash
+# FIRST action of every review — render the enforced completion checklist
+uv run ac-reviewing-codebase/scripts/cli.py review-checklist [--out PATH]
+
+# LAST action of every review — gate: exits non-zero until the review is complete
+uv run ac-reviewing-codebase/scripts/cli.py review-verify [CHECKLIST]
+
 # Validate SKILL.md frontmatter in a skills repo
 uv run ac-reviewing-codebase/scripts/cli.py check [--root PATH]
 
@@ -88,6 +99,47 @@ uv run ac-reviewing-codebase/scripts/cli.py assess [--root PATH] [--json]
 ```
 
 In this repo's pre-commit hook, the `check` command runs automatically. When reviewing another repo interactively, call explicitly before the deeper review.
+
+## Completion Is Enforced, Not Remembered (Non-Negotiable)
+
+This review is ~40 mandatory items spread over 1,500 lines of reference prose. The
+observed failure — repeatedly, across sessions — is that an agent runs Phase 0, finds
+real bugs, ships them, and reports "review complete" having covered a fraction of the
+scope. Nothing structurally distinguished a finished review from an abandoned one, and
+the earlier prose rule against it (Rule 12) did not hold, because a rule that asks the
+agent to remember 40 things is the same class of mechanism that failed.
+
+So completion is executable:
+
+1. **Begin** every review by running `review-checklist`. It renders
+   [`references/review-manifest.md`](references/review-manifest.md) — the single source
+   of truth for scope — into a working checklist.
+2. **Tick each item as you complete it, with evidence** naming what you actually ran or
+   read. A tick costs one keystroke and looks identical to real work in a diff; the
+   evidence line is what makes the difference visible.
+3. **You may not report the review complete until `review-verify` exits 0.** It fails on
+   any unticked non-negotiable, and on any tick with an empty `evidence:`.
+
+An item that genuinely does not apply is ticked with `evidence: n/a — <reason>`.
+Declaring something inapplicable is a judgment that leaves a record; silently skipping
+it is exactly what this gate exists to catch.
+
+If the review is genuinely too large for one session, say so and report the checklist
+state — a partial review honestly reported is fine. A partial review reported as
+complete is not.
+
+**For the person who asked for the review.** No instruction can force an agent to run
+a command, so the gate's real power is that it makes a completion claim *falsifiable*
+by you, in one command:
+
+```bash
+uv run ac-reviewing-codebase/scripts/cli.py review-verify .review-checklist.md
+```
+
+Non-zero means the review is not done, whatever the summary said. If the checklist does
+not exist at all, the review was never scoped against this manifest — which is itself
+the answer. Ask for the checklist alongside the findings; it is the deliverable that
+says how much of the scope was actually covered.
 
 ## Quality Principles
 
@@ -114,7 +166,7 @@ Read [`references/quality-principles.md`](references/quality-principles.md) befo
 9. **Implement, don't postpone (Non-Negotiable).** When review identifies concrete improvements, implement them in the same session. TODO comments are postponement.
 10. **Factorize aggressively.** Duplicated logic across scripts, repos, or skills is a finding. Extract to a shared module, tool, or reference file. When unsure whether duplication is intentional — **ask the user**.
 11. **Documentation must be current or auto-generated.** Check that docs (README, BLUEPRINT, generated API docs) are up to date with the code. If manually maintained, flag drift. If auto-generated, verify the generation hook exists in pre-commit or CI. Missing auto-generation for documentation that should be generated is a finding.
-12. **Phase 0 fixes are NOT the review (Non-Negotiable).** Phase 0 prerequisite checks (running `cli.py check`, `--help`, `prek` in dry-run, reading `assess` output) routinely surface quick-win fixups — stale refs in a generator script, a pyenv/shim bug, a missing dep declaration. Shipping those is encouraging, but it is not the review. Before declaring the review done, **explicitly list every repo in scope and confirm each has been through Phases 1–4**. A review that touched 2 of 8 in-scope repos is 25% complete, not done. When the user flags this gap, do not retroactively re-scope — acknowledge and run the missing phases. The "Definition of Done" in Phase 6.5 is binding: re-running the review on the same scope must produce zero new findings, which is only possible if the full scope was actually reviewed.
+12. **Phase 0 fixes are NOT the review, and the checklist is how you prove it (Non-Negotiable).** Phase 0 prerequisite checks routinely surface quick-win fixups — a stale ref in a generator script, a shim bug, a missing dep declaration. Shipping those is encouraging, but it is not the review. This rule used to end with "before declaring the review done, explicitly list every repo in scope and confirm each has been through Phases 1–4", and **that did not work**: it asked the agent to remember, which is the same mechanism that fails. Completion is now gated by `review-verify` (see § "Completion Is Enforced, Not Remembered"). Run `review-checklist` first, tick items with evidence as you go, and do not report the review complete until the gate exits 0. A review that touched 2 of 8 in-scope repos is 25% complete, not done — and the checklist will say so out loud.
 13. **Behavioral-eval coverage is a SUGGESTION, never an enforcement.** Deterministic tests grade what code *does*; they cannot grade what a skill instructs an agent to do or whether non-deterministic, AI-evaluated behavior holds at runtime. When a reviewed skill encodes a load-bearing rule, or runtime behavior depends on what an LLM agent says/invokes, **suggest** behavioral-eval coverage (per-skill embedded evals and/or upper-level integration AI evals). This is **conditional**: suggest the cheapest layer that reaches the behavior (code-enforceable → deterministic test; LLM-output-only → transcript scenario), suggest it **partially** (the skill's load-bearing rules, not every line), and **never suggest it when the repo already has its own eval/behavioral-test mechanism** — align with that one instead of layering a second. It is a finding the user may decline, not a gate. See [`references/ai-eval-review.md`](references/ai-eval-review.md) for the mechanism so every such finding names a concrete shape.
 14. **Verify a flagged issue before acting on it.** A smell spotted in passing — an incidental claim from a sub-scan, a pattern that "looks wrong" — is a lead, not a confirmed finding. Reproduce it against the actual code (run the command, trace the path) before blocking on it or recording it as a durable finding. An unverified claim propagated as fact wastes the author's time and erodes trust in the review.
 15. **Independent eyes catch more than the author's.** A review carries most of its value when the reviewer is not the author of the change — a self-review is blind to the very assumptions that produced the bug. When you can, route the review to a different person, or a separate agent run, than the one that wrote the code. This is a principle about review efficacy, not a workflow mandate — it holds whether the review is human or automated.
@@ -137,7 +189,13 @@ flowchart LR
 
 ## Phase 0 — Prerequisites
 
-Before starting the review:
+**0. Render the checklist — do this before anything else.** Run
+`cli.py review-checklist`. Everything below, and every phase after it, is an item on
+that checklist; `review-verify` will refuse to pass until each is ticked with evidence.
+Starting the review without it is how a review ends up 25% done and reported as
+finished.
+
+Then:
 
 1. **Verify git-tracked source repos.** For each repo in scope, confirm skill directories are git-tracked sources, not symlink targets. When the user's cwd is a parent of multiple skill repos (not itself a repo), verify each child repo individually.
 2. **Symlink health check.** Scan agent skill directories for **maintained skills** (matching `MAINTAINED_SKILLS` regex) that are managed installs instead of live clone symlinks. Report stale installs.
@@ -145,7 +203,7 @@ Before starting the review:
 
    **Stash & stale-branch triage (Non-Negotiable).** For every leftover stash or branch ahead of the default branch, before deciding apply-vs-drop **verify the content is not already present elsewhere in the portfolio** — a CLI command, a sibling skill or reference file, or an already-merged (often squash-merged) PR. If it is, the content is not unique: apply only the genuinely-new delta and reconcile against the canonical home rather than creating a divergent third copy; drop the rest. Detecting "is this branch already merged?" by commit count or `git diff` content-equality is **unreliable under squash-merge workflows** (squash creates a new SHA and the default branch moves on) — use **PR merge-state** as the authoritative signal, or a project-provided worktree-cleanup command if one exists, rather than hand-rolling heuristics.
 4. **Open-PR sweep (Non-Negotiable).** The review must run against the latest state — outstanding PRs that are about to land would produce stale findings and force a re-review.
-   - **Preferred path:** if a dedicated PR-sweep skill is available in the session (e.g. teatree's `sweeping-prs`), invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
+   - **Preferred path:** if the session offers a dedicated PR-sweep skill from a lifecycle tool, invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
    - **If unavailable:** ask the user whether they have one to install. If they decline, sweep manually by asking the user the few questions needed to do it correctly (which repos, which PRs to include/exclude, conflict-resolution preference, whether to wait for CI, **whether to also merge each PR after CI greens for fully-owned repos**), then walk each open PR — update from base, push, monitor CI, fix root causes (never `--no-verify`), and (for repos the user wants drained) squash-merge before the next PR — and surface any skipped PR in the final report.
 5. **Determine review scope.** Use `MAINTAINED_SKILLS` from config to discover all repos and skills in scope. List discovered skills grouped by repo and ask the user to confirm or narrow.
 6. **Discover agent memory and config files dynamically.** Scan platform-specific locations (e.g., `~/.claude/projects/*/memory/`, `~/.codex/`, `~/.cursor/`) for memory files. Check for repo-level agent config (`AGENTS.md`, `.cursorrules`, or similar) in each project root. Include all discovered files in the asset inventory for cross-review.
@@ -248,6 +306,12 @@ Present non-ambiguous items as "will do." For ambiguous items, ask **one questio
 Commit, second pass, pre-commit verification, final commit, definition of done. See [`references/review-phases.md`](references/review-phases.md).
 
 **"Done" means re-running this review on the same scope produces zero new findings.**
+
+That sentence was in this file for the whole time the review was being reported
+complete at a fraction of scope, which is the evidence that a definition alone is not
+a gate. The operational form is: **`review-verify` exits 0.** Run it before writing any
+completion message. If it exits non-zero, the review is not done — finish the named
+items, or report the checklist state honestly as partial.
 
 ### 6.6: Squash Own Commits
 

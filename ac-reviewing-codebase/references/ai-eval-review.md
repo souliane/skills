@@ -30,7 +30,7 @@ A per-skill eval pins the rule a single skill teaches. An integration eval pins 
 
 ## The mechanism (so the finding is concrete, not vague)
 
-This is the shape to point at when suggesting "add an eval like this". It is one concrete, working design (teatree's `EvalSpec` harness); a repo with its own conventions should follow those instead.
+This is the shape to point at when suggesting "add an eval like this". It is one concrete, working design taken from a lifecycle tool's `EvalSpec` harness; a repo with its own conventions should follow those instead.
 
 ### Scenario shape (EvalSpec)
 
@@ -107,7 +107,7 @@ A bad suggestion is "add evals" with no tier, no shape, and no check for an exis
 
 ## Sources / inspiration
 
-The mechanism documented here is teatree's `EvalSpec` harness (`src/teatree/eval/`). Two third-party skills informed the framing and are inspiration only (not dependencies):
+The mechanism documented here is a lifecycle tool's `EvalSpec` harness. Two third-party skills informed the framing and are inspiration only (not dependencies):
 
 - **Anthropic `skill-creator`** (Apache-2.0) — its Eval mode runs a skill *with* and *without* itself in parallel and grades the outputs (with-skill vs baseline A/B), uses a grader sub-agent for non-deterministic assertions and deterministic scripts for verifiable ones, and warns against forcing assertions onto subjective skills. The "grade the delta the skill makes, not just the absolute output" idea is the strongest borrow.
 - **obra `superpowers` / `writing-skills`** (MIT) — "no skill without a failing test first": establish the baseline behavior *without* the skill (RED), write the minimal skill (GREEN), then add counters for the rationalizations testing surfaces (REFACTOR). The "prove the skill changes behavior vs baseline" stance complements the anti-vacuous pairing above.
