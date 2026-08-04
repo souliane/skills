@@ -136,7 +136,7 @@ Verify agent platform hook scripts are correct and functional. Check event types
 
 ### 3.5b Promote Plugin/Overlay Wrappers to Core Backends (Non-Negotiable)
 
-When the codebase has a plugin or overlay architecture with **typed core backend protocols** (e.g., teatree's `CodeHost`, `CIService`, `IssueTracker`, `ChatNotifier`, `ErrorTracker` in `backends/protocols.py`), every plugin/overlay method that performs platform-API work belongs on a core backend, not on the plugin.
+When the codebase has a plugin or overlay architecture with **typed core backend protocols** — one protocol per external system (code host, CI service, issue tracker, chat notifier, error tracker), usually collected in a `protocols` module — every plugin/overlay method that performs platform-API work belongs on a core backend, not on the plugin.
 
 **A plugin method is a promotion candidate when its body contains any of:**
 

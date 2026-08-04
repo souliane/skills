@@ -28,7 +28,7 @@ This skill works alongside the agent's native skill system. Skills created here 
 Before starting, determine the mode:
 
 1. Check for existing `SKILL.md` files, `.pre-commit-config.yaml`, `pyproject.toml` in the target directory.
-2. If **none exist** → **Scaffold mode** (§§ 1–9 below).
+2. If **none exist** → **Scaffold mode** (§§ 1–6 below).
 3. If **any exist** → **Update mode** (§ 10 below). Tell the user: "Detected an existing skill repo. Switching to update mode — I'll audit each config area and propose changes individually."
 
 ---
@@ -154,11 +154,11 @@ Copy template files from [`references/templates/`](references/templates.md) dire
 - [`.editorconfig`](references/templates/.editorconfig)
 - [`README.md.template`](references/templates/README.md.template) — with auto-generated skills catalogue
 
-### Import Style Check (Non-Negotiable)
+### 5. Import Style Check (Non-Negotiable)
 
 When scaffolding from a boilerplate, **check how the boilerplate's entry point and imports work before writing code**. Check `pyproject.toml` `[project.scripts]` and `[tool.coverage.run] source` to understand the package structure. Write a minimal test that exercises the entry point early. The boilerplate may use bare module names (`from main import app`), not fully-qualified `from src.xxx` imports.
 
-### 9. Initialize
+### 6. Initialize
 
 After scaffolding:
 
@@ -218,7 +218,7 @@ For each section, show what will be added/changed and wait for confirmation.
 
 #### 10.4 .pre-commit-config.yaml
 
-Compare hooks against the template in § 5:
+Compare hooks against the template in § 4 (`.pre-commit-config.yaml`):
 
 - **Missing hooks** (e.g., no `codespell`, no `markdownlint-cli2`, no `editorconfig-checker`, no `ty-check`) → offer to add each one individually
 - **Outdated hook revisions** → offer to update each, showing old → new
@@ -228,12 +228,12 @@ Compare hooks against the template in § 5:
 
 #### 10.5 .editorconfig
 
-- **Missing entirely** → offer to create from template (§ 7)
+- **Missing entirely** → offer to create from template (§ 4, `.editorconfig`)
 - **Missing sections** (e.g., no `[*.py]` override) → offer to add
 
 #### 10.6 .markdownlint-cli2.yaml
 
-- **Missing entirely** → offer to create from template (§ 6)
+- **Missing entirely** → offer to create from template (§ 4, `.markdownlint-cli2.yaml`)
 - **Missing rules** compared to template → offer to add each
 
 #### 10.7 .gitignore

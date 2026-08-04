@@ -1,4 +1,8 @@
 __pycache__/
 .vscode/
 .banned-terms
-*.lock~
+*~
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/

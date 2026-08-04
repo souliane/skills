@@ -171,7 +171,7 @@ lint.preview = true
 
 ### Type checking: `mypy` (production) / `ty` (experimental)
 
-Use `mypy` for production projects. `ty` is Astral's new type checker — fast but alpha:
+Use `mypy` for production projects. `ty` is Astral's type checker — fast but still in beta, pre-1.0:
 
 ```toml
 [tool.mypy]

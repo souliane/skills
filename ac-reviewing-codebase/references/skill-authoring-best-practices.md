@@ -107,6 +107,16 @@ When a workflow is deterministic and multi-step, implement it as a callable scri
 
 When *reviewing* a repo's AI-evaluated behavior (rather than authoring), see [`ai-eval-review.md`](ai-eval-review.md) for the full mechanism and the conditional reviewer checklist (and SKILL.md Rule 13 for the suggest-don't-enforce posture).
 
+### Where evals live — separate artifact, never inline in SKILL.md
+
+The behavior is what's under test, but the eval *definitions* are data, not prose — keep them out of the SKILL.md body:
+
+- **Separate file, not inline.** Store cases in `evals/evals.json`, not as scenarios pasted into SKILL.md. SKILL.md stays concise (Anthropic: "the context window is a public good," body under ~500 lines), and reference/data files survive compaction independently (see [Compaction Survival](#compaction-survival)). Leave at most a one-line pointer in SKILL.md (`Evals: see evals/evals.json; run evals/eval_*.py`).
+- **Schema** (skill-creator): `{ "skill_name", "evals": [{ "id", "prompt", "expected_output", "files" }] }`, with objectively-verifiable, descriptively-named assertions in `eval_metadata.json`. The best-practices doc shows an alternate `{ skills, query, files, expected_behavior }` shape — either is fine; pick one and stay consistent.
+- **Bring your own runner.** Anthropic ships no built-in eval runner ("users can create their own evaluation system"). The deterministic subset (stdlib, no LLM) is what runs free in CI on every change; LLM-graded behavioral cases need an API key + grader, so they belong in a manual/scheduled lane, off the PR path.
+- **Three rigor tiers:** manual (eyeball in Claude.ai) → scripted (repeatable runner, CI-able) → programmatic (executor + grader + benchmark, e.g. skill-creator). Cover three test *types*: triggering (loads on the right prompts, not the wrong ones), functional (correct output), performance (with-skill vs baseline tokens/turns).
+- **The inline anti-pattern.** Test-case snippets shown inline in the "Complete Guide to Building Skills" PDF are *illustrative examples of a case*, not a directive to store evals in SKILL.md. An agent that keeps evals inline should migrate them to `evals/` + a runner + a SKILL.md pointer.
+
 ## Consistent Terminology
 
 Use one term per concept throughout the skill. If you call it "worktree" in one section, don't call it "workspace" in another.

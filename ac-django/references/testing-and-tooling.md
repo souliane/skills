@@ -22,6 +22,12 @@ Non-negotiables:
 - nullable/optional fields are behind traits
 - prefer `build()` unless persistence is required
 
+> **Compatibility note:** Factory Boy's latest release (3.3.3) predates Django
+> 5.2/6.0/6.1 and never formally declared support for them — an "add Django 5.2
+> support" changelog entry has sat unreleased upstream. It works fine in
+> practice against current Django, but don't cite it as officially compatible
+> without checking upstream's release notes at adoption time.
+
 Trait pattern:
 
 ```py

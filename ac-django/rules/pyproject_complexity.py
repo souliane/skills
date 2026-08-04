@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prek entry point: flag NEW C901/PLR09xx ignores in a pyproject ruff config.
 
-ast-grep 0.42.3 has no TOML language, so the ``pyproject.toml`` ruff
+ast-grep 0.44.1 has no TOML language, so the ``pyproject.toml`` ruff
 ignore-list surface is out of scope for the ast-grep ``no-complexity-suppressions``
 rule. This tiny standalone hook covers exactly that surface: it parses every
 ``[tool.ruff] lint.ignore`` / ``lint.extend-ignore`` / ``lint.per-file-ignores``

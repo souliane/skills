@@ -11,7 +11,7 @@ metadata:
 
 # Django Bible (Django 6.x baseline · Django 5.2 deltas · optional DRF)
 
-**Baseline:** Django **6.x** + Python **3.12+** · **Compat:** Django **5.2 LTS** · **API:** DRF _when you choose it_
+**Baseline:** Django **6.x** + Python **3.13+** · **Compat:** Django **5.2 LTS** · **API:** DRF _when you choose it_
 
 ## Canonical Sources
 
@@ -19,8 +19,12 @@ metadata:
 - Django 6.0 release notes: <https://docs.djangoproject.com/en/6.0/releases/6.0/>
 - Adam Johnson — `django-upgrade`: <https://adamj.eu/tech/2021/09/16/introducing-django-upgrade/>
 - Adam Johnson — `django-linear-migrations`: <https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/>
-- Haki Benita — Django Foreign Keys: <https://hakibenita.com/django-foreign-keys>
+- Adam Johnson — Test for pending migrations: <https://adamj.eu/tech/2024/06/23/django-test-pending-migrations/>
+- Adam Johnson — Model field choices that can change without a migration: <https://adamj.eu/tech/2025/05/03/django-choices-change-without-migration/>
+- Haki Benita — "How to Get Foreign Keys Horribly Wrong": <https://hakibenita.com/django-foreign-keys>
+- Haki Benita — Reliable Django Signals (django-tasks-db production pattern): <https://hakibenita.com/django-reliable-signals>
 - James Bennett — Fat Model / "no service layer" (default) + followup on breaking up god-methods: <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- James Bennett — "Litestar is worth a look" (reaffirms no-service-layer specifically for Django, while allowing it for less-opinionated frameworks): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — model encapsulation (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
 - HackSoft Django Styleguide — the service-layer / `selectors.py` camp (one option, not this skill's default): <https://github.com/HackSoftware/Django-Styleguide>
 - DRF API guide: <https://www.django-rest-framework.org/api-guide/>
@@ -139,6 +143,14 @@ Upgrade posture:
   - `# TODO(Django6): remove {% load partials %} (partials become native)`
   - `# TODO(Django6): replace django-csp with built-in CSP middleware`
 
+Django 7.0 deprecation watch (flagged during the 6.1 cycle, removal in 7.0 — avoid writing new code against these):
+
+- Flat `EMAIL_*` settings (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, etc.) are deprecated in favor of a `MAILERS` dict setting (mirrors `DATABASES`/`CACHES`); new code should not add to the flat settings.
+- `QuerySet.select_related()` called with no arguments, and `ModelAdmin.list_select_related = True` — always pass explicit field names.
+- `QuerySet.values_list(flat=True)` without an explicit field name.
+- `django.db.transaction.savepoint()` — use `savepoint_create()`.
+- The default HMAC algorithm for `salted_hmac()`/`base64_hmac()` flips from `sha1` to `sha256` — don't hardcode `sha1` expectations.
+
 ## Project Layout & Boundaries
 
 ### Domain-first apps
@@ -233,6 +245,7 @@ Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not 
 
 - Django docs — Managers: row-level → Model methods, table-level → Manager/QuerySet methods: <https://docs.djangoproject.com/en/6.0/topics/db/managers/#adding-extra-manager-methods>
 - James Bennett — "Against service layers in Django" + followup ("More on service layers"): <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
+- James Bennett — "Litestar is worth a look" (reaffirms the no-service-layer position specifically for Django): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — "Django models, encapsulation and data integrity" (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
 - Luke Plant — "Django Views — The Right Way" (functions over classes, anti-over-abstraction): <https://spookylukey.github.io/django-views-the-right-way/>
 - HackSoft Django Styleguide — the service-layer / `selectors.py` camp (the rung-(d) style, presented as one option not the default): <https://github.com/HackSoftware/Django-Styleguide>
@@ -317,8 +330,8 @@ tiny standalone Python hook. A consuming repo references them by URL and rev:
 | `ac-django-no-complexity-suppressions` | ast-grep | a `# noqa: C901`/`PLR09xx` comment in source/tests |
 | `ac-django-no-pyproject-complexity` | standalone | a `C901`/`PLR09xx` entry in a `pyproject.toml` ruff `lint.ignore` / `lint.extend-ignore` / `lint.per-file-ignores` list |
 
-**ast-grep is pinned to `0.42.3`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
-resolves it hermetically via `uvx --from ast-grep-cli==0.42.3 ast-grep` when `uv`
+**ast-grep is pinned to `0.44.1`.** The wrapper (`ac-django/rules/astgrep_scan.py`)
+resolves it hermetically via `uvx --from ast-grep-cli==0.44.1 ast-grep` when `uv`
 is on PATH (no system install needed), falling back to a system `ast-grep`.
 
 **They fail-closed, grandfathered INLINE.** With nothing grandfathered every

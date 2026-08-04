@@ -36,14 +36,38 @@ openclaw plugins enable <channel-name>
 
 - Phone number (can receive SMS once, for verification)
 - **Dedicated number recommended** — registering with signal-cli can de-auth your main Signal app
+- signal-cli **>= 0.14.5** — see the version floor below. This is not a "prefer newer"; older builds silently drop every inbound 1:1 message
 - signal-cli binary: native Linux build or JVM variant (needs Java 25+)
 - Gateway talks to signal-cli over HTTP JSON-RPC + SSE
 
-### ARM64/aarch64 — Build libsignal from source (REQUIRED)
+### Version floor: signal-cli >= 0.14.5 (silent inbound outage below it)
 
-There is **no pre-built ARM64 `libsignal_jni.so`** as of 2026-03. The JVM variant of signal-cli WILL NOT WORK without this native library. You MUST build it from source.
+Around **2026-06-10**, Signal's server stopped sending `serverGuid` in sealed-sender envelopes. A non-null check in `libsignal-service-java` throws on every such envelope, so signal-cli **discards every inbound 1:1 message** — with no error surfaced to the user. Outbound sending is unaffected.
 
-**Do NOT use `signal-cli-rest-api` Docker container** — it exposes a REST API, but OpenClaw expects JSON-RPC + SSE. They are incompatible.
+The symptom is therefore *not* "Signal is broken". The assistant answers cron jobs, posts digests, and replies to nothing you send: **write-only, and it looks alive.** This went undetected for six weeks on a real deployment.
+
+- Upstream issue: [AsamK/signal-cli#2059](https://github.com/AsamK/signal-cli/issues/2059)
+- Fixed in **signal-cli 0.14.5** (2026-06-11)
+- First container image carrying the fix: **`bbernhard/signal-cli-rest-api:0.100`**
+
+**Verification must include an inbound message.** `signal-cli --version` plus a successful send does not exercise the broken path — message yourself from another device and confirm the assistant reacts.
+
+### ARM64/aarch64 — prefer x86-64; otherwise use the container
+
+**For a fresh install, choose x86-64.** There is **no pre-built ARM64 `libsignal_jni.so`**; the upstream `-Linux-native` release asset is x86_64-only. Building it from source on arm64 is possible but has been observed to produce a **version-mismatched library that SIGSEGVs on send**. Picking x86-64 *removes* this maintenance burden — it does not add an "x86 transition tax".
+
+If the box must be arm64, the working arrangement is to bypass the host JVM and run signal-cli from the **`bbernhard/signal-cli-rest-api`** container image (its manifest list covers amd64, arm, and arm64), pinned to `0.100` or newer for the version floor above.
+
+> An earlier revision of this skill said never to use that image because it exposes a REST API while the gateway expects JSON-RPC + SSE. That is superseded for arm64 — the container is what has actually been observed working. Confirm the transport the gateway is configured for matches how you run the container, and look for a host shim such as `/usr/local/bin/signal-cli-docker`; its comments usually explain the local arrangement.
+
+**When signal-cli runs in a container, the account data directory is whatever the RUNNING container binds — not what a shipped `docker-compose.yml` says.** The two drift. Starting the container against an empty volume makes signal-cli believe the account is unregistered and triggers **re-registration, which de-authorises the Signal account**. Always confirm the real mount first:
+
+```bash
+docker inspect <container> --format '{{json .Mounts}}'
+```
+
+<details>
+<summary>Fallback: building libsignal from source on arm64 (last resort)</summary>
 
 ```bash
 # Prerequisites
@@ -51,8 +75,8 @@ sudo apt-get install -y openjdk-25-jre-headless build-essential cmake libclang-d
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 
-# Download signal-cli JVM variant
-SIGNAL_CLI_VERSION="0.14.2"
+# Download signal-cli JVM variant — 0.14.5 is the hard floor, never lower
+SIGNAL_CLI_VERSION="0.14.5"
 curl -fsSL "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" -o /tmp/signal-cli.tar.gz
 sudo tar xf /tmp/signal-cli.tar.gz -C /opt
 sudo ln -sf /opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli /usr/local/bin/signal-cli
@@ -76,6 +100,10 @@ signal-cli --version
 ```
 
 **Build failures:** If cargo fails, check: (1) `libclang-dev` installed? (2) `protobuf-compiler` installed? (3) Enough RAM? (4 GB minimum during build). These are the three dependencies that cause failures.
+
+Even on a successful build, verify an actual **send** before trusting it — a version-mismatched `libsignal_jni.so` builds and loads cleanly, then SIGSEGVs on the first outbound message.
+
+</details>
 
 ### Registration Paths
 
@@ -119,7 +147,9 @@ openclaw pairing approve signal <CODE>
 ### Common Issues
 
 - Captcha token expires quickly (~60 seconds) — solve and register immediately
-- ARM64: MUST build libsignal from source (see ARM64 section above). No pre-built binary exists. Do NOT use signal-cli-rest-api Docker container (wrong API protocol)
+- **signal-cli < 0.14.5: inbound 1:1 messages are silently dropped while sending still works.** Check the version first whenever "the assistant stopped replying" — see the version-floor section above
+- ARM64: no pre-built `libsignal_jni.so` exists. Run signal-cli from the `bbernhard/signal-cli-rest-api` container (`0.100`+); a from-source build is a last resort and has been seen to SIGSEGV on send. Prefer x86-64 for new installs
+- Containerised signal-cli: confirm the live bind mount with `docker inspect <container> --format '{{json .Mounts}}'` before restarting. An empty volume triggers re-registration, which de-authorises the account
 - `channels.signal.account` must be a JSON string (`"+33..."`) not a number — `openclaw config set` may parse `+33...` as a number. Fix with Python: `cfg['channels']['signal']['account'] = '+33...'`
 - After multiple registration attempts, Signal may rate-limit. Wait 24h or try voice verification
 - Signal identity keys in `~/.local/share/signal-cli/data/` — back these up. Losing them means re-registering the number

@@ -10,7 +10,7 @@ compatibility: macOS/Linux, any AI coding agent (Claude Code, Codex, Copilot, Ge
 metadata:
   version: 0.0.1
   subagent_safe: false
-  last_research_date: "2026-03-14"
+  last_research_date: "2026-04-13"
 ---
 
 # Bootstrap OpenClaw
@@ -25,13 +25,23 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 |-----------|---------|-------|
 | OpenClaw | v2026.3.13 (stable, 2026-03-14) | Releases use `vYYYY.M.D` scheme |
 | Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | Minimum: >=22.16; recommended: 24 LTS |
-| signal-cli | v0.14.2 | Checked 2026-04-13; requires Java 25+; **no official ARM64 native binary** — use JVM variant on aarch64 |
+| signal-cli | **>= 0.14.5 — hard floor** | Requires Java 25+. Below 0.14.5 **every inbound 1:1 message is silently discarded** (see note below). On arm64 there is no usable native libsignal — run signal-cli from the `bbernhard/signal-cli-rest-api` container (`0.100`+ ships 0.14.5) |
 | Tailscale | Latest stable | Free Personal plan (3 users, 100 devices). Serve = free. Funnel = Premium only ($18/user/mo) |
 | Ollama | Latest stable | Native ARM64 support. CPU-only unless the server has a GPU |
 | Caddy | Latest stable | Alternative to Tailscale for HTTPS reverse proxy |
 | Ubuntu | 24.04 LTS | Recommended OS (works on any provider or local machine) |
 
 > **When running this skill:** Web-search for latest versions first. OpenClaw releases daily. signal-cli and Node.js update less frequently.
+>
+> **signal-cli < 0.14.5 is a silent, write-only outage — never install one.** Around 2026-06-10
+> Signal's server stopped sending `serverGuid` in sealed-sender envelopes. A non-null check in
+> `libsignal-service-java` throws on every such envelope, so **inbound 1:1 messages are dropped
+> without an error the user would notice**, while outbound sending keeps working perfectly. The
+> assistant looks alive and answers cron jobs; it just never hears you. Upstream:
+> [AsamK/signal-cli#2059](https://github.com/AsamK/signal-cli/issues/2059). Fixed in **0.14.5**
+> (2026-06-11), first shipped in the container image `bbernhard/signal-cli-rest-api:0.100`.
+> Verify `signal-cli --version` after install **and** send yourself an inbound message as an
+> end-to-end check — an outbound-only test cannot detect this.
 
 ## Dependencies
 
@@ -148,18 +158,18 @@ c) This machine (the one running the AI agent)
 ```
 Which VPS provider? (or will you use a local machine?)
 
-a) Hetzner Cloud
-b) DigitalOcean
-c) Linode / Akamai
-d) Vultr
-e) OVH / Scaleway
-f) Other (I'll tell you which)
+a) No preference — recommend one for my requirements          [DEFAULT]
+b) A provider I already have an account with (I'll name it)
+c) Local machine (skip provisioning)
 ```
 
-**Provider-specific guidance:**
+**This skill is provider-agnostic.** Do not open with a hardcoded shortlist — the right box
+depends on the sizing answer in § 1.4 and on jurisdiction, and the market moves monthly.
 
-- If the provider is **Hetzner**, this skill has cached specs and pricing — see [`references/hetzner-servers.md`](references/hetzner-servers.md). Use that to recommend a server type and datacenter.
-- For **any other provider**: do a **web search** for `"<provider> VPS ARM64 pricing"` (or x86 if ARM64 is not available) to find current instance types and prices. Adapt the sizing recommendations in 1.4 to the provider's lineup.
+- **Always web-search for current pricing** before recommending anything: `"<provider> VPS pricing <year>"`, then fetch each candidate's number from the vendor's own page. A cached price is a lead, not a quote.
+- Read [`references/provider-selection.md`](references/provider-selection.md) first. It carries the durable **method** (normalize VAT before comparing; existence ≠ availability; read the CPU from the vendor's announcement, not the plan name; latency is almost never the axis; decide jurisdiction before price) plus a **dated, perishable** snapshot of EU options.
+- [`references/hetzner-servers.md`](references/hetzner-servers.md) is **one cached provider among several**, not the default. Use it if the user picks Hetzner; it is still accurate for the CAX line, subject to the availability check below.
+- If the user names a provider not covered by either reference, research it dynamically and apply the same method.
 - If **local machine**: skip to 1.4.
 
 ### 1.3 Server location
@@ -171,8 +181,9 @@ Where do you live? (determines closest datacenter for low latency)
 **Do NOT present a hardcoded list of datacenters.** Instead:
 
 - If the provider was already determined (1.2), **web-search** for their available regions and present the closest options to the user's location.
-- If the provider has cached data in `references/` (e.g., Hetzner), use that.
+- If the provider has cached data in `references/` (Hetzner, or the snapshot in [`references/provider-selection.md`](references/provider-selection.md)), use that as a starting point and re-verify.
 - For any other provider, research dynamically.
+- **Latency is almost never the decisive axis** for a messaging assistant — see [`references/provider-selection.md`](references/provider-selection.md) § 5. If the user is operating under a data-processing agreement, jurisdiction outranks distance; settle that first (§ 6 there).
 
 ### 1.4 Model strategy
 
@@ -180,13 +191,17 @@ This is critical — it determines server sizing. **Present the cost comparison 
 
 **Key insight: for a personal messaging bot, paid API is almost always cheaper AND better than self-hosting a model.** Make this case clearly:
 
-| Approach | Server | Model cost | Total/mo | Quality |
-|----------|--------|-----------|----------|---------|
-| **BYOK only** (recommended) | CAX11 4 GB (~4.49 EUR) | Free tier or ~1-5 EUR | **~5-10 EUR** | Frontier |
-| **Local 4B model** | CAX11 4 GB (~4.49 EUR) | Free | **~4.49 EUR** | Basic (barely usable) |
-| **Local 8B model** | CAX31 16 GB (~14 EUR) | Free | **~14 EUR** | Good |
-| **BYOK + local fallback** | CAX21 8 GB (~7 EUR) | Free tier or ~1-5 EUR | **~8-12 EUR** | Frontier + basic fallback |
+| Approach | Server RAM | Model cost | Total/mo | Quality |
+|----------|-----------|-----------|----------|---------|
+| **BYOK only** (recommended) | 4 GB (e.g. Hetzner CAX11, ~4.49 EUR) | Free tier or ~1-5 EUR | **~5-10 EUR** | Frontier |
+| **Local 4B model** | 4 GB (~4.49 EUR) | Free | **~4.49 EUR** | Basic (barely usable) |
+| **Local 8B model** | 16 GB (~14 EUR) | Free | **~14 EUR** | Good |
+| **BYOK + local fallback** | 8 GB (~7 EUR) | Free tier or ~1-5 EUR | **~8-12 EUR** | Frontier + basic fallback |
 
+> **This table sizes the ASSISTANT ONLY — it is not the size of the box.** See § 1.4a before
+> recommending anything. If the host will also run agent orchestration, this table will
+> undersize it, and the failure mode is an OOM killer picking victims months later.
+>
 > **WARNING: The "Server RAM" column for local models is the MINIMUM for the model to load.** In practice, Ollama needs significantly more RAM for the KV cache during inference — an 8B model with OpenClaw's full context window (system prompt + SOUL.md + conversation history) can require **~20 GB**, not the ~5-6 GB that model weights alone suggest. Always budget 2-3x the model weight size for actual inference.
 >
 > **Bottom line:** A CAX11 (~4.49 EUR/mo) + Gemini 2.5 Flash (free, 250 req/day) or a paid API (~$1-5/mo) gives you frontier-quality models for less than running a mediocre local model on an expensive server. Self-hosting only makes sense for privacy absolutists or offline use.
@@ -225,13 +240,16 @@ c) Local model only (needs expensive server, lower quality)
 
 **Provider resize note:** When recommending a server size, inform the user whether the provider supports upgrade/downgrade without reinstalling. This reduces decision anxiety — the user isn't locked in. For Hetzner: "Hetzner supports both upgrades and downgrades from the console or CLI. It requires a brief restart (~1 minute) but no data loss or reinstallation. You can start with CAX21 and downgrade to CAX11 later if you don't need the RAM." For other providers: web-search for their resize policy.
 
-**Instance availability note:** ARM instances (CAX series on Hetzner) can be temporarily sold out in specific datacenters. When recommending a server type + location, warn the user this can happen and suggest alternatives:
+**Instance availability note:** A provider will publish current prices for a plan it cannot sell you — **existence is not availability**, and ARM lines are the usual offender. Before recommending a server type + location, read the provider's *availability* set rather than its catalogue (with `hcloud`: `hcloud server-type describe cax21`, and compare `supported` vs `available` on the datacenter). Then:
 
 1. Try another datacenter in the same country (e.g., `fsn1` instead of `nbg1` — both in Germany, negligible latency difference)
 2. Use the next closest region (e.g., Helsinki for a European user — adds ~20-30ms, imperceptible for a messaging bot)
-3. Wait a few days — providers restock ARM capacity regularly
+3. If capacity has never appeared, **pick a different plan** — do not park the install behind a restock
 
-For Hetzner specifically: web-search or run `hcloud server-type describe cax21` to check current availability per location before recommending one.
+On (3): an entire ARM line has been observed listed and priced but unavailable in *every*
+datacenter, with a stock watcher polling every 30 minutes for four months and never once firing.
+A stock watcher that has never fired is a "no", not "waiting". Full detail in
+[`references/provider-selection.md`](references/provider-selection.md) § 3.
 
 **Confirmation step (when local model + small server):** If the user chose option (b) or (c) and the server has ≤ 8 GB RAM, explicitly confirm the specific model before moving on. Example for 4 GB:
 
@@ -245,6 +263,77 @@ If no: we can skip Ollama or upgrade the server (CAX21 = 8 GB, ~7-8 EUR/mo → 8
 ```
 
 Do NOT silently move on after the user picks a model strategy. The user must confirm what will actually be installed.
+
+### 1.4a Size the HOST, not the assistant
+
+The § 1.4 table sizes **OpenClaw itself** (~1.5 GB resident for a BYOK gateway). That is the
+whole box **only if the box does nothing else**. Sizing a shared host from the assistant's
+footprint is what undersized a real server — ask before you recommend:
+
+```
+Will anything else run on this box alongside OpenClaw?
+
+a) Nothing — OpenClaw only                                    [DEFAULT]
+b) Agent orchestration / CI-shaped work (test suites, builds,
+   headless browsers) triggered by me or by the assistant
+c) Other services I'll describe
+```
+
+**If (b): budget 3–6 GB per concurrent job and size for PEAK CONCURRENCY.** The jobs that
+actually eat a box:
+
+| Workload | Rough peak per job |
+|---|---|
+| Parallel pytest workers | ~3–4 GB (per worker, not per suite) |
+| Node / Angular production build | ~4–6 GB |
+| Headless Playwright / Chromium session | ~3–4 GB |
+
+Two agents each running a build and a browser is 16–20 GB *before* the assistant, the OS, and
+Docker. A 4 GB box that is "right" for the assistant is wrong for the host by a factor of five.
+Ask for the **maximum number of jobs the user expects to run at once**, multiply, then add the
+§ 1.4 figure and ~1–2 GB for OS + Docker.
+
+#### Measure, don't assume — and read the victims
+
+If the user already has a box (§ 1.1b) or is resizing one, get the evidence before quoting a
+size:
+
+```bash
+sudo journalctl -k --grep="Out of memory" --since "30 days ago" | tail -30
+```
+
+**Read the victim lines, not just the count.** *The process the kernel kills is usually not the
+one that filled the memory.* A small always-on component — the gateway, a health check — dies
+because something bursty next to it exhausted the box. Sizing against that victim buys a machine
+tuned for the wrong workload entirely. Work out what was *allocating* at the time of each kill,
+and size for that instead.
+
+#### More RAM makes a kill rarer; it does not choose who dies
+
+OOM priority is a separate decision from capacity, and it must be made explicitly. Protect the
+always-on gateway and nominate the bursty consumer as the victim:
+
+```ini
+# /etc/systemd/system/openclaw.service.d/oom.conf — protect the gateway
+[Service]
+OOMScoreAdjust=-500
+```
+
+```ini
+# the orchestration/CI service — make it the preferred victim, and throttle it first
+[Service]
+OOMScoreAdjust=500
+MemoryHigh=<n>G     # soft-throttle before the kernel has to kill anything
+MemoryMax=<n>G
+```
+
+> **A POSITIVE `OOMScoreAdjust` makes a process the PREFERRED VICTIM.** The sign is easy to get
+> backwards — a value of `800` on the gateway itself has been found in the wild, which tells the
+> kernel to kill the assistant *first*, ahead of whatever is actually consuming the RAM. Protect
+> with a negative value; sacrifice with a positive one.
+
+Configure this even on a generously sized box. On any box the OOM killer eventually chooses —
+this is how you choose for it.
 
 ### 1.5 OpenClaw capabilities — tool use
 
@@ -420,7 +509,7 @@ Detailed step-by-step instructions for each phase live in reference files. Load 
 
 | Phase | Reference | Summary |
 |-------|-----------|---------|
-| **3. Provision Server** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 3 | Create VPS or configure existing server/local machine |
+| **3. Provision Server** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 3 + [`references/provider-selection.md`](references/provider-selection.md) | Create VPS or configure existing server/local machine. Provider-agnostic selection method + dated price snapshot; [`references/hetzner-servers.md`](references/hetzner-servers.md) if Hetzner |
 | **4. Harden the OS** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 4 | UFW, fail2ban, SSH hardening, unattended upgrades |
 | **5. Install OpenClaw** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 5 | Node.js 24, OpenClaw, gateway config, dashboard pairing |
 | **6. Configure Model** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 6 | BYOK API keys, local Ollama, or hybrid setup |

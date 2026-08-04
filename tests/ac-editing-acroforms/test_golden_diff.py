@@ -181,7 +181,7 @@ class TestFindDifferingPages:
 
 class TestCreateSideBySide:
     @pytest.mark.skipif(not golden_diff._find_gs(), reason="GhostScript not installed")
-    @pytest.mark.skipif(not golden_diff.check_dependencies() == [], reason="Missing deps")
+    @pytest.mark.skipif("imagemagick" in golden_diff.check_dependencies(), reason="ImageMagick not installed")
     def test_creates_montage(self, tmp_path: Path):
         mp = tmp_path / "master.png"
         bp = tmp_path / "branch.png"
@@ -201,14 +201,14 @@ class TestCreateSideBySide:
 
 
 class TestCreateOverlayDiff:
-    @pytest.mark.skipif(not golden_diff.check_dependencies() == [], reason="Missing deps")
+    @pytest.mark.skipif("diff-pdf" in golden_diff.check_dependencies(), reason="diff-pdf not installed")
     def test_creates_overlay(self, tmp_path: Path):
         out = tmp_path / "overlay.pdf"
         ok = golden_diff.create_overlay_diff(V1_PDF, V2_PDF, out)
         assert ok is True
         assert out.exists()
 
-    @pytest.mark.skipif(not golden_diff.check_dependencies() == [], reason="Missing deps")
+    @pytest.mark.skipif("diff-pdf" in golden_diff.check_dependencies(), reason="diff-pdf not installed")
     def test_identical_files(self, tmp_path: Path):
         out = tmp_path / "overlay.pdf"
         # diff-pdf may or may not create output for identical files

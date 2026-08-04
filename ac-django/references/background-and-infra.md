@@ -10,11 +10,51 @@
 
 Write against `django.tasks` (`@task`, `.enqueue()`).
 
-> **Note:** Django 6.0 ships `ImmediateBackend` (sync, dev/test) and `DummyBackend` (testing). Production requires a third-party backend that provides an actual worker process.
+> **Note:** Django 6.0 ships `ImmediateBackend` (sync, dev/test) and `DummyBackend` (testing). Production requires a third-party backend — Django's own docs are deliberately backend-agnostic here and point to the [Community Ecosystem page](https://www.djangoproject.com/community/ecosystem/#tasks) rather than recommending one.
 
 ### Django 5.2 note
 
 Use Celery/Huey/RQ/etc.
+
+### 10.1a Production backend: `django-tasks-db`
+
+Default to `django-tasks-db`'s `DatabaseBackend` absent a project-specific reason for Celery/RQ/etc. — a DB-backed queue needs no extra broker infrastructure, and it's what real production Django apps land on ([Haki Benita's writeup](https://hakibenita.com/django-reliable-signals) reaches the same choice independently).
+
+```py
+# settings.py
+INSTALLED_APPS = [
+    ...,
+    "django_tasks",
+    "django_tasks_db",
+]
+
+TASKS = {
+    "default": {
+        "BACKEND": "django_tasks_db.DatabaseBackend",
+        # Name additional queues to isolate a heavy/slow lane from a
+        # latency-sensitive one — a backlog on one queue never starves another.
+        "QUEUES": ["default", "urgent"],
+    },
+}
+```
+
+Route a task to a specific queue:
+
+```py
+@task(queue_name="urgent")
+def send_password_reset(user_id: int) -> None: ...
+```
+
+Run the worker — the production process, one per queue when isolation matters:
+
+```sh
+python manage.py db_worker --queue-name default,urgent
+# or isolate: one worker process per queue
+python manage.py db_worker --queue-name urgent
+python manage.py db_worker --queue-name default
+```
+
+`db_worker` claims each row inside an exclusive DB transaction before executing it, so multiple workers on the same queue never double-run a task — that locking doesn't need hand-rolling.
 
 ### 10.2 Task definition and enqueue
 
@@ -38,6 +78,8 @@ def register_user(request):
     transaction.on_commit(lambda: send_welcome_email.enqueue(user.pk))
     return redirect("dashboard")
 ```
+
+With a DB-backed queue specifically, `.enqueue()` is an ordinary ORM write — calling it directly inside `transaction.atomic()` already commits or rolls back with the rest of the transaction, and other connections (including a worker polling for `READY` rows) only see it after commit, by ordinary transaction isolation. The `transaction.on_commit()` wrap above is Django's generic, backend-agnostic pattern — needed because a broker-based backend (Celery/Redis/RQ) sits *outside* Django's transaction, so a task could otherwise fire before the triggering write is even committed. `django-tasks-db` doesn't have that problem, so plain `atomic()`-block placement is sufficient with it.
 
 ### 10.3 Retry and idempotency patterns
 

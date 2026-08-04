@@ -5,22 +5,24 @@ for each column should appear in matched pairs at the same y-coordinate.
 This script finds bars in the content stream and reports any that are missing
 their counterpart in the paired column.
 
-Usage:
-    uv run verify_paired_bars.py template.pdf --page 2
-    uv run verify_paired_bars.py template.pdf --page 2 --y-range 100-300
-    uv run verify_paired_bars.py template.pdf --page 2 --columns 142,358
-    uv run verify_paired_bars.py template.pdf --page 2 -o fixed.pdf  # insert missing bars
+Run it through the unified CLI:
+    ./cli.py verify-paired template.pdf --page 2
+    ./cli.py verify-paired template.pdf --page 2 --y-range 100-300
+    ./cli.py verify-paired template.pdf --page 2 --columns 142,358
+    ./cli.py verify-paired template.pdf --page 2 -o fixed.pdf  # insert missing bars
+
+Exits 1 when bars are unpaired and nothing was written, 0 otherwise.
 """
 
 import operator
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import pikepdf  # ty: ignore[unresolved-import]
 import typer
+from acroform_errors import AcroformError, VerificationError
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -114,8 +116,8 @@ def detect_columns(
     # Cluster bar x-values
     xs = sorted({round(b.x, 0) for b in bars})
     if len(xs) < 2:
-        print("ERROR: Cannot detect two columns — found x-values:", xs, file=sys.stderr)
-        sys.exit(1)
+        msg = f"cannot detect two columns — found x-values: {xs}"
+        raise VerificationError(msg)
 
     # Assume the two most common x-clusters
     x_groups: dict[float, int] = {}
@@ -258,6 +260,14 @@ def main(
     ] = None,
 ) -> None:
     """Verify that paired content-stream bars have matching counterparts."""
+    try:
+        _verify(pdf, page, y_range, columns, output)
+    except AcroformError as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(exc.exit_code) from exc
+
+
+def _verify(pdf: str, page: int, y_range: str, columns: str | None, output: str | None) -> None:
     y_min, y_max = (float(v) for v in y_range.split("-"))
     spec = ColumnSpec.parse(columns)
     pdf_path = Path(pdf)
@@ -268,7 +278,7 @@ def main(
 
     if not bars:
         print(f"No bars found on page {page} in y-range {y_min}-{y_max}")
-        raise SystemExit(0)
+        return
 
     detected_col1_x, detected_col2_x = detect_columns(bars, spec.col1_x, spec.col2_x)
     print(f"Columns: col1 x≈{detected_col1_x:.0f}, col2 x≈{detected_col2_x:.0f}")
@@ -278,13 +288,13 @@ def main(
 
     if not missing_in_col2 and not missing_in_col1:
         print("All bars are paired. No issues found.")
-        raise SystemExit(0)
+        return
 
     report_missing(missing_in_col2, missing_in_col1)
 
     if not output:
         pdf_doc.close()
-        sys.exit(1)
+        raise typer.Exit(1)
 
     col1_ref_x = reference_x(bars, detected_col1_x, spec.tolerance)
     col2_ref_x = reference_x(bars, detected_col2_x, spec.tolerance)
@@ -294,4 +304,3 @@ def main(
     write_fixed_pdf(pdf_doc, page - 1, fixed, out_path)
     print(f"Fixed PDF saved to {out_path}")
     pdf_doc.close()
-    sys.exit(0)
