@@ -3,7 +3,7 @@ name: ac-adopting-ruff
 description: Use when adopting ruff as the sole Python linter and formatter for a project, replacing black, isort, flake8, or pylint, with either progressive per-rule enforcement or changed-files-only gradual adoption. Also use to pay back ruff tech debt — shrinking accumulated `per-file-ignores` via session-sized, one-file-or-one-rule-at-a-time cleanup — on phrasing like "pay back ruff tech debt", "clean up ruff ignores", or "reduce per-file-ignores" (ask first if the user only says "pay back tech debt" without mentioning ruff).
 compatibility: Any Python project with pre-commit (prek). Knowledge-only skill.
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
@@ -152,7 +152,7 @@ the `# --- Permanently disabled` section instead. Repeat until prek passes clean
 The helper script can parse ruff JSON output to generate a ready-to-paste block:
 
 ```bash
-./ac-adopting-ruff/scripts/discover_violations.py [path]
+./ac-adopting-ruff/scripts/cli.py discover [path]
 ```
 
 **Watch out for these traps:**

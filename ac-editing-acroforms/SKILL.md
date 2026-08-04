@@ -3,7 +3,7 @@ name: ac-editing-acroforms
 description: Inspects, patches, verifies, or diffs AcroForm-based PDF templates — especially when widget geometry, content streams, or filled-output alignment need deterministic scriptable fixes. Use when user says "PDF", "acroform", "form field", "widget rect", "content stream", "pdf alignment", or is working with PDF template geometry.
 compatibility: macOS/Linux, python3, pypdf or pikepdf. Do NOT use pdfrw.
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
@@ -68,24 +68,35 @@ Use this order unless there is a strong reason not to:
 5. Verify both structure and rendered output.
 6. If the automation is reusable, promote it into this skill as a generic helper or sanitized example.
 
-## Durable Helpers
+## The CLI
 
-These scripts are intentionally generic and safe to keep in a public niche toolkit:
+[`scripts/cli.py`](scripts/cli.py) is the entry point. It is the only runnable
+file in the skill: the sibling modules hold the command bodies and the PDF
+mechanics, and none of them declares its own Typer app.
 
-- `scripts/inspect_fields.py`
-  - Inspect field names, rects, fonts, labels, and raw content stream data.
-- `scripts/set_field_flags.py`
-  - Batch-set readonly and required flags.
-- `scripts/add_row.py`
-  - Heuristic helper for inserting a paired row of widgets and matching label/content shifts in tabular layouts.
-- `scripts/apply_content_stream_replacements.py`
-  - Apply literal or regex-based content-stream replacements from a JSON spec.
-- `scripts/apply_rect_updates.py`
-  - Apply named or rect-matched widget rect updates from a JSON spec.
-- `scripts/verify_field_alignment.py`
-  - Check whether field rects align with underline bars and optionally compare against filled outputs.
-- `scripts/golden_diff.py`
-  - Render and compare changed PDFs against a git base revision.
+```bash
+./ac-editing-acroforms/scripts/cli.py <command> [args...]
+```
+
+| Command | What it does |
+|---|---|
+| `inspect` | Inspect field names, rects, fonts, labels, and raw content stream data. |
+| `set-flags` | Batch-set readonly and required flags. |
+| `add-row` | Insert a paired row of widgets with matching label/content shifts in tabular layouts. |
+| `apply-content` | Apply literal or regex-based content-stream replacements from a JSON spec. |
+| `apply-rects` | Apply named or rect-matched widget rect updates from a JSON spec. |
+| `verify-alignment` | Check whether field rects align with underline bars, optionally against filled outputs. |
+| `verify-paired` | Report content-stream bars missing their counterpart in the paired column. |
+| `sync-bars` | Copy bars present in a reference template but missing in a sibling template. |
+| `golden-diff` | Render and compare changed PDFs against a git base revision. |
+
+Exit codes are the same for every command:
+
+| Code | Meaning |
+|---|---|
+| 0 | Success. |
+| 1 | The tool ran; the PDF did not match what the spec asserted. |
+| 2 | The spec itself is malformed — fix the spec, not the PDF. |
 
 Checked-in examples must stay sanitized and reusable:
 
@@ -98,7 +109,7 @@ Prefer a generic helper plus a small JSON spec over a new hardcoded script.
 
 ### Content-stream replacement spec
 
-Use `scripts/apply_content_stream_replacements.py` for narrow text or operator edits.
+Use `cli.py apply-content <spec.json>` for narrow text or operator edits.
 
 ```json
 {
@@ -123,7 +134,7 @@ Use `scripts/apply_content_stream_replacements.py` for narrow text or operator e
 
 ### Widget-rect update spec
 
-Use `scripts/apply_rect_updates.py` when the content stream is already fine but the widget geometry is wrong.
+Use `cli.py apply-rects <spec.json>` when the content stream is already fine but the widget geometry is wrong.
 
 ```json
 {
@@ -217,7 +228,7 @@ Use both structural and rendered checks.
 
 - inspect fields after edits
 - verify field counts and positions
-- run `scripts/verify_field_alignment.py` when the template uses underline bars or other line-based alignment
+- run `cli.py verify-alignment` when the template uses underline bars or other line-based alignment
 
 ### Rendered
 

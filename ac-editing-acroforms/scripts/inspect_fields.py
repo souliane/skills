@@ -15,8 +15,6 @@ from pathlib import Path
 import pypdf
 import typer
 
-app = typer.Typer(no_args_is_help=True)
-
 
 class Show(StrEnum):
     fields_only = "fields-only"
@@ -226,7 +224,6 @@ def _inspect_page(pg: pypdf.PageObject, pi: int, show: set[Show], section: str |
         _print_underlines(data)
 
 
-@app.command()
 def inspect(
     pdf_path: str = typer.Argument(help="Path to the PDF file"),
     page: int = typer.Option(-1, "--page", "-p", help="Page index (0-based). -1 = all pages"),

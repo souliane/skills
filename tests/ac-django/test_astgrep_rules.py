@@ -13,15 +13,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+import astgrep_scan
 import pytest
 
 RULES_DIR = Path(__file__).resolve().parents[2] / "ac-django" / "rules"
 ASTGREP_SCAN = RULES_DIR / "astgrep_scan.py"
 PYPROJECT_HOOK = RULES_DIR / "pyproject_complexity.py"
 
+# Ask the wrapper's own resolver rather than restating its inputs. It prefers
+# ``uvx --from ast-grep-cli==<pin>`` and only then a system binary, so gating on the
+# system binary alone skipped every one of these wherever uv is the runtime — CI included.
 requires_astgrep = pytest.mark.skipif(
-    shutil.which("ast-grep") is None,
-    reason="ast-grep binary not on PATH",
+    not astgrep_scan._astgrep_argv(),
+    reason="neither `uv` (which pins ast-grep-cli) nor a system `ast-grep` is available",
 )
 
 

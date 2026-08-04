@@ -171,7 +171,7 @@ are the contract between Phase 1 and Phase 2. The scan reads only between them.
 Run the scan script from the target project directory:
 
 ```bash
-./ac-adopting-ruff/scripts/scan_queue.py [path]
+./ac-adopting-ruff/scripts/cli.py scan-queue [path]
 ```
 
 The script temporarily clears `lint.ignore` to get real violation counts (ruff

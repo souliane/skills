@@ -3,8 +3,11 @@ r"""Apply deterministic content-stream replacements from a JSON spec.
 This is the durable replacement for one-off `/tmp/fix_*.py` scripts that
 only tweak a few BT/ET blocks or text operators.
 
-Usage:
-    uv run scripts/apply_content_stream_replacements.py spec.json
+Run it through the unified CLI:
+    ./cli.py apply-content spec.json
+
+Exits 2 when the spec itself is wrong, 1 when the PDF did not match what the
+spec asserted.
 """
 
 import json
@@ -13,6 +16,7 @@ from pathlib import Path
 
 import pikepdf  # ty: ignore[unresolved-import]
 import typer
+from acroform_errors import AcroformError, SpecError, VerificationError
 
 
 def _read_stream(page: pikepdf.Page) -> str:
@@ -40,7 +44,7 @@ def _compile_flags(flag_names: list[str]) -> int:
             flags |= flag_map[name]
         except KeyError as exc:
             msg = f"unknown regex flag: {name}"
-            raise SystemExit(msg) from exc
+            raise SpecError(msg) from exc
     return flags
 
 
@@ -54,7 +58,7 @@ def _apply_replacement(data: str, replacement: dict, pdf_label: str) -> tuple[st
         expected = int(replacement.get("expected_matches", count))
         if actual < expected:
             msg = f"{pdf_label}: {description}: expected at least {expected} literal matches, found {actual}"
-            raise SystemExit(msg)
+            raise VerificationError(msg)
         return data.replace(match, replacement["replace"], count), description
 
     if "regex" in replacement:
@@ -66,11 +70,11 @@ def _apply_replacement(data: str, replacement: dict, pdf_label: str) -> tuple[st
         new_data, actual = re.subn(pattern, repl, data, count=count, flags=flags)
         if actual != expected:
             msg = f"{pdf_label}: {description}: expected {expected} regex replacements, got {actual}"
-            raise SystemExit(msg)
+            raise VerificationError(msg)
         return new_data, description
 
     msg = f"{pdf_label}: replacement must define either 'match' or 'regex'"
-    raise SystemExit(msg)
+    raise SpecError(msg)
 
 
 def apply_spec(spec_path: Path) -> None:
@@ -98,4 +102,9 @@ def apply_spec(spec_path: Path) -> None:
 
 
 def main(spec: Path = typer.Argument(help="Path to JSON spec")) -> None:
-    apply_spec(spec)
+    """Apply literal or regex content-stream replacements from a JSON spec."""
+    try:
+        apply_spec(spec)
+    except AcroformError as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(exc.exit_code) from exc

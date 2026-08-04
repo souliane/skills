@@ -3,8 +3,10 @@ r"""Apply AcroForm widget rect updates from a JSON spec.
 This is the durable replacement for one-off `/tmp/fix_*.py` scripts that only
 realign a few named or unnamed widgets.
 
-Usage:
-    uv run scripts/apply_rect_updates.py spec.json
+Run it through the unified CLI:
+    ./cli.py apply-rects spec.json
+
+Exits 1 when the PDF did not match what the spec asserted.
 """
 
 import json
@@ -12,6 +14,7 @@ from pathlib import Path
 
 import pikepdf  # ty: ignore[unresolved-import]
 import typer
+from acroform_errors import AcroformError, VerificationError
 
 
 def _rect_tuple(obj: pikepdf.Dictionary) -> tuple[float, float, float, float]:
@@ -39,7 +42,7 @@ def apply_spec(spec_path: Path) -> None:
         annots = page.obj.get("/Annots")
         if annots is None:
             msg = f"{pdf_path}: page {page_index} has no annotations"
-            raise SystemExit(msg)
+            raise VerificationError(msg)
 
         applied: list[str] = []
         seen: set[int] = set()
@@ -60,7 +63,7 @@ def apply_spec(spec_path: Path) -> None:
         ]
         if missing:
             msg = f"{pdf_path}: missing rect targets: {missing}"
-            raise SystemExit(msg)
+            raise VerificationError(msg)
 
         pdf.save(pdf_path)
         pdf.close()
@@ -70,4 +73,9 @@ def apply_spec(spec_path: Path) -> None:
 
 
 def main(spec: Path = typer.Argument(help="Path to JSON spec")) -> None:
-    apply_spec(spec)
+    """Apply named or rect-matched widget rect updates from a JSON spec."""
+    try:
+        apply_spec(spec)
+    except AcroformError as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(exc.exit_code) from exc

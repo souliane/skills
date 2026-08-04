@@ -20,8 +20,6 @@ import pypdf
 import typer
 from pypdf.generic import NameObject, NumberObject
 
-app = typer.Typer(no_args_is_help=True)
-
 # PDF field flag bits (Table 227 in PDF spec)
 FF_READONLY = 1
 FF_REQUIRED = 1 << 1
@@ -94,7 +92,6 @@ def _apply_to_pages(writer: pypdf.PdfWriter, page_indices, plan: FlagPlan) -> tu
     return modified, skipped
 
 
-@app.command()
 def set_flags(
     pdf_path: str = typer.Argument(help="Path to the PDF file (modified in place)"),
     op: list[FlagOp] = typer.Option(

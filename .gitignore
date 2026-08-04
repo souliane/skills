@@ -2,3 +2,7 @@ __pycache__/
 .vscode/
 .banned-terms
 *~
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
