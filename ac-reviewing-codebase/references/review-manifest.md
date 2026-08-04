@@ -126,6 +126,8 @@ skipping it is what this file prevents.
       evidence:
 - [ ] `3.5b` Plugin/overlay platform wrappers promoted to core backends; detection grep run (non-negotiable)
       evidence:
+- [ ] `3.5c` Comment proportionality: added comments are one line each; multi-line narration flagged as a finding, never gated (Rule 16)
+      evidence:
 - [ ] `3.6` Security review: secrets, unsafe shell, destructive ops, safety bypasses, licences (non-negotiable)
       evidence:
 - [ ] `3.7` CLI-over-MCP preference checked
