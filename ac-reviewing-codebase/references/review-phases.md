@@ -277,6 +277,40 @@ When a skill is extracted from another (e.g., `e2e` from `test`), verify the rou
 5. **Keyword overlap.** Both parent and child should not trigger on the same keywords — the parent should drop the extracted keywords.
 6. **`subagent_safe` consistency.** If the skill is `subagent_safe: false`, it must NOT appear only on agents that are sub-agents with no main-conversation path.
 
+### 3.17 Minimal Configurable & Pluggable Surface (Non-Negotiable)
+
+Judge the surface a change **adds**. The question is not "is this codebase's total surface small" — it is "does this change widen a setting or an extension point, and is the widening earned?"
+
+Surface is paid per implementation and per call site, not once at the definition. An abstract member added to serve one subclass is a tax on every other subclass, present and future, and it is paid again at every implementation written after it. A flag read in four places is not two states but up to four interacting ones, and only some of them get tested. A base class whose contract is wide stops being changeable at all — every change to it breaks every implementer, so it ossifies at whatever shape the earliest implementations happened to need. Regression risk is the symptom; the disease is a surface nobody can move.
+
+**A setting or config value:**
+
+- **Can the behaviour be derived instead of configured?** A setting whose correct value is always computable from something already known is a bug with a knob on it. Remove it.
+- **How many places read it?** Every additional reader is a behaviour that can diverge from the others. Prefer one reader that resolves the setting into a value the rest of the code consumes.
+- **Is the type the narrowest that expresses the variation?** A free-form string where three values are legal is wider than an enum, and the extra width is entirely failure modes.
+- **Does one flag gate several unrelated behaviours?** That is a coupling wearing a setting's clothes. Split it, or remove the need for it.
+- **Is any combination of values invalid?** Then the surface is already too wide — make the invalid state unrepresentable instead of validating it at runtime.
+
+**An abstract class, Protocol, hook, or plugin contract:**
+
+- **Is every abstract member required by every implementation?** One that only a single implementation fills meaningfully does not belong on the base — push it down into that implementation, or into a separate, narrower protocol.
+- **Is the contract the narrowest shape that expresses the variation?** A single `resolve(x) -> y` beats five lifecycle hooks whenever the five are only ever called in one order.
+- **What does the base force implementations to know?** Internal types, ordering rules and lifecycle details leaked into the contract are things that can never change afterwards.
+- **Is a minimal correct implementation short?** If the smallest useful subclass is long, the base is pushing work onto implementers that it should be doing itself.
+- **Can an implementation stay silent about what it does not care about?** Defaults covering the common case are what keep a contract narrow in practice.
+
+**Refactor triggers.** These are prescriptions, not observations — when one fires, fix it in this review (Rule 9) rather than recording it.
+
+| Symptom | Fix |
+| --- | --- |
+| The surface grew to accommodate one caller | Push the specialisation into that caller and revert the base |
+| A parameter, hook or setting exists only so one call site can opt out of a behaviour | The behaviour belongs in the caller, not behind a flag |
+| Two settings are never varied independently | They are one setting |
+| An abstract member has an identical implementation in every subclass | It is a concrete method on the base |
+| An abstract member is `pass` or `NotImplementedError` in most subclasses | It does not belong on the base |
+
+**Boundary with a design-time architecture pass.** Where the portfolio has one, it already asks two adjacent questions this check does not repeat: which consumers are affected when an existing contract changes, and whether the varying part belongs in the harness at all or in data/config. This check assumes those answers and asks the next one — given the variation does belong behind a setting or an extension point, is the surface expressing it as small as it can be?
+
 ---
 
 ## Phase 4 — Quality Review

@@ -148,6 +148,8 @@ skipping it is what this file prevents.
       evidence:
 - [ ] `3.14` Silenced quality signals: each suppression justified or filed (non-negotiable)
       evidence:
+- [ ] `3.17` Every setting and extension point the change ADDS is the narrowest shape expressing the variation; refactor triggers acted on (non-negotiable)
+      evidence:
 
 ## Phase 4 — Quality Review
 
