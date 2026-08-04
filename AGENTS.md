@@ -49,6 +49,19 @@ execute a script (`./<skill>/scripts/cli.py ...`) must name one
 - Pre-commit: `prek run --all-files`
 - Frontmatter validation: `uv run ac-reviewing-codebase/scripts/cli.py check`
 
+### Coverage floor
+
+`uv run pytest` measures coverage over every shipped script and fails below
+`[tool.coverage.report] fail_under`. It is a **ratchet**: it is the number the
+suite actually measured, and it only ever goes up. When a change measures
+higher, raise it in the same commit; never lower it to make a red run green, and
+never drop a path out of `[tool.coverage.run] source` — a module with no test at
+all belongs in the denominator at 0%.
+
+Running a subset (`uv run pytest tests/ac-adopting-ruff`) measures only what that
+subset touched and will trip the floor. Pass `--no-cov` for subset runs; the
+floor is a property of the whole suite.
+
 ## Skill Design Principles
 
 - **Default to maximum security.** When a skill presents options with security implications (server hardening, auth methods, sandboxing, encryption), always present the most secure option as the default. If a security measure doesn't fit the user's situation (e.g., RAM constraints, no use case), explicitly explain why you're suggesting to disable it, what risk the user accepts, and how to re-enable it later. Never silently omit a security feature or present security as opt-in.
