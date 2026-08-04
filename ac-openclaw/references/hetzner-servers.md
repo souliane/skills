@@ -15,7 +15,7 @@
 ## CAX Series (Ampere Altra ARM64)
 
 | Model | vCPUs | RAM | SSD | Traffic | Price/mo (excl. VAT) |
-|-------|-------|-----|-----|---------|---------------------|
+| ------- | ------- | ----- | ----- | --------- | --------------------- |
 | CAX11 | 2 | 4 GB | 40 GB | 20 TB | ~4.49 EUR |
 | CAX21 | 4 | 8 GB | 80 GB | 20 TB | ~7-8 EUR |
 | CAX31 | 8 | 16 GB | 160 GB | 20 TB | ~14-15 EUR |
@@ -26,7 +26,7 @@
 ## Availability by Location
 
 | Location | Code | CAX available |
-|----------|------|--------------|
+| ---------- | ------ | -------------- |
 | Nuremberg, Germany | nbg1 | Yes |
 | Falkenstein, Germany | fsn1 | Yes |
 | Helsinki, Finland | hel1 | Yes |
@@ -41,7 +41,7 @@
 > host from this table undersizes it badly.
 
 | Use case | Recommended | Monthly cost |
-|----------|-------------|-------------|
+| ---------- | ------------- | ------------- |
 | BYOK only (no local model) | CAX11 | ~4-5 EUR |
 | Local model 3-4B (basic) | CAX11 | ~4-5 EUR |
 | Local model 7-8B (good) | CAX21 | ~7-8 EUR |

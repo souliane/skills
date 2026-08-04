@@ -6,7 +6,7 @@
 ## Connection
 
 | Key | Value |
-|-----|-------|
+| ----- | ------- |
 | Provider | `<provider> (<instance type>)` |
 | Location | `<datacenter>` |
 | IP | `<server IP>` |
@@ -17,7 +17,7 @@
 ## Services
 
 | Service | Unit | Notes |
-|---------|------|-------|
+| --------- | ------ | ------- |
 | OpenClaw gateway | `openclaw.service` | Wrapper reads keys from `pass` |
 | Ollama | `ollama.service` | Local model fallback |
 | Tailscale Serve | active | If chosen as remote access method |
@@ -27,7 +27,7 @@
 ## Models
 
 | Priority | Model | Provider |
-|----------|-------|----------|
+| ---------- | ------- | ---------- |
 | Primary | `<model>` | `<provider>` |
 | Fallback | `<model>` | Ollama (local) |
 
@@ -39,7 +39,7 @@
 ## Backups
 
 | Method | Schedule | Notes |
-|--------|----------|-------|
+| -------- | ---------- | ------- |
 | Local tar.gz | Daily cron | `~/backups/` on server |
 | GitHub push | Daily cron | Deploy key to private repo |
 | Provider snapshot | Weekly | Full server image |
@@ -47,7 +47,7 @@
 ## Signal (if configured)
 
 | Key | Value |
-|-----|-------|
+| ----- | ------- |
 | Bot number | `<dedicated number>` |
 | signal-cli version | Check `/opt/signal-cli-*/` |
 | libsignal version | Must match: `ls /opt/signal-cli-*/lib/libsignal-client-*.jar` |

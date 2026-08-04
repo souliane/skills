@@ -59,7 +59,7 @@ cd <project>-ruff-bootstrap
 Find and remove:
 
 | Location | Remove |
-|----------|--------|
+| ---------- | -------- |
 | `.pre-commit-config.yaml` | black, isort, flake8, pylint, pycodestyle, pyflakes hooks |
 | `pyproject.toml` / `setup.cfg` | `[tool.black]`, `[tool.isort]`, `[flake8]`, `[pylint.*]` sections |
 | Dependencies | black, isort, flake8, pylint packages (and their plugins) |
@@ -291,7 +291,7 @@ the full procedure, skip list, and scope discipline.
 ## Quick Reference
 
 | Task | Command |
-|------|---------|
+| ------ | --------- |
 | Lint + format + auto-fix | `prek run --all-files` |
 | Rule metadata (all rules) | `ruff rule --all --output-format json` |
 | Rule docs (single rule) | `ruff rule <CODE>` |

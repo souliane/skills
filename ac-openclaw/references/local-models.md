@@ -26,7 +26,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 ### 4 GB RAM (e.g., Hetzner CAX11, DigitalOcean Basic 4 GB, Vultr 4 GB)
 
 | Model | Params | Quant | RAM usage | Quality | Notes |
-|-------|--------|-------|-----------|---------|-------|
+| ------- | -------- | ------- | ----------- | --------- | ------- |
 | Qwen 3 4B | 4B | Q4_K_M | ~3 GB | Basic | Leaves ~1 GB for OS + OpenClaw |
 | Phi-3 Mini | 3.8B | Q4_K_M | ~2.5 GB | Basic | Microsoft, good at reasoning |
 
@@ -35,7 +35,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 ### 8 GB RAM (e.g., Hetzner CAX21, DigitalOcean Basic 8 GB, Vultr 8 GB)
 
 | Model | Params | Quant | RAM usage | Quality | Notes |
-|-------|--------|-------|-----------|---------|-------|
+| ------- | -------- | ------- | ----------- | --------- | ------- |
 | Llama 3.1 8B | 8B | Q4_K_M | ~5-6 GB | Good | Meta, strong general assistant |
 | Qwen 3 8B | 8B | Q4_K_M | ~5-6 GB | Good | Alibaba, excellent multilingual |
 | Gemma 2 9B | 9B | Q4_K_M | ~5-6 GB | Good | Google, strong reasoning |
@@ -46,7 +46,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 ### 16 GB RAM (e.g., Hetzner CAX31, DigitalOcean Basic 16 GB, Vultr 16 GB)
 
 | Model | Params | Quant | RAM usage | Quality | Notes |
-|-------|--------|-------|-----------|---------|-------|
+| ------- | -------- | ------- | ----------- | --------- | ------- |
 | Qwen3 14B | 14B | Q4_K_M | ~9-10 GB | Very good | Best bang for buck |
 | GPT-OSS 20B | 20B | Q4_K_M | ~12-13 GB | Very good | Strong instruction following |
 | Llama 3.1 8B | 8B | Q8_0 | ~9 GB | Good+ | Higher quality quantization |
@@ -57,7 +57,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 ### 32 GB RAM (e.g., Hetzner CAX41, DigitalOcean Premium 32 GB, Vultr 32 GB)
 
 | Model | Params | Quant | RAM usage | Quality | Notes |
-|-------|--------|-------|-----------|---------|-------|
+| ------- | -------- | ------- | ----------- | --------- | ------- |
 | Qwen3 32B | 32B | Q4_K_M | ~20 GB | Excellent | Near-frontier quality |
 | Llama 3.1 70B | 70B | Q2_K | ~28 GB | Excellent | Heavily quantized but still strong |
 | Command R+ | 35B | Q4_K_M | ~22 GB | Excellent | Cohere, good for agentic tasks |
@@ -67,7 +67,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 ## Quantization Quick Reference
 
 | Quantization | Bits | Quality | Size (vs FP16) | Speed |
-|-------------|------|---------|----------------|-------|
+| ------------- | ------ | --------- | ---------------- | ------- |
 | Q2_K | 2 | Poor | ~15% | Fastest |
 | Q4_K_M | 4 | Good | ~30% | Fast |
 | Q5_K_M | 5 | Very good | ~35% | Medium |
@@ -81,7 +81,7 @@ Ollama runs natively on ARM64/aarch64. Most cloud ARM servers (Hetzner CAX, AWS 
 Prices below use Hetzner CAX as an example; other providers have comparable tiers. Research actual pricing for the user's chosen provider.
 
 | Setup | Monthly server cost | Model cost | Total | Quality |
-|-------|-------------------|------------|-------|---------|
+| ------- | ------------------- | ------------ | ------- | --------- |
 | 4 GB VPS + BYOK (Claude Sonnet) | ~4-6 EUR | ~5-20 EUR (usage) | ~10-25 EUR | Frontier |
 | 4 GB VPS + BYOK (GPT-5) | ~4-6 EUR | ~5-20 EUR (usage) | ~10-25 EUR | Frontier |
 | 8 GB VPS + Ollama 8B | ~7-12 EUR | 0 EUR | ~7-12 EUR | Good |
@@ -109,7 +109,7 @@ openclaw models set ollama/llama3.1:8b
 ### BYOK Providers
 
 | Provider | Env variable | Config key | Example model |
-|----------|-------------|------------|---------------|
+| ---------- | ------------- | ------------ | --------------- |
 | Anthropic | `ANTHROPIC_API_KEY` | `anthropic/claude-opus-4-6` | Claude Opus 4.6 |
 | OpenAI | `OPENAI_API_KEY` | `openai/gpt-5.1-codex` | GPT-5.1 Codex |
 | Google Gemini | `GEMINI_API_KEY` | `google/gemini-3-pro-preview` | Gemini 3 Pro |

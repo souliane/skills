@@ -13,7 +13,7 @@ Deterministic metrics collection + LLM architectural judgment for full codebase 
 Run `scripts/cli.py assess` to collect metrics as JSON. The CLI handles:
 
 | Metric | Tool | What it measures |
-|--------|------|-----------------|
+| -------- | ------ | ----------------- |
 | **Lint violations** | `ruff check --output-format json` | Rule violations by category and severity |
 | **Test coverage** | `coverage json` (if `.coverage` exists) | Line coverage percentage, uncovered files |
 | **Cyclomatic complexity** | `ruff check --select C901` | Functions exceeding complexity threshold |
@@ -52,7 +52,7 @@ done | sort -rn | head -15
 ```
 
 | Signal | Smell when | Feeds |
-|--------|-----------|-------|
+| -------- | ----------- | ------- |
 | Root-level file count | High (clutter at repo root) | §2h cohesion/scoping |
 | Files per directory | A directory far above the median | §2h god-package / split candidate |
 | Max tree depth | 5+ segments without clear reason | §2h over-deep tree |
@@ -170,7 +170,7 @@ Each assessment produces:
 ### Scores (1–10)
 
 | Score | What it measures |
-|-------|-----------------|
+| ------- | ----------------- |
 | **Cleanliness** | Lint violations, formatting consistency, dead code, TODOs |
 | **Maintainability** | Test coverage, naming consistency, complexity, documentation |
 | **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries, file hierarchy & organization |

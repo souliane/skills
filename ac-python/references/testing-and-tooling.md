@@ -37,7 +37,7 @@ def test_invoice_total() -> None:
 ### Standard pytest plugins
 
 | Plugin | Purpose |
-|---|---|
+| --- | --- |
 | `pytest-clarity` | Clearer assertion failure diffs |
 | `pytest-cov` | Coverage reporting |
 | `pytest-randomly` | Randomise test order (catches order-dependence) |

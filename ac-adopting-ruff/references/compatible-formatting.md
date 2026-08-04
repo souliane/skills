@@ -55,7 +55,7 @@ will silently misparse it.
 ## Settings explained
 
 | Setting | Why | Notes |
-|---------|-----|-------|
+| --------- | ----- | ------- |
 | `line-length` | Must match old black config | Black default is 88. Mismatching this is the #1 source of unwanted reformatting. |
 | `format.preview = false` | Non-preview formatter tracks black stable | `lint.preview` and `format.preview` are **independent** — preview lint rules are fine. |
 | `format.exclude` | Replaces black's `extend-exclude` | Uses glob patterns (not regex like black). |
@@ -81,14 +81,14 @@ git show "$BASE":pyproject.toml | grep -A 10 '\[tool.isort\]'
 Map each old setting to its ruff equivalent:
 
 | Old setting (black) | Ruff equivalent |
-|---------------------|-----------------|
+| --------------------- | ----------------- |
 | `line-length = N` | `[tool.ruff] line-length = N` |
 | `target-version = ["py3X"]` | `[tool.ruff] target-version = "py3X"` |
 | `extend-exclude = "pattern"` | `[tool.ruff.format] exclude = ["pattern"]` |
 | `skip-magic-trailing-comma = true` | `[tool.ruff.format] skip-magic-trailing-comma = true` |
 
 | Old setting (isort) | Ruff equivalent |
-|---------------------|-----------------|
+| --------------------- | ----------------- |
 | `profile = "black"` | Default behavior (no setting needed) |
 | `combine_as_imports = True` | `[tool.ruff.lint.isort] combine-as-imports = true` |
 | `extend_skip = [...]` | `[tool.ruff.lint.per-file-ignores]` |

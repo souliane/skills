@@ -33,7 +33,7 @@ metadata:
 ## Reference Files (load as needed)
 
 | File | Covers | When to load |
-|---|---|---|
+| --- | --- | --- |
 | [`references/models-and-schema.md`](references/models-and-schema.md) | Models, fields, constraints, QuerySets, managers, ORM performance | Model changes, query optimization, schema design |
 | [`references/transactions-and-migrations.md`](references/transactions-and-migrations.md) | Transactions, locking, idempotency, migration safety, FK index ops | Multi-step writes, migrations, schema changes |
 | [`references/views-and-templates.md`](references/views-and-templates.md) | Views, forms, templates, partials, HTMX, file uploads, i18n, middleware, management commands, connection pooling, Django 6 snippets | View/template work, form handling, HTMX, uploads |
@@ -54,7 +54,7 @@ When used alongside lifecycle skills, provides Django best practices context for
 When both ac-django and ac-python are loaded, the following Django-specific rules take precedence over the generic Python guidelines:
 
 | Topic | ac-python (generic) | ac-django (wins) |
-|---|---|---|
+| --- | --- | --- |
 | Test base class | Plain pytest classes (`class TestFoo:`) | `django.test.TestCase` (or `TransactionTestCase` when needed) |
 | Parametrization | `pytest.mark.parametrize` | `unittest_parametrize` |
 | Test data factories | `build_...()` plain functions | Factory Boy with `DjangoModelFactory`, traits, `build()` / `create()` |
@@ -130,7 +130,7 @@ Not allowed at boundaries:
 ## Version Matrix (Django 6 vs 5.2)
 
 | Capability | Django 6.x | Django 5.2 LTS delta |
-|---|---|---|
+| --- | --- | --- |
 | Template partials | Native `{% partialdef %}` | Use `django-template-partials` (remove on upgrade) |
 | Background tasks | Native `django.tasks` (`@task`, `.enqueue()`) | Use Celery/Huey/RQ/etc. |
 | CSP | Native CSP middleware + `SECURE_CSP` | Use `django-csp` |
@@ -178,7 +178,7 @@ Django 7.0 deprecation watch (flagged during the 6.1 cycle, removal in 7.0 — a
 Some style choices are equally valid — the "right" answer depends on the team. When you encounter one of these for the first time in a project, **ask the user** for their team's preference and save it to the project's `MEMORY.md` (auto-memory) so it persists across sessions.
 
 | Topic | Option A | Option B | What to ask |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Attribute/relation checks | **LBYL:** `hasattr()`, `isinstance()`, `getattr(obj, attr, default)` | **EAFP:** `try/except AttributeError` | "Does your team prefer LBYL (hasattr/getattr) or EAFP (try/except) for optional attribute and reverse-relation checks?" |
 | Queryset existence checks | `if qs.exists():` then `qs.first()` | `obj = qs.first(); if obj:` | "Single query (`first()` + None check) or explicit `exists()` + `first()`?" |
 | Null handling in serializers | Explicit `allow_null=True` on every nullable field | Rely on model field `null=True` inference | "Explicit `allow_null` on serializer fields, or infer from model?" |
@@ -194,7 +194,7 @@ Some style choices are equally valid — the "right" answer depends on the team.
 ### Placement table (strict)
 
 | Concern | Home | Notes |
-|---|---|---|
+| --- | --- | --- |
 | invariants, transitions, domain calculations | model methods | "tell, don't ask" |
 | collection logic | QuerySet methods | chainable |
 | graph loading | QuerySet methods | `for_api()`, `for_list()`, `with_*()` |
@@ -323,7 +323,7 @@ tiny standalone Python hook. A consuming repo references them by URL and rev:
 ```
 
 | Hook id | Engine | Fails on |
-|---|---|---|
+| --- | --- | --- |
 | `ac-django-no-pytest-django-db` | ast-grep | any `pytest.mark.django_db` use — the `@pytest.mark.django_db` decorator **and** a module-level `pytestmark = pytest.mark.django_db` (or list). Use `django.test.TestCase`. |
 | `ac-django-testcase-no-pytest-parametrize` | ast-grep | `@pytest.mark.parametrize` on a method **inside a `TestCase` subclass** (pytest silently ignores it there) — use `unittest_parametrize`. Module-level pytest-style functions are not flagged. |
 | `ac-django-no-complexity-suppressions` | ast-grep | a `# noqa: C901`/`PLR09xx` comment in source/tests |

@@ -290,7 +290,7 @@ e) Other (xAI, Groq, Mistral, etc.)
 5. Permissions: **Restricted** — set everything to **None**, then enable only what's needed:
 
    | Permission | Setting | Why |
-   |-----------|---------|-----|
+   | ----------- | --------- | ----- |
    | Responses (`/v1/responses`) | **Write** | Core — OpenClaw chat |
    | Chat completions (`/v1/chat/completions`) | **Request** | Core — legacy chat API |
    | All others (Text-to-speech, Realtime, Embeddings, Images, Moderations, Assistants, Threads, Evals, Fine-tuning, Files, Videos, Vector Stores, Prompts, Datasets) | **None** | Not needed |
@@ -515,7 +515,7 @@ If the user has an existing VPN, explain: "You'll need to disconnect your VPN be
 **After the server is authenticated, install Tailscale on every device that needs to access the OpenClaw dashboard:**
 
 | Device | Install method | Notes |
-|--------|---------------|-------|
+| -------- | --------------- | ------- |
 | macOS | **Mac App Store** → "Tailscale" | **Do NOT use `brew install tailscale`** — the CLI-only version can't route HTTP traffic on macOS (missing network extension). App Store version handles routing, DNS, and the menu bar. **Install automation:** ask the user "I'll open the Tailscale page in the App Store — OK?" then run `open "macappstore://apps.apple.com/app/tailscale/id1475387142?mt=12"`. Always ask before opening GUI windows. |
 | iPhone | App Store → "Tailscale" | Log in with same SSO account |
 | Android | Play Store → "Tailscale" | Log in with same SSO account |
@@ -602,7 +602,7 @@ For each channel the user selected, follow [`references/channel-setup.md`](./cha
 **Quick summary per channel:**
 
 | Channel | Key step | Verify with |
-|---------|----------|-------------|
+| --------- | ---------- | ------------- |
 | Signal | Install signal-cli + register phone number | `openclaw pairing list signal` |
 | Telegram | Get bot token from `@BotFather` | Send message to bot |
 | WhatsApp | `openclaw channels login --channel whatsapp` + scan QR | Send message |
@@ -778,7 +778,7 @@ signal-cli -u +<BOT_NUMBER> updateProfile --given-name "OpenClaw"
 Present this table to help the user choose (or add more channels to what they set up in Phase 8):
 
 | Platform | Privacy | Ease of setup | Phone needed? | Encryption | Best for |
-|----------|---------|---------------|--------------|------------|----------|
+| ---------- | --------- | --------------- | -------------- | ------------ | ---------- |
 | **Signal** | Excellent | Medium | Yes (dedicated recommended) | End-to-end | Privacy-first users. Gold standard for secure messaging |
 | **Telegram** | Good | Easiest | No | Server-side (E2E optional) | Quick setup. Best first channel to test |
 | **WhatsApp** | Good | Easy | Yes (real mobile) | End-to-end | Already-WhatsApp users. Most familiar UX |
@@ -806,7 +806,7 @@ Ask: "Do you also want OpenClaw to post content publicly on your behalf (social 
 If yes, present the recommendation from [`references/social-media.md`](./social-media.md):
 
 | Platform | Recommendation | Why |
-|----------|---------------|-----|
+| ---------- | --------------- | ----- |
 | **Bluesky** | Recommended | Open protocol, API-friendly, privacy-respecting, free API |
 | **Mastodon** | Recommended | Open source, federated, good API |
 | **LinkedIn** | Use with caution | Good API but use a **dedicated account** |
@@ -1016,7 +1016,7 @@ Signal requires a phone number to register. There is no way to create a Signal b
 **Approaches:**
 
 | Method | Privacy | Cost | Notes |
-|--------|---------|------|-------|
+| -------- | --------- | ------ | ------- |
 | **Dedicated prepaid SIM** (recommended) | Best | ~5-10 EUR one-time | Completely separate from personal number. Recommended. |
 | **eSIM / virtual number** | Good | ~3-5 EUR/mo | No physical SIM needed. Services like Hushed, MySudo. Verify it can receive SMS. |
 | **Google Voice / VoIP** | Moderate | Free | May not work — Signal blocks many VoIP numbers |

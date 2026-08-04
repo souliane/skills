@@ -107,7 +107,7 @@ orchestration (see [`SKILL.md`](../SKILL.md) § 1.4) — for a chat-only assista
 tiers apply.
 
 | Provider | Plan | vCPU | RAM | Disk | Location | €/mo net |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Hostkey | `vm.v2-medium` | 8 | 16 GB | 160 GB NVMe | Amsterdam | 14.00 |
 | Hostkey | **`vm.v2-heavy`** | 8 | **32 GB** | 240 GB NVMe | Amsterdam | **28.00** |
 | Hostkey | **`vm.v3-heavy`** | 8 | **32 GB** | 240 GB NVMe | Amsterdam | **36.40** |

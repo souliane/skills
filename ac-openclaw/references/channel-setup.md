@@ -8,7 +8,7 @@
 ### Built-in Channels
 
 | Channel | Library | Auth method | Phone needed | Difficulty |
-|---------|---------|-------------|-------------|------------|
+| --------- | --------- | ------------- | ------------- | ------------ |
 | Signal | signal-cli | Phone number + SMS/QR | Yes (dedicated recommended) | Medium |
 | WhatsApp | Baileys | QR code from phone | Yes (real mobile, no VoIP) | Easy |
 | Telegram | grammY | Bot token from @BotFather | No | Easiest |
@@ -221,7 +221,7 @@ systemctl --user start openclaw.service
 **Gotchas during re-registration:**
 
 | Problem | Cause | Fix |
-|---------|-------|-----|
+| --------- | ------- | ----- |
 | `AlreadyVerifiedException` on register | Stale local data thinks it's registered | Only after confirming `getUserStatus` is `false`, run `deleteLocalAccountData` and re-register |
 | `StatusCode: 499` on verify | Code expired or too many attempts | Re-register with a new captcha + verify immediately |
 | "This person is not on Signal" after fix | Identity key changed; contact's app cached old key | Contact must delete the old conversation and start a new one |

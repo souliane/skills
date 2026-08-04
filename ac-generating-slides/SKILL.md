@@ -259,7 +259,7 @@ Requires these CSS classes in the `style` front matter:
 When the user doesn't specify a style, use this clean default palette:
 
 | Element | Color |
-|---|---|
+| --- | --- |
 | Headings | `#1a5276` (dark blue) |
 | Accent | `#2e86c1` (medium blue) |
 | Emphasis (bold/strong) | `#c0392b` (red) |

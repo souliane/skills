@@ -39,7 +39,7 @@ goal is the sum of many small wins, not one big push.
 Ask the user, or pick the default:
 
 | Mode | Goal | Best when |
-|------|------|-----------|
+| ------ | ------ | ----------- |
 | **A — File-focused** | Delete or shrink one file's ignore entry | The user names a specific file, or the codebase has a few long/ugly entries |
 | **B — Rule-focused (default)** | Drop one rule from as many files as possible | The codebase has many entries (>20) and a handful of rules recur across them |
 
@@ -80,7 +80,7 @@ Aggregate `/tmp/techdebt-scan.json` into:
 ### 1c. Classify each (file, rule) pair
 
 | Class | Definition | Action |
-|-------|-----------|--------|
+| ------- | ----------- | -------- |
 | **Stale** | Rule ignored, violation count 0, AND the glob matches ≥1 tracked file, AND the rule is NOT a structural/framework ignore (see below) | Free win — drop |
 | **Dead config** | The ignored glob matches **zero** tracked files (the directory was emptied/relocated since the ignore was added) | Drop the whole entry — it pins rules for files that don't exist. Verify with `git ls-files '<glob>'` before deleting (a 0-count is otherwise indistinguishable from genuine staleness) |
 | **Easy auto** | Auto-fixable, ≤20 violations in the file, rule NOT in skip list | Good candidate |
@@ -211,7 +211,7 @@ keep the ignore (<brief list>).
 A healthy Phase 3 MR:
 
 | Metric | Target |
-|--------|--------|
+| -------- | -------- |
 | Files touched | ≤ 10 |
 | Ignores removed | 1–5 entries (Mode A) or 1 rule across 3–15 files (Mode B) |
 | Time spent | ≤ 30 minutes |

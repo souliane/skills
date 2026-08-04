@@ -73,7 +73,7 @@ Identify repos to compare (via `MANAGED_REPOS`) and a reference repo (most compl
 ### Phase 2 — Read & Compare
 
 | File | What to compare |
-|------|----------------|
+| ------ | ---------------- |
 | `.pre-commit-config.yaml` | Hook inventory, tool versions, phase ordering, file scoping, rev format (SHA + tag comment) |
 | `pyproject.toml` | `[tool.ruff]`, `[tool.ty]`, `[tool.pytest]`, `[tool.coverage]`, `[tool.codespell]` |
 | `.editorconfig` | Charset, line ending, indent style/size, markdown settings |
@@ -82,7 +82,7 @@ Identify repos to compare (via `MANAGED_REPOS`) and a reference repo (most compl
 ### Phase 3 — Classify Divergences
 
 | Classification | Action |
-|----------------|--------|
+| ---------------- | -------- |
 | **Drift** — no reason for difference | Align to reference |
 | **Intentional** — repo-specific need | Keep, add comment |
 | **Stale** — was intentional, reason gone | Align, remove stale comment |

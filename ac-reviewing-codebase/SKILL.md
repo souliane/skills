@@ -55,7 +55,7 @@ SWEEP_POLICY="<owned-org>/(repo-a|repo-b):serial-merge"
 ```
 
 | Variable | Purpose | Fallback when missing |
-|----------|---------|----------------------|
+| ---------- | --------- | ---------------------- |
 | `WORKSPACE_DIR` | Root directory the repo scan walks | `~/workspace` |
 | `MAINTAINED_SKILLS` | Regex for ownership check — skills matching this can be modified freely | Ask user before modifying any skill |
 | `MANAGED_REPOS` | Regex to discover repos under `WORKSPACE_DIR` for status/audit/squash | Ask user which repos to manage |
@@ -332,7 +332,7 @@ Run the retro skill (if available) to capture meta-improvements. If the user req
 These workflows can be invoked standalone or as part of a full review. Read [`references/repo-management.md`](references/repo-management.md) for full details.
 
 | Workflow | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | **Delivery Status** | Quick overview of unpushed commits, dirty files, branches, stashes across all managed repos |
 | **Squash & Prepare** | Squash related unpushed commits into clean units. Canonical source of squash rules. |
 | **Infrastructure Audit** | Compare and harmonize `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig` across repos |

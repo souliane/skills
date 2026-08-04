@@ -97,7 +97,7 @@ chmod 700 ~/.openclaw/credentials
 ## DM Access Control Policies
 
 | Policy | Behavior |
-|--------|----------|
+| -------- | ---------- |
 | `pairing` (default) | Unknown senders get expiring codes; require approval |
 | `allowlist` | Block unknown senders entirely |
 | `open` | Allow anyone (requires explicit `"*"` in channel allowlist) |
@@ -106,7 +106,7 @@ chmod 700 ~/.openclaw/credentials
 ## Gateway Authentication Modes
 
 | Mode | Use case |
-|------|----------|
+| ------ | ---------- |
 | `token` | Default. Set via `OPENCLAW_GATEWAY_TOKEN` or config |
 | `password` | Required for Tailscale Funnel (public access) |
 | `trusted-proxy` | Identity-aware reverse proxies |
@@ -192,7 +192,7 @@ openclaw security audit --fix        # Auto-fix permissions
 ### Critical Findings to Watch For
 
 | Finding | Fix |
-|---------|-----|
+| --------- | ----- |
 | `gateway.bind_no_auth` | Add `gateway.auth.*` |
 | `fs.state_dir.perms_world_writable` | `chmod 700 ~/.openclaw` |
 | `gateway.tailscale_funnel` | Disable or restrict; require password auth |
@@ -201,7 +201,7 @@ openclaw security audit --fix        # Auto-fix permissions
 ## Credential Locations (Backup These)
 
 | What | Path |
-|------|------|
+| ------ | ------ |
 | Main config | `~/.openclaw/openclaw.json` |
 | WhatsApp creds | `~/.openclaw/credentials/whatsapp/<id>/creds.json` |
 | Telegram token | config or `TELEGRAM_BOT_TOKEN` env |

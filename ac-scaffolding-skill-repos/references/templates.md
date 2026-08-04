@@ -5,7 +5,7 @@ Templates for scaffolding a new skill repo. Each template is a real file that ca
 ## Template Files
 
 | File | Destination | Notes |
-|------|-------------|-------|
+| ------ | ------------- | ------- |
 | [`templates/SKILL.md.template`](templates/SKILL.md.template) | `<skill>/SKILL.md` | Rename to `SKILL.md`, fill placeholders |
 | [`templates/pyproject.toml`](templates/pyproject.toml) | `pyproject.toml` | Replace `<repo-name>` and `<description>` |
 | [`templates/pre-commit-config.yaml`](templates/pre-commit-config.yaml) | `.pre-commit-config.yaml` | Pin all `<sha>` to full git SHAs (see below) |
