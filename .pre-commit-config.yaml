@@ -121,7 +121,7 @@ repos:
   # The two shared repo-level scripts are owned by skill-repo-boilerplate; this
   # repo consumes them instead of keeping copies that drift.
   - repo: https://github.com/souliane/skill-repo-boilerplate
-    rev: 1d57e6cbf94a545ef6342bb90a9b619b1fda2697  # 2026-08-04
+    rev: dab1b5370bc96a3af673a289a4ea2e4fb12ba80d  # 2026-08-04
     hooks:
       - id: update-readme-skills
       - id: bump-pyproject-deps-from-lock-file
