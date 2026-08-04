@@ -197,10 +197,11 @@ run.source = [
   "scripts",
 ]
 report.exclude_also = [ "if __name__ == .__main__.:" ]
-# A ratchet, not a target: this is the number the suite MEASURED (28.82%), rounded
-# down. Raise it when a change measures higher; never lower it to make a red run
-# green. See AGENTS.md "Coverage floor".
-report.fail_under = 28
+# A ratchet, not a target: this is the number the suite MEASURED, rounded down.
+# CI measures both interpreters and 3.14 is the lower of the two (30.77% against
+# 3.13's 31.17%), so the floor tracks 3.14. Raise it when a change measures
+# higher; never lower it to make a red run green. See AGENTS.md "Coverage floor".
+report.fail_under = 30
 report.precision = 2
 report.show_missing = true
 report.skip_covered = true
