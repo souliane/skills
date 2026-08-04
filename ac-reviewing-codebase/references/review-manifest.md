@@ -178,6 +178,8 @@ skipping it is what this file prevents.
       evidence:
 - [ ] `A.5b` §2i prose about code: comment proportionality and documentation currency judged; reported, never gated
       evidence:
+- [ ] `A.5c` §2j duplication & factorization: repeated logic across scripts/modules/repos judged; extraction target named or duplication recorded as deliberate (non-negotiable)
+      evidence:
 - [ ] `A.6` Three scores produced: cleanliness, maintainability, architecture (1-10) (non-negotiable)
       evidence:
 - [ ] `A.7` Ranked improvement list with Impact/Effort/Affected-files per item (non-negotiable)

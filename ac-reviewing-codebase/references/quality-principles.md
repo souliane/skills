@@ -12,6 +12,7 @@ mindmap
       Single source of truth
       One owner per runtime fact
       Comments are a second copy
+      Buried knowledge does not fire
     Robustness
       Document failure modes
       Time-box troubleshooting
@@ -55,6 +56,7 @@ Skills must produce **deterministic, repeatable outcomes**. If following a skill
 - **Single source of truth.** Every piece of operational knowledge lives in exactly one place. Duplicated rules **always diverge over time**. Fix: one canonical location, cross-references from consumers. During review, grep for distinctive phrases across files — if the same concept appears in 2+ places, consolidate.
 - **One owner per runtime fact (state, not just docs).** The bullet above is about *prose*; this is about *persisted runtime state* and is the more expensive failure. Every runtime fact (lifecycle status, ownership, liveness, claims/leases, gate/approval decisions) has exactly **one authoritative store**; every file/in-memory/cache copy is a derived projection, never co-equal. **When a database is one of the stores, the DB wins every conflict** — reconcile from the DB, never trust a file/flock/in-memory value over the row. Cross-process or cross-session coordination on shared mutable state **must** use a DB lock, never a pidfile/flock/in-memory flag. A fact stored in 2+ places with no declared arbiter is a defect even when each store is locally correct. This is a mandatory **whole-repo architectural** check — detectors in codebase-assessment.md §2g; the lock mechanics live, canonically and only, in `ac-django` transactions-and-migrations §6.6.
 - **Comments are a second copy — one line, or none.** A comment that restates the code stores the same fact twice, so it diverges exactly the way duplicated prose does: the code changes, the comment silently keeps asserting the old behaviour, and a reader trusts it. A comment therefore earns its place only by carrying a non-obvious *why* the code cannot state — and it carries it in ONE line. A multi-line block narrating the lines below it is a finding whose fix is a rename or a split, not shorter prose. Judge only what a change **adds**; pre-existing comments are not the diff's business. **Report it, never gate on comment length** — an advisory warning is the strongest mechanization allowed, because the friction of blocking costs more than the bloat. Full rule: SKILL.md Rule 16.
+- **Buried knowledge does not fire.** A rule the reader never reaches is a rule the skill does not have. Knowledge buried in a project-specific playbook, a troubleshooting appendix, or a reference the workflow never tells anyone to open gets violated without anyone ever disagreeing with it — the agent simply never saw it. So judge **placement, not just presence**: does the rule live where the decision is made, at the altitude that governs it? A correct rule in the wrong place is a defect, and "but it *is* documented" is not a defence. Promote buried operational knowledge up to the skill that owns the decision and cross-reference back down (SKILL.md Rule 6; the promotion procedure is review-phases § 2.6).
 
 ## Robustness
 
