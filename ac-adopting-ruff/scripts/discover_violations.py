@@ -133,7 +133,7 @@ def main(path: Path = typer.Argument(Path(), help="Path to check for ruff violat
         violations = json.loads(result.stdout)
     except json.JSONDecodeError:
         print(f"Error parsing ruff output:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
+        raise typer.Exit(1) from None
 
     if not violations:
         print("No violations found!")

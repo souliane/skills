@@ -163,10 +163,12 @@ allowed-unresolved-imports = [
   "tomlkit",
   "pypdf",
   "pypdf.generic",
-  # Test-only sibling helpers; resolved via pytest's sys.path injection at
-  # runtime (the dir name has hyphens so it is not an importable package).
+  # Skill-script modules the tests reach through their conftest's sys.path
+  # injection (the skill dirs have hyphens, so they are not importable packages).
   "_cli_import",
   "_gitutil",
+  "_stubs",
+  "acroform_errors",
 ]
 
 [tool.ty]

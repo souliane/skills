@@ -25,8 +25,6 @@ from pathlib import Path
 
 import typer
 
-app = typer.Typer(no_args_is_help=False)
-
 # Track child viewer processes for cleanup
 _viewer_procs: list[subprocess.Popen] = []
 
@@ -610,7 +608,6 @@ class ScopeSpec:
         return cls(include_templates="templates" in flags, force="force" in flags)
 
 
-@app.command()
 def main(
     filter_glob: str = typer.Option("", "--filter", "-f", help="Glob pattern to filter PDF names"),
     *,

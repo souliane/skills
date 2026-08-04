@@ -27,6 +27,21 @@ All scripts must follow these conventions:
 4. **Type annotations:** `ty-check` runs on all files — use `str | None` not `Optional[str]`
 5. **4-space indentation** everywhere (matches `.editorconfig`)
 6. **Make executable:** `chmod +x` the script file
+7. **One exit mechanism per entry-point style.** A Typer command body (and anything it
+   calls) ends on `raise typer.Exit(<code>)`; a plain `main() -> int` hook ends on
+   `raise SystemExit(main(...))` under `if __name__ == "__main__"`. Never a bare
+   `sys.exit()` inside command code, and never `SystemExit("a message")` — a string
+   raise makes every failure exit 1, so a caller cannot tell a malformed spec from a
+   failed check. Give each failure class its own code (see
+   `ac-editing-acroforms/scripts/acroform_errors.py`).
+
+**One runnable entry point per skill.** A skill's `scripts/cli.py` owns the Typer app
+and the whole command surface. Sibling modules hold command bodies but declare no app
+of their own and run nothing on import, so there is exactly one thing to document and
+exactly one thing to keep working. Only the entry point needs the shebang, the inline
+metadata, and the executable bit — and every doc line that tells the reader to
+execute a script (`./<skill>/scripts/cli.py ...`) must name one
+(`tests/test_documented_scripts.py` enforces it).
 
 ## Testing
 
