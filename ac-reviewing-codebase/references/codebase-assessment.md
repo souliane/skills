@@ -163,6 +163,18 @@ The signals in Part 1 § "File-hierarchy signals" surface *where* the tree may b
 
 A move that requires import/reference updates (`-> ... (implies import updates)`) is **not** a Phase-0 quick win — it lands in Phase 5 with the references rewritten and tests re-run. Per Rule 9, implement the safe-blast-radius moves this session; file only the design-ambiguous restructurings. Severe hierarchy smells (a god-module mixing several responsibilities, a root crowded with misplaced files) are **Architecture-dimension** scoring evidence.
 
+### 2i. Prose About Code (Comments & Docs)
+
+Prose that restates code is a second copy of the same fact, and it diverges the moment the code moves — the code changes, the comment or doc keeps asserting the old behaviour, and a reader trusts it. The §2a–2h lenses do not catch this. Judge the prose, not just the code:
+
+- Do comments carry a non-obvious **why**, or do they narrate **what** the next line already says?
+- Is each added comment **one line**? A multi-line block narrating the code below is a finding whose fix is a rename or a split, not shorter prose (SKILL.md Rule 16). Adjacent one-liners each making a separate point are fine.
+- Are there signature-echo docstrings (`"""Add the feature flag."""` on `add_feature_flag`) that add nothing?
+- Is rationale (tickets, MRs, what was tried) inline where it should be in the commit message?
+- Does manually-maintained documentation still match the code, and is doc that *should* be generated actually generated (Rule 11)?
+
+Judge only what a change **adds** — rewriting pre-existing comments inflates the diff into unrelated churn. **Report; never gate on comment length.** An advisory warning is the strongest mechanization allowed, because the friction of blocking costs more than the bloat. This is **Maintainability**-dimension scoring evidence.
+
 ## Output Format
 
 Each assessment produces:
@@ -172,7 +184,7 @@ Each assessment produces:
 | Score | What it measures |
 |-------|-----------------|
 | **Cleanliness** | Lint violations, formatting consistency, dead code, TODOs |
-| **Maintainability** | Test coverage, naming consistency, complexity, documentation |
+| **Maintainability** | Test coverage, naming consistency, complexity, documentation currency, comment proportionality (§2i) |
 | **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries, file hierarchy & organization |
 
 ### Ranked Improvement List
