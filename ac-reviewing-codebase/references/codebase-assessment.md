@@ -175,6 +175,17 @@ Prose that restates code is a second copy of the same fact, and it diverges the 
 
 Judge only what a change **adds** — rewriting pre-existing comments inflates the diff into unrelated churn. **Report; never gate on comment length.** An advisory warning is the strongest mechanization allowed, because the friction of blocking costs more than the bloat. This is **Maintainability**-dimension scoring evidence.
 
+### 2j. Duplication & Factorization
+
+The same behaviour maintained in more than one place drifts: a fix lands in one copy and not the others, and the copies quietly disagree. §2c judges whether an abstraction is *wrong*; this lens catches the one that is *missing*. It is the executable-code sibling of §2i (prose that restates code) and of Reliability's single-source-of-truth rule (knowledge stored twice).
+
+- Is the same logic implemented in two or more scripts, modules, or repos?
+- Where three or more copies exist, what shared module, tool, or reference should they be extracted to?
+- Do two repos encode the *same convention* differently? That is duplication at the seam, and the most expensive kind — neither copy looks wrong on its own.
+- Is the duplication deliberate (a vendored copy, an intentional fork) and recorded as such? **When unsure whether duplication is intentional, ask the owner** rather than collapsing it (Rule 10).
+
+This is **Architecture**-dimension scoring evidence.
+
 ## Output Format
 
 Each assessment produces:
@@ -185,7 +196,7 @@ Each assessment produces:
 | ------- | ----------------- |
 | **Cleanliness** | Lint violations, formatting consistency, dead code, TODOs |
 | **Maintainability** | Test coverage, naming consistency, complexity, documentation currency, comment proportionality (§2i) |
-| **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries, file hierarchy & organization |
+| **Architecture** | Separation of concerns, abstraction quality, coupling, module boundaries, file hierarchy & organization, duplication & factorization (§2j) |
 
 ### Ranked Improvement List
 
