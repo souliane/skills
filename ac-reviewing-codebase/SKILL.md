@@ -3,7 +3,7 @@ name: ac-reviewing-codebase
 description: Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting. Use when user says "review skills", "audit skills", "audit codebase", "code quality", "repo status", "what needs pushing", "align repos", "backport", "upgrade deps", "assess codebase", "health check", or wants a thorough quality pass on skills and/or code.
 compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv, Typer.
 metadata:
-  version: 0.3.0
+  version: 0.4.0
   subagent_safe: false
   last_research_date: "2026-06-02"
 ---
@@ -76,7 +76,13 @@ fallback and a silently wrong repo list.
 
 ## Deterministic CLI
 
-Single entry point at [`scripts/cli.py`](scripts/cli.py).
+Single entry point at [`scripts/cli.py`](scripts/cli.py) — thin Typer wiring over
+sibling modules next to it (`review_config`, `skill_frontmatter`, `repo_status`,
+`codebase_metrics`, `review_gate`, `ui`).
+
+Repo selection is one flag: `--root` is a repository PATH. `status` runs across
+every managed repo, so it narrows by directory NAME with `--name` (`--repo` is
+kept as an alias).
 
 ```bash
 # FIRST action of every review — render the enforced completion checklist
@@ -89,7 +95,7 @@ uv run ac-reviewing-codebase/scripts/cli.py review-verify [CHECKLIST]
 uv run ac-reviewing-codebase/scripts/cli.py check [--root PATH]
 
 # Show delivery status across all managed repos
-uv run ac-reviewing-codebase/scripts/cli.py status [--repo NAME] [--verbose]
+uv run ac-reviewing-codebase/scripts/cli.py status [--name NAME] [--verbose]
 
 # Inventory config files and health checks
 uv run ac-reviewing-codebase/scripts/cli.py config
