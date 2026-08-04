@@ -213,6 +213,8 @@ Then:
    - **Preferred path:** if the session offers a dedicated PR-sweep skill from a lifecycle tool, invoke it and proceed once it returns. Repos with `serial-merge` declared in `SWEEP_POLICY` (see § Configuration) will fully drain before the sweep returns; repos on `bulk-update` will only be refreshed against `main`.
    - **If unavailable:** ask the user whether they have one to install. If they decline, sweep manually by asking the user the few questions needed to do it correctly (which repos, which PRs to include/exclude, conflict-resolution preference, whether to wait for CI, **whether to also merge each PR after CI greens for fully-owned repos**), then walk each open PR — update from base, push, monitor CI, fix root causes (never `--no-verify`), and (for repos the user wants drained) squash-merge before the next PR — and surface any skipped PR in the final report.
 5. **Determine review scope.** Use `MAINTAINED_SKILLS` from config to discover all repos and skills in scope. List discovered skills grouped by repo and ask the user to confirm or narrow.
+
+   **Then rank it by what moved.** The budget is finite, so spend it where the code changed since the last review — that is where new drift landed. Get the ranking from the tree itself (`git log --since=<last review> --name-only --pretty= | sort | uniq -c | sort -rn`). An area that was untouched and clean last pass is the lowest-value place left to look.
 6. **Discover agent memory and config files dynamically.** Scan platform-specific locations (e.g., `~/.claude/projects/*/memory/`, `~/.codex/`, `~/.cursor/`) for memory files. Check for repo-level agent config (`AGENTS.md`, `.cursorrules`, or similar) in each project root. Include all discovered files in the asset inventory for cross-review.
 7. **Read all selected skills fully.** Load every `SKILL.md`, every reference, every script, every hook config. Do not skim.
 
@@ -294,6 +296,8 @@ Deterministic metrics + LLM architectural judgment. Read [`references/codebase-a
 ### 5.1 Change Plan
 
 Compile all findings from Phases 1–4 + A into a structured change plan. Group by repo and type.
+
+Whatever the plan files rather than fixes (the Mission's carve-out for the too-large and the design-ambiguous) gets **one ticket per root cause**, never one mega-issue, carrying `file:line`, expected vs actual, and the rule or rubric lens it violates. The session that picks it up should not have to re-derive the reasoning.
 
 ### 5.2 Progressive Clarification (Non-Negotiable)
 
