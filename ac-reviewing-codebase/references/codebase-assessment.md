@@ -256,4 +256,4 @@ Use the CLI's `--history` flag (if available) to track trends across assessments
 
 - **Not a diff review.** This assesses the full codebase, not just recent changes. For diff-based code review, use the lifecycle review skill.
 - **Not a retro.** This reviews a *codebase*, not a *session*. For session retrospectives, use the retro skill.
-- **Not a replacement for CI.** Deterministic metrics complement CI but don't replace it. If CI catches lint violations, the assessment focuses on architectural judgment instead.
+- **Not a replacement for CI, and not a re-run of it.** Deterministic metrics complement CI but don't replace it: read what the repo already enforces on every change — CI lint, pre-commit hooks, its own checkers — and skip those findings here, along with decisions already settled at design review. Judgment spent re-deriving a machine-checkable finding is judgment not spent on the one thing no single diff can show: drift accumulated across many individually-clean changes.

@@ -191,6 +191,7 @@ Check each skill's `subagent_safe` metadata field. A skill is safe for sub-agent
 - Verify existing tests pass.
 - **Integration-first check.** Happy paths = integration tests; unit tests = edge cases and error branches.
 - **Test conciseness.** Flag: copy-pasted tests (use parametrize), repeated setup (use fixtures), over-mocking.
+- **A test must not mock the behaviour it names.** A test that patches the unit under test — or the one collaborator carrying the logic being asserted — passes against code that never ran, and stays green through a rewrite of the very thing it claims to cover. Judge *what* each mock replaces, not how many there are (that is the conciseness bullet above): mock the unstoppable externals — network, clock, third-party subprocess — and let the named behaviour execute.
 - **A regression test must fail against the un-fixed code.** A test added alongside a bugfix guards nothing if it stays green when the fix is reverted. Confirm it would go red on the pre-fix behavior — mentally trace it against the old code path, or actually revert the fix and watch it fail. This is the anti-vacuous pairing already described for behavioral evals (see [`ai-eval-review.md`](ai-eval-review.md) § "Pass / fail / no-op — the anti-vacuous pairing"), applied to ordinary deterministic tests.
 
 ### 3.10b Behavioral Coverage for Non-Deterministic Behavior (Suggest, Don't Enforce)

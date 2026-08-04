@@ -41,7 +41,7 @@ skipping it is what this file prevents.
       evidence:
 - [ ] `0.4` Open-PR sweep run or explicitly declined by the user (non-negotiable)
       evidence:
-- [ ] `0.5` Scope listed and confirmed: every repo named, none silently dropped (non-negotiable)
+- [ ] `0.5` Scope listed and confirmed: every repo named, none silently dropped; ranked by what changed since the last review (non-negotiable)
       evidence:
 - [ ] `0.6` Agent memory dirs and repo-level agent config discovered and inventoried
       evidence:
@@ -136,7 +136,7 @@ skipping it is what this file prevents.
       evidence:
 - [ ] `3.9` `subagent_safe` metadata classified per skill
       evidence:
-- [ ] `3.10` Test coverage and quality; regression tests proven to fail against un-fixed code (non-negotiable)
+- [ ] `3.10` Test coverage and quality; regression tests proven to fail against un-fixed code; no test mocks the behaviour it names (non-negotiable)
       evidence:
 - [ ] `3.10b` Behavioral-eval coverage SUGGESTED for load-bearing skill rules / non-deterministic behaviour
       evidence:
