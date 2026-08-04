@@ -422,7 +422,7 @@ def check_pixel_coverage(
 ) -> list[tuple[str, bool, str]]:
     """Check that field positions have non-white pixels in the rendered golden PDF."""
     try:
-        import PIL  # noqa: F401
+        import PIL  # ruff: ignore[unused-import]
     except ImportError:
         return [("(pixel check)", False, "Pillow not installed")]
 

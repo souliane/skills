@@ -5,7 +5,7 @@ fail_fast: true
 repos:
   # Phase 1 - Init
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 5ab6bd930e86ba0e929eedcee2be458f6b8e4936  # 0.8.16
+    rev: 8ff2449591c8de025b17661ba76d60237a1ae62b  # 0.12.1
     hooks:
       - id: uv-lock
       - id: uv-sync
@@ -13,7 +13,7 @@ repos:
 
   # Phase 2 - Formatters
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: fa93bc3224c614a0e9786d3e2d3d48edcca246eb  # v0.15.1
+    rev: 39d9ac5938dadb73df0564a45f163e25ff9fa6e2  # v0.16.1
     hooks:
       - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -37,7 +37,7 @@ repos:
       - id: pyproject-fmt
         files: ^pyproject\.toml$
   - repo: https://github.com/pappasam/toml-sort
-    rev: 4ec24891e200ae663aa2a7cecd19516080777133  # v0.24.2
+    rev: 2970ae9bb7124fe5117a27e10c10d2da051ce05a  # v0.24.4
     hooks:
       - id: toml-sort-fix
         exclude: ^(pyproject\.toml|uv\.lock)$
@@ -55,7 +55,7 @@ repos:
 
   # Phase 4 - Linters
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: fa93bc3224c614a0e9786d3e2d3d48edcca246eb  # v0.15.1
+    rev: 39d9ac5938dadb73df0564a45f163e25ff9fa6e2  # v0.16.1
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -67,12 +67,12 @@ repos:
       - id: rst-inline-touching-normal
       - id: text-unicode-replacement-char
   - repo: https://github.com/codespell-project/codespell
-    rev: 63c8f8312b7559622c0d82815639671ae42132ac  # v2.4.1
+    rev: 57b21406f092110c18776e39b0bda50d37c945c8  # v2.4.3
     hooks:
       - id: codespell
         args: [--write-changes, --ignore-words-list=afterAll]
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 61529b21391331d7cfd1f191df6293534a1fd79a  # v3.4.0
+    rev: 3aa28ce11a84d747c5695ad10b81945f2400b54f  # 3.8.0
     hooks:
       - id: editorconfig-checker
         exclude: \.m?html$
@@ -88,7 +88,7 @@ repos:
 
   # Phase 6 - Security & custom
   - repo: https://github.com/gitleaks/gitleaks
-    rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # v8.30.0
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # v8.30.1
     hooks:
       - id: gitleaks
   - repo: local
@@ -147,7 +147,7 @@ repos:
 
   # Phase 9 - Manual
   - repo: https://github.com/semgrep/semgrep
-    rev: 984f76026160ea94163eee091bc3caa876476b35  # v1.139.0
+    rev: 2d101bb3856dd243333af010d82979b74b54b309  # v1.172.0
     hooks:
       - id: semgrep
         additional_dependencies: [semgrep]
@@ -156,7 +156,7 @@ repos:
 
   # Phase 10 - Commit-msg
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: 37b5f04f364960e8e7b361d0dbaaf8f28ec06392  # v4.2.0
+    rev: 3db014c16a9d31997ab8c07a4d61fcce936c8f0d  # v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
