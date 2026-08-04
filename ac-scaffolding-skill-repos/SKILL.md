@@ -119,9 +119,8 @@ Ask the user **one question at a time** (wait for each answer before asking the 
 ├── pyproject.toml         # Unified tool configuration
 ├── uv.lock
 ├── scripts/
-│   ├── hooks/
-│   │   └── check-banned-terms.sh
-│   └── update_readme_skills.py
+│   └── hooks/
+│       └── check-banned-terms.sh
 ├── tests/
 │   ├── __init__.py
 │   └── conftest.py
@@ -200,8 +199,8 @@ Report findings as a table, then ask which to fix.
 Check for:
 
 - **Missing `<!-- BEGIN SKILLS -->` / `<!-- END SKILLS -->` markers** → offer to add the skills catalogue section
-- **Missing `scripts/update_readme_skills.py`** → offer to create it from template
 - **Missing pre-commit hook `update-readme-skills`** → offer to add it (covered in § 10.4)
+- **A local copy of `scripts/update_readme_skills.py`** → offer to delete it and consume the boilerplate hook instead (covered in § 10.4)
 
 #### 10.3 pyproject.toml
 

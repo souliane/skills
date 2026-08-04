@@ -77,7 +77,7 @@ Identify repos to compare (via `MANAGED_REPOS`) and a reference repo (most compl
 | `.pre-commit-config.yaml` | Hook inventory, tool versions, phase ordering, file scoping, rev format (SHA + tag comment) |
 | `pyproject.toml` | `[tool.ruff]`, `[tool.ty]`, `[tool.pytest]`, `[tool.coverage]`, `[tool.codespell]` |
 | `.editorconfig` | Charset, line ending, indent style/size, markdown settings |
-| Utility scripts | Presence of shared scripts (e.g., `bump-pyproject-deps-from-lock-file.py`) |
+| Utility scripts | Whether the shared hooks published by `skill-repo-boilerplate` are consumed, and pinned to the same rev |
 
 ### Phase 3 — Classify Divergences
 
@@ -170,7 +170,7 @@ All recommendations are advisory with effort estimates and impact assessment.
 All `.pre-commit-config.yaml` entries must use git SHA as `rev`, with tag as comment:
 
 ```yaml
-rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # v8.30.0
+rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # v8.30.1
 ```
 
 ### Phase Comments in Pre-Commit Config (Non-Negotiable)
@@ -207,9 +207,23 @@ indent_style = tab
 - `requires-python` in `[project]` is a **runtime requirement**.
 - These can differ.
 
-### Utility Scripts
+### Shared Scripts Are Hooks, Not Copies
 
-Every repo with uv + pyproject.toml should have `bump-pyproject-deps-from-lock-file.py`.
+`skill-repo-boilerplate` owns the repo-level scripts and publishes them in its
+`.pre-commit-hooks.yaml`. Repos consume them instead of copying the files:
+
+```yaml
+  - repo: https://github.com/souliane/skill-repo-boilerplate
+    rev: <sha>  # <date>
+    hooks:
+      - id: update-readme-skills
+      - id: bump-pyproject-deps-from-lock-file
+        stages: [manual]
+```
+
+A copy of one of these scripts in a repo's own `scripts/` directory is a finding:
+four identical copies of `bump-pyproject-deps-from-lock-file.py` and three drifted
+copies of `update_readme_skills.py` is how the fleet got here.
 
 ---
 
@@ -222,7 +236,7 @@ Every repo with uv + pyproject.toml should have `bump-pyproject-deps-from-lock-f
 - [ ] Phased structure in all pre-commit configs
 - [ ] Hook inventories match
 - [ ] Ruff, ty/mypy, pytest, editorconfig settings match
-- [ ] Utility scripts present
+- [ ] Shared boilerplate hooks consumed (no local copies of the shared scripts)
 - [ ] All divergences aligned or documented
 
 ### CI Pipeline Comparison

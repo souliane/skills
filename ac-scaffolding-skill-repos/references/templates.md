@@ -29,4 +29,13 @@ git ls-remote https://github.com/<org>/<repo>.git refs/tags/<version> | cut -f1
 
 ## README Auto-Generation
 
-The `update_readme_skills.py` pre-commit hook auto-generates the skills table between `<!-- BEGIN SKILLS -->` and `<!-- END SKILLS -->` from SKILL.md frontmatter.
+The `update-readme-skills` hook auto-generates the skills table between `<!-- BEGIN SKILLS -->` and `<!-- END SKILLS -->` from SKILL.md frontmatter. `skill-repo-boilerplate` owns the script and publishes it in its `.pre-commit-hooks.yaml`, so repos pin it by SHA rather than keeping a copy:
+
+```yaml
+  - repo: https://github.com/souliane/skill-repo-boilerplate
+    rev: <sha>  # <date>
+    hooks:
+      - id: update-readme-skills
+      - id: bump-pyproject-deps-from-lock-file
+        stages: [manual]
+```
