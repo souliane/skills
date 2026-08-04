@@ -169,6 +169,7 @@ analysis.allowed-unresolved-imports = [
   "_stubs",
   "acroform_errors",
   "astgrep_scan",
+  "pyproject_complexity",
 ]
 
 [tool.pytest]
