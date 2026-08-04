@@ -79,7 +79,8 @@ User says: "Add a `LoanApplication` data model with validation"
 ### No docstrings — names are the docs
 
 - Use short, expressive function and variable names.
-- No docstrings, no multi-line comments. If code needs a comment to be understood, reconsider the naming.
+- Comment ONLY the non-obvious WHY. Never restate the code; never write a signature-echo docstring.
+- A long comment is a code smell — refactor or rename instead of explaining. Multi-line comments are legit only for a genuine non-obvious why, never to narrate the code.
 - Use vertical whitespace to group related lines.
 
 ### Clean imports
