@@ -30,7 +30,7 @@ Detailed checklists for content review, technical review, and quality review. Lo
 During every review, **read the user's personal config and memory files end-to-end**. Classify each entry:
 
 | Category | Action |
-|---|---|
+| --- | --- |
 | Guardrail / "do this, not that" | Promote to skill |
 | Troubleshooting entry | Promote to `references/troubleshooting.md` |
 | Workflow pattern | Promote to playbook or skill workflow |

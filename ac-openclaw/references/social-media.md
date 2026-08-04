@@ -16,7 +16,7 @@
 These are **two different things** in OpenClaw:
 
 | Feature | Messaging channels | Social media posting |
-|---------|-------------------|---------------------|
+| --------- | ------------------- | --------------------- |
 | **What** | Two-way chat: you DM the bot, it replies | One-way publishing: bot posts content to your profiles |
 | **How** | Built-in channels (Signal, WhatsApp, etc.) | Plugins, skills, or third-party APIs |
 | **Auth** | Bot tokens, QR pairing, phone numbers | OAuth apps, API keys, third-party schedulers |
@@ -40,7 +40,7 @@ These are **two different things** in OpenClaw:
 Post to a scheduler API that fans out to multiple networks. Best approach for cross-posting without maintaining many auth setups.
 
 | Service | Platforms | How it works | Cost |
-|---------|-----------|-------------|------|
+| --------- | ----------- | ------------- | ------ |
 | [Post Bridge](https://www.post-bridge.com/openclaw) | Instagram, TikTok, YouTube, X, LinkedIn, Facebook, Threads, Bluesky, Pinterest | API-first, MCP server for OpenClaw | Freemium |
 | [Publora](https://publora.com) | LinkedIn, X, Instagram, Threads, TikTok, YouTube, Facebook, Bluesky, Mastodon, Telegram | MCP server | Freemium |
 | [Genviral](https://www.genviral.io) | TikTok, Instagram, YouTube, Facebook, Pinterest, LinkedIn | OpenClaw skill (42 API commands), video content focus | Freemium |
@@ -48,7 +48,7 @@ Post to a scheduler API that fans out to multiple networks. Best approach for cr
 ### 2. Direct API Plugins (Open Source)
 
 | Plugin | Platforms | Notes |
-|--------|-----------|-------|
+| -------- | ----------- | ------- |
 | [openclaw-plugin-social](https://github.com/pepicrft/openclaw-plugin-social) | X/Twitter, LinkedIn, Mastodon, Bluesky | Open source, flexible scheduling, browser automation fallback |
 | [Composio Twitter MCP](https://composio.dev/toolkits/twitter/framework/openclaw) | X/Twitter only | Managed auth, MCP integration |
 
@@ -61,7 +61,7 @@ OpenClaw can use its browser control to directly interact with social media webs
 ### Recommended
 
 | Platform | Why | Auth method | Dedicated account needed? |
-|----------|-----|-------------|--------------------------|
+| ---------- | ----- | ------------- | -------------------------- |
 | **Bluesky** | Open protocol (AT Protocol), API-friendly, no rate-limit hell, privacy-respecting | App password (no OAuth needed) | Recommended but not critical |
 | **Mastodon** | Open source, federated, API-friendly, no algorithmic manipulation | OAuth app | Recommended |
 | **LinkedIn** | Professional networking, good API | OAuth via scheduler | **Yes** — don't risk your main profile |
@@ -70,7 +70,7 @@ OpenClaw can use its browser control to directly interact with social media webs
 ### Use With Caution
 
 | Platform | Why cautious | Auth method | Risks |
-|----------|-------------|-------------|-------|
+| ---------- | ------------- | ------------- | ------- |
 | **X / Twitter** | Aggressive rate limits, frequent API changes, costly API tiers, bot detection | OAuth 2.0 or API key ($100+/mo for posting access) | Account suspension, API cost, privacy (X collects data for AI training) |
 | **Instagram** | No public posting API for personal accounts; requires Facebook Business account | Meta Business Suite OAuth | Account flagged as bot, ToS violation risk |
 | **Facebook** | Complex API, Meta's aggressive data collection, frequent breaking changes | Meta Business Suite OAuth | Privacy nightmare, account lockouts |
@@ -79,7 +79,7 @@ OpenClaw can use its browser control to directly interact with social media webs
 ### Not Recommended
 
 | Platform | Why avoid |
-|----------|-----------|
+| ---------- | ----------- |
 | **Instagram (personal)** | No legitimate API for personal posting. All workarounds violate ToS and risk permanent ban |
 | **Facebook (personal)** | Same as Instagram — no personal posting API. Business pages only |
 | **Snapchat** | No public API for content posting |

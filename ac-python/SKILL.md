@@ -23,7 +23,7 @@ metadata:
 ## Reference Files (load as needed)
 
 | File | Covers | When to load |
-|---|---|---|
+| --- | --- | --- |
 | [`references/style-and-typing.md`](references/style-and-typing.md) | Style, Pythonic idioms, type annotations, readability rules | Writing or reviewing any Python code |
 | [`references/oop-and-design.md`](references/oop-and-design.md) | OOP patterns, data models, factories, properties, design principles | Designing classes, data models, module structure |
 | [`references/testing-and-tooling.md`](references/testing-and-tooling.md) | Testing patterns, pytest setup, tooling (uv/ruff/mypy/prek), quality gates | Writing tests, setting up a project, CI |

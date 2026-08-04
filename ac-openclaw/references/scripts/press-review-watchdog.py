@@ -84,27 +84,30 @@ def strip_uuid_prefix(target: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def read_job_from_sqlite() -> dict | None:
-    if not STATE_DB.exists():
-        return None
+def _select_job_row() -> sqlite3.Row | None:
+    con = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=8)
+    con.row_factory = sqlite3.Row
     try:
-        uri = f"file:{STATE_DB}?mode=ro"
-        con = sqlite3.connect(uri, uri=True, timeout=8)
-        con.row_factory = sqlite3.Row
         cur = con.execute(
             "SELECT name, enabled, last_run_at_ms, last_run_status, "
             "last_delivery_status, last_delivered, delivery_to, next_run_at_ms "
             "FROM cron_jobs WHERE name = ?",
             (JOB_NAME,),
         )
-        row = cur.fetchone()
+        return cur.fetchone()
+    finally:
         con.close()
+
+
+def read_job_from_sqlite() -> dict | None:
+    if not STATE_DB.exists():
+        return None
+    try:
+        row = _select_job_row()
     except sqlite3.Error as exc:
         log(f"WARN sqlite read failed: {exc}")
         return None
-    if row is None:
-        return None
-    return dict(row)
+    return dict(row) if row is not None else None
 
 
 def read_job_from_legacy_json() -> dict | None:
@@ -249,7 +252,7 @@ def send_alert(recipient: str, message: str) -> bool:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(RPC_URL, data=data, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=20) as resp:  # ruff: ignore[suspicious-url-open-usage]
             body = json.loads(resp.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         log(f"ERROR alert send failed: {exc}")

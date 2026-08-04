@@ -22,15 +22,14 @@ repos:
         language: system
         entry: uv run ty check
         pass_filenames: false
-  - repo: local
+  - repo: https://github.com/souliane/skill-repo-boilerplate
+    rev: <sha> # <date>
     hooks:
       - id: update-readme-skills
-        name: Update README skills catalogue
-        language: system
-        entry: uv run scripts/update_readme_skills.py
-        pass_filenames: false
-        always_run: true
-
+      - id: bump-pyproject-deps-from-lock-file
+        stages: [manual]
+  - repo: local
+    hooks:
       - id: banned-terms
         name: banned-terms
         language: script

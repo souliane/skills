@@ -86,7 +86,7 @@ content are updated.
 ## Secrets
 
 | Secret | Purpose |
-|--------|---------|
+| -------- | --------- |
 | `DEVTO_TOKEN` | dev.to API key |
 | `BLOG_ASSETS_TOKEN` | Fine-grained GitHub PAT scoped to `<user>/blog-assets` (Contents: read+write) |
 

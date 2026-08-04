@@ -24,7 +24,7 @@ class LineItem:
 Use `@dataclass`, `NamedTuple`, or `pydantic.BaseModel` depending on the use case:
 
 | Use case | Recommended |
-|---|---|
+| --- | --- |
 | Immutable value objects | `@dataclass(frozen=True)` or `NamedTuple` |
 | Mutable domain models | `@dataclass` |
 | External data parsing / validation | `pydantic.BaseModel` |

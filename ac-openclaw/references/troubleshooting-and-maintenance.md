@@ -3,7 +3,7 @@
 ## Common Mistakes
 
 | Mistake | Why it's bad | Do this instead |
-|---------|-------------|-----------------|
+| --------- | ------------- | ----------------- |
 | Binding gateway to `0.0.0.0` | Exposes OpenClaw to the internet without auth | Bind to `loopback`, use Tailscale Serve |
 | Publishing Docker ports directly | Docker bypasses UFW — ports are public | Bind to `127.0.0.1`, add DOCKER-USER iptables rules |
 | Using personal phone for Signal bot | Registering can de-auth your main Signal app | Get a dedicated SIM/number for the bot |
@@ -33,7 +33,7 @@
 ## Troubleshooting Quick Reference
 
 | Problem | Check |
-|---------|-------|
+| --------- | ------- |
 | OpenClaw won't start | `openclaw doctor`, check Node version (`node -v` >= 22) |
 | Gateway unreachable | `openclaw status`, check the configured service (`systemctl --user status openclaw` or `sudo systemctl status openclaw`) |
 | Channel not receiving messages | `openclaw channels status --probe` |
@@ -436,7 +436,7 @@ Proceed with cached data but **warn the user** that some info may be stale.
 All information gathered and verified on **2026-03-14**. Dates indicate when source was last known accurate.
 
 | Source | URL | Accessed |
-|--------|-----|----------|
+| -------- | ----- | ---------- |
 | OpenClaw GitHub (v2026.3.13) | [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw) | 2026-03-14 |
 | OpenClaw Docs — Install | [docs.openclaw.ai/install](https://docs.openclaw.ai/install) | 2026-03-14 |
 | OpenClaw Docs — Security | [docs.openclaw.ai/gateway/security](https://docs.openclaw.ai/gateway/security) | 2026-03-14 |

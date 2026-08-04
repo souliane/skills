@@ -16,6 +16,23 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync
+      # The banned-terms list lives OUTSIDE the repo, so the terms it blocks never land
+      # in a public tree — and the gate now refuses to run without that config (exit 2)
+      # instead of passing silently. A fresh runner has no such file, so write one here:
+      # populated from the repo secret when it is readable, which makes CI enforce the
+      # same list the local hook enforces. When no secret is readable — a pull request
+      # from a fork never is — the file still exists with no T3_BANNED_TERMS line, the
+      # gate's documented "nothing configured to block", not the absent-config
+      # misconfiguration it is meant to catch.
+      - name: Provision the banned-terms config
+        env:
+          BANNED_TERMS: ${{ secrets.T3_BANNED_TERMS }}
+        run: |
+          if [ -n "$BANNED_TERMS" ]; then
+            printf 'T3_BANNED_TERMS="%s"\n' "$BANNED_TERMS" > "$HOME/.skills"
+          else
+            printf '%s\n' '# No T3_BANNED_TERMS secret readable in this run.' > "$HOME/.skills"
+          fi
       - uses: j178/prek-action@v2
         env:
           SKIP: uv-audit

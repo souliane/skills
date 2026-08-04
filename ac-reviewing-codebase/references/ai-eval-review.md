@@ -22,7 +22,7 @@ The suggestion is also **partial by default**: propose evals for the *load-beari
 Distinguish these in the finding — they answer different questions:
 
 | Tier | Question it answers | Where it lives | Grades |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Per-skill embedded eval** | "Does a compliant trajectory follow *this skill's* rule?" | Co-located with the skill (`evals/*.yaml` or `eval/scenarios/*.yaml`) | One `SKILL.md` in isolation |
 | **Upper-level integration AI eval** | "Across skills/overlays, does the right behavior emerge end-to-end?" | A central scenarios directory + per-overlay contributed dirs | The real selection / handoff logic, not one skill alone |
 

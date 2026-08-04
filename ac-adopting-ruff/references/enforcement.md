@@ -112,7 +112,7 @@ ruff-format and all other hooks still run on all files as before.
 ### Trade-offs
 
 | Aspect | Changed files only | Progressive enforcement |
-|--------|-------------------|------------------------|
+| -------- | ------------------- | ------------------------ |
 | Migration MRs | 1 (config only) | Many (one per rule/batch) |
 | Merge conflicts | None | Each MR conflicts on `pyproject.toml` |
 | Time to full coverage | Gradual (depends on file churn) | Predictable (you set the pace) |

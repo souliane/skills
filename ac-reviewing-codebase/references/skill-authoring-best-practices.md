@@ -7,7 +7,7 @@ Combines Anthropic's [official best practices](https://platform.claude.com/docs/
 The `name` and `description` fields are required by the [Agent Skills open standard](https://agentskills.io); additional fields are optional extensions.
 
 | Field | Required | Constraints |
-|-------|----------|-------------|
+| ------- | ---------- | ------------- |
 | `name` | Yes | Max 64 chars, lowercase + numbers + hyphens only. No "anthropic" or "claude". Use gerund form for action skills (`adopting-ruff`), plain noun for domain skills (`django`). |
 | `description` | Yes | Max 1024 chars, third person ("Scaffolds a new skill repo..."). Must include **what** the skill does and **when** to use it. End with trigger phrases: `Use when user says "..."`. |
 | `compatibility` | No | Platforms and requirements (e.g., `macOS/Linux, Python 3.12+, uv, git`). |
@@ -63,7 +63,7 @@ When a skill instructs the agent to save information for future sessions, use a 
 **Standard memory types** (match the agent platform's built-in types when available):
 
 | Type | When to use | Body structure |
-|------|-------------|---------------|
+| ------ | ------------- | --------------- |
 | `user` | User's role, preferences, expertise | Free-form profile notes |
 | `feedback` | How-to-work guidance from the user | Rule, then `**Why:**` and `**How to apply:**` |
 | `project` | Ongoing work, goals, deadlines | Fact/decision, then `**Why:**` and `**How to apply:**` |

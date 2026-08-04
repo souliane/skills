@@ -2,10 +2,10 @@
 name = "skills"
 version = "0.0.1"
 requires-python = ">=3.13"
-
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [dependency-groups]
@@ -145,44 +145,15 @@ lint.preview = true
 
 [tool.codespell]
 
-[tool.pytest.ini_options]
-addopts = """
---color=yes --cov --doctest-modules --exitfirst --failed-first
---ignore-glob=tests/**/fixtures/*.py
---strict-config --strict-markers --verbose --log-cli-level=INFO
-"""
-filterwarnings = [ "error" ]
-python_files = [ "test_*.py" ]
-testpaths = [ "tests" ]
-xfail_strict = true
-
-[tool.coverage.report]
-exclude_also = [ "if __name__ == .__main__.:" ]
-# A ratchet, not a target: this is the number the suite MEASURED (28.82%), rounded
-# down. Raise it when a change measures higher; never lower it to make a red run
-# green. See AGENTS.md "Coverage floor".
-fail_under = 28
-precision = 2
-show_missing = true
-skip_covered = true
-
-[tool.coverage.run]
-branch = true
-# Every shipped script, whether or not a test imports it: a module with no test
-# at all has to show up as 0%, not be absent from the denominator.
-source = [
-  "ac-adopting-ruff/scripts",
-  "ac-django/rules",
-  "ac-editing-acroforms/scripts",
-  "ac-generating-slides/scripts",
-  "ac-openclaw/references/scripts",
-  "ac-reviewing-codebase/scripts",
-  "scripts",
-]
-
-[tool.ty.analysis]
+[tool.ty]
+environment.python-version = "3.13"
+rules.division-by-zero = "error"
+rules.no-matching-overload = "error"
+rules.possibly-unresolved-reference = "error"
+rules.unused-ignore-comment = "error"
+terminal = { error-on-warning = true }
 # External deps from uv script headers (not installed in the skill repo)
-allowed-unresolved-imports = [
+analysis.allowed-unresolved-imports = [
   "defusedxml",
   "golden_diff",
   "requests",
@@ -198,16 +169,39 @@ allowed-unresolved-imports = [
   "_stubs",
   "acroform_errors",
   "astgrep_scan",
+  "pyproject_complexity",
 ]
 
-[tool.ty]
-terminal = { error-on-warning = true }
+[tool.pytest]
+ini_options.testpaths = [ "tests" ]
+ini_options.python_files = [ "test_*.py" ]
+ini_options.addopts = """
+--color=yes --cov --doctest-modules --exitfirst --failed-first
+--ignore-glob=tests/**/fixtures/*.py
+--strict-config --strict-markers --verbose --log-cli-level=INFO
+"""
+ini_options.xfail_strict = true
+ini_options.filterwarnings = [ "error" ]
 
-[tool.ty.environment]
-python-version = "3.13"
-
-[tool.ty.rules]
-division-by-zero = "error"
-possibly-unresolved-reference = "error"
-unused-ignore-comment = "error"
-no-matching-overload = "error"
+[tool.coverage]
+run.branch = true
+# Every shipped script, whether or not a test imports it: a module with no test
+# at all has to show up as 0%, not be absent from the denominator.
+run.source = [
+  "ac-adopting-ruff/scripts",
+  "ac-django/rules",
+  "ac-editing-acroforms/scripts",
+  "ac-generating-slides/scripts",
+  "ac-openclaw/references/scripts",
+  "ac-reviewing-codebase/scripts",
+  "scripts",
+]
+report.exclude_also = [ "if __name__ == .__main__.:" ]
+# A ratchet, not a target: this is the number the suite MEASURED, rounded down.
+# CI measures both interpreters and 3.14 is the lower of the two (30.77% against
+# 3.13's 31.17%), so the floor tracks 3.14. Raise it when a change measures
+# higher; never lower it to make a red run green. See AGENTS.md "Coverage floor".
+report.fail_under = 30
+report.precision = 2
+report.show_missing = true
+report.skip_covered = true

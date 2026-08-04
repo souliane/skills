@@ -833,6 +833,9 @@ ET
         below_hex = below.hex_string
         try:
             below_pos = data.index(f"<{below_hex}>Tj")
+        except ValueError:
+            typer.echo("Warning: could not find below label for Td adjustment")
+        else:
             search_area = data[below_pos : below_pos + 300]
             td_jump_match = re.search(r"([\d.\-]+\s+Tc\s+\d+\s+Tr\s+[\d.\-]+\s+)([\d.\-]+)(\s+Td)", search_area)
             if td_jump_match:
@@ -842,8 +845,6 @@ ET
                 new_td = f"{td_jump_match.group(1)}{new_dy:.1f}{td_jump_match.group(3)}"
                 data = data.replace(old_td, new_td, 1)
                 typer.echo(f"Adjusted Td jump: {old_dy} → {new_dy:.1f}")
-        except ValueError:
-            typer.echo("Warning: could not find below label for Td adjustment")
 
     # Write content back
     first_stream.set_data(data.encode("latin-1"))

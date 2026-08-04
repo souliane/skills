@@ -136,7 +136,7 @@ def _safe_request(url: str, headers: dict) -> Request | None:
     if parsed.scheme not in ALLOWED_SCHEMES:
         print(f"  [warn] refusing non-HTTP(S) URL: {url}", file=sys.stderr)
         return None
-    return Request(url, headers=headers)  # noqa: S310 — scheme pre-validated above
+    return Request(url, headers=headers)  # ruff: ignore[suspicious-url-open-usage] — scheme pre-validated above
 
 
 def fetch(url: str, headers: dict | None = None) -> tuple[str | None, dict]:
@@ -148,7 +148,7 @@ def fetch(url: str, headers: dict | None = None) -> tuple[str | None, dict]:
     if req is None:
         return None, {}
     try:
-        with urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310 — scheme pre-validated
+        with urlopen(req, timeout=TIMEOUT) as r:  # ruff: ignore[suspicious-url-open-usage] — scheme pre-validated
             body = r.read().decode("utf-8", errors="replace")
             resp_hdrs = dict(r.headers.items())
             return body, resp_hdrs

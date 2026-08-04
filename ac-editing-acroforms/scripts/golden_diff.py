@@ -438,16 +438,16 @@ def _post_mr_comment(body: str, token: str, project_id: str, mr_iid: str, *, not
     else:
         url = f"https://gitlab.com/api/v4/projects/{project_id}/merge_requests/{mr_iid}/notes"
         method = "POST"
-    req = urllib.request.Request(  # noqa: S310 — URL is always https://gitlab.com
+    req = urllib.request.Request(  # ruff: ignore[suspicious-url-open-usage] — URL is always https://gitlab.com
         url,
         data=payload,
         headers={"PRIVATE-TOKEN": token, "Content-Type": "application/json"},
         method=method,
     )
     try:
-        resp = urllib.request.urlopen(req)  # noqa: S310
+        resp = urllib.request.urlopen(req)  # ruff: ignore[suspicious-url-open-usage]
         return json.loads(resp.read()).get("id")
-    except Exception:  # noqa: BLE001 — catch-all for network/parse errors
+    except Exception:  # ruff: ignore[blind-except] — catch-all for network/parse errors
         return None
 
 

@@ -79,7 +79,7 @@ mechanics, and none of them declares its own Typer app.
 ```
 
 | Command | What it does |
-|---|---|
+| --- | --- |
 | `inspect` | Inspect field names, rects, fonts, labels, and raw content stream data. |
 | `set-flags` | Batch-set readonly and required flags. |
 | `add-row` | Insert a paired row of widgets with matching label/content shifts in tabular layouts. |
@@ -93,7 +93,7 @@ mechanics, and none of them declares its own Typer app.
 Exit codes are the same for every command:
 
 | Code | Meaning |
-|---|---|
+| --- | --- |
 | 0 | Success. |
 | 1 | The tool ran; the PDF did not match what the spec asserted. |
 | 2 | The spec itself is malformed — fix the spec, not the PDF. |

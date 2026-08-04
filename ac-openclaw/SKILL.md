@@ -22,7 +22,7 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 ## Versions (baseline refreshed 2026-04-13)
 
 | Component | Version | Notes |
-|-----------|---------|-------|
+| ----------- | --------- | ------- |
 | OpenClaw | v2026.3.13 (stable, 2026-03-14) | Releases use `vYYYY.M.D` scheme |
 | Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | Minimum: >=22.16; recommended: 24 LTS |
 | signal-cli | **>= 0.14.5 — hard floor** | Requires Java 25+. Below 0.14.5 **every inbound 1:1 message is silently discarded** (see note below). On arm64 there is no usable native libsignal — run signal-cli from the `bbernhard/signal-cli-rest-api` container (`0.100`+ ships 0.14.5) |
@@ -54,7 +54,7 @@ When authoring documentation, troubleshooting entries, command examples, or conf
 Use well-known placeholders instead:
 
 | Data type | Placeholder |
-|-----------|-------------|
+| ----------- | ------------- |
 | Phone (E.164) | `+33612345678` (documented French test number) or `+15551234567` |
 | Email | `user@example.com`, `agent@example.org` |
 | UUID | `00000000-0000-0000-0000-000000000000` or `uuid:abcd1234-…` with obvious filler |
@@ -70,7 +70,7 @@ Before merging any change to this skill (or to any reference under `references/`
 Talking to OpenClaw on Signal feels the same as messaging ChatGPT — until you configure what makes it different:
 
 | Capability | ChatGPT / Gemini | OpenClaw |
-|---|---|---|
+| --- | --- | --- |
 | **Proactive behavior** | Waits for you | Heartbeat wakes every ~30 min: checks email, calendar, alerts you |
 | **Cron jobs** | None | Scheduled tasks: daily news brief at 7am, weekly report, etc. |
 | **System integration** | Limited plugins | Direct access: Gmail, Calendar, GitHub, Obsidian, smart home, Spotify |
@@ -192,7 +192,7 @@ This is critical — it determines server sizing. **Present the cost comparison 
 **Key insight: for a personal messaging bot, paid API is almost always cheaper AND better than self-hosting a model.** Make this case clearly:
 
 | Approach | Server RAM | Model cost | Total/mo | Quality |
-|----------|-----------|-----------|----------|---------|
+| ---------- | ----------- | ----------- | ---------- | --------- |
 | **BYOK only** (recommended) | 4 GB (e.g. Hetzner CAX11, ~4.49 EUR) | Free tier or ~1-5 EUR | **~5-10 EUR** | Frontier |
 | **Local 4B model** | 4 GB (~4.49 EUR) | Free | **~4.49 EUR** | Basic (barely usable) |
 | **Local 8B model** | 16 GB (~14 EUR) | Free | **~14 EUR** | Good |
@@ -211,7 +211,7 @@ This is critical — it determines server sizing. **Present the cost comparison 
 **Free tier API comparison (as of 2026-03):**
 
 | Provider | Model | Free tier limits | Quality |
-|----------|-------|-----------------|---------|
+| ---------- | ------- | ----------------- | --------- |
 | **Gemini 2.5 Flash** | Best free option | 10 RPM / 250 RPD | Good |
 | **Gemini 2.5 Pro** | Paid only | — | Very good |
 | **Gemini 3 Flash** | Preview/limited | Stricter limits | Good |
@@ -283,7 +283,7 @@ c) Other services I'll describe
 actually eat a box:
 
 | Workload | Rough peak per job |
-|---|---|
+| --- | --- |
 | Parallel pytest workers | ~3–4 GB (per worker, not per suite) |
 | Node / Angular production build | ~4–6 GB |
 | Headless Playwright / Chromium session | ~3–4 GB |
@@ -446,7 +446,7 @@ c) Caddy reverse proxy + password (simplest)
 ```
 
 | Method | Install app on phone? | Domain needed? | Cost | Security |
-|--------|----------------------|---------------|------|----------|
+| -------- | ---------------------- | --------------- | ------ | ---------- |
 | **Cloudflare Tunnel** | No | Yes | Free | High (Zero Trust identity check) |
 | **Tailscale Serve** | Yes (Tailscale app) | No | Free | Highest (not on internet at all) |
 | **Caddy + password** | No | Yes | Free | Medium (password-only) |
@@ -508,7 +508,7 @@ Exit plan mode for user approval. If the user wants changes, re-enter plan mode,
 Detailed step-by-step instructions for each phase live in reference files. Load them as you reach each phase — don't front-load everything into context.
 
 | Phase | Reference | Summary |
-|-------|-----------|---------|
+| ------- | ----------- | --------- |
 | **3. Provision Server** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 3 + [`references/provider-selection.md`](references/provider-selection.md) | Create VPS or configure existing server/local machine. Provider-agnostic selection method + dated price snapshot; [`references/hetzner-servers.md`](references/hetzner-servers.md) if Hetzner |
 | **4. Harden the OS** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 4 | UFW, fail2ban, SSH hardening, unattended upgrades |
 | **5. Install OpenClaw** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 5 | Node.js 24, OpenClaw, gateway config, dashboard pairing |

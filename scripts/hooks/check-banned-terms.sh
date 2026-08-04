@@ -1,66 +1,83 @@
 #!/usr/bin/env bash
-# Pre-commit hook: reject files containing banned terms.
+# Pre-commit hook: block commits containing banned terms.
 #
-# Reads terms from a user-local config file:
-#   --config <path>  Shell KEY=VALUE file. Reads *BANNED_TERMS= variable.
+# Usage: check-banned-terms.sh [--config PATH] FILE...
 #
-# Example .pre-commit-config.yaml entry:
-#   entry: scripts/hooks/check-banned-terms.sh --config ~/.skills
+# Reads T3_BANNED_TERMS (comma-separated, case-insensitive) from the config
+# file named by --config (default: ~/.teatree). Keeping the banned list OUTSIDE
+# the repo avoids committing the very terms we want to keep out of it.
 #
-# The config file (e.g., ~/.skills) should contain:
-#   BANNED_TERMS="term1,term2,term3"
-#
-# If no config or no BANNED_TERMS variable, exits 0 (no-op).
-
+#   - config file missing        -> FAIL LOUD (exit 2): a leak gate that
+#                                    silently passes is worse than no gate.
+#   - config present, key unset  -> pass (exit 0): nothing configured to block.
+#   - banned term found in files -> FAIL (exit 1).
 set -euo pipefail
 
-terms=""
+CONFIG="$HOME/.teatree"
 
-# Parse --config argument
-if [[ "${1:-}" == "--config" ]]; then
-  config="${2:-}"
-  shift 2
-  if [ -n "$config" ] && [ -f "$config" ]; then
-    terms="$(grep -E '_?BANNED_TERMS=' "$config" 2>/dev/null | head -1 | sed 's/^.*BANNED_TERMS=//' | sed 's/^["'"'"']//;s/["'"'"']$//')"
-  fi
-fi
-
-if [ -z "$terms" ]; then
-  exit 0
-fi
-
-# Build a grep pattern from comma-separated terms
-pattern=""
-IFS=',' read -ra term_array <<< "$terms"
-for term in "${term_array[@]}"; do
-  term="$(echo "$term" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-  [ -z "$term" ] && continue
-  if [ -n "$pattern" ]; then
-    pattern="$pattern|$term"
-  else
-    pattern="$term"
-  fi
+# --- Parse args: pull out --config PATH; everything else is a file to scan. ---
+FILES=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --config)
+      [ "$#" -ge 2 ] || { echo "check-banned-terms: --config needs a path" >&2; exit 2; }
+      CONFIG="$2"
+      shift 2
+      ;;
+    --config=*)
+      CONFIG="${1#--config=}"
+      shift
+      ;;
+    *)
+      FILES+=("$1")
+      shift
+      ;;
+  esac
 done
 
-if [ -z "$pattern" ]; then
-  exit 0
+# Expand a leading ~ (the shell does not expand it inside a quoted flag value).
+case "$CONFIG" in
+  "~") CONFIG="$HOME" ;;
+  "~/"*) CONFIG="$HOME/${CONFIG#\~/}" ;;
+esac
+
+# Fail loud on a misconfigured gate rather than silently skipping the check.
+if [ ! -f "$CONFIG" ]; then
+  echo "check-banned-terms: config file not found: $CONFIG" >&2
+  echo "Create it (with an optional T3_BANNED_TERMS=... line) or fix the" >&2
+  echo "--config path in .pre-commit-config.yaml. Refusing to pass silently." >&2
+  exit 2
 fi
 
-# Check each staged file passed by pre-commit
-found=0
-for file in "$@"; do
+# Extract T3_BANNED_TERMS value (comma-separated).
+# `|| true`: under `set -euo pipefail`, a no-match grep returns non-zero and would
+# abort the whole hook before the empty-check below. A missing key must mean "nothing
+# to check", not a hook crash.
+TERMS=$(grep -E '^T3_BANNED_TERMS=' "$CONFIG" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+[ -n "$TERMS" ] || exit 0
+
+# Build grep pattern: word-boundary match for each term.
+PATTERN=""
+IFS=',' read -ra TERM_ARRAY <<< "$TERMS"
+for term in "${TERM_ARRAY[@]}"; do
+  term=$(echo "$term" | xargs)  # trim whitespace
+  [ -n "$term" ] || continue
+  [ -n "$PATTERN" ] && PATTERN="$PATTERN|"
+  PATTERN="$PATTERN\\b${term}\\b"
+done
+[ -n "$PATTERN" ] || exit 0
+
+# Check staged files (guard the expansion so an empty list is safe under set -u).
+FOUND=0
+for file in ${FILES[@]+"${FILES[@]}"}; do
   [ -f "$file" ] || continue
-  matches=$(grep -niE "\b($pattern)\b" "$file" 2>/dev/null || true)
-  if [ -n "$matches" ]; then
-    echo "BANNED TERM in $file:"
-    echo "$matches" | sed 's/^/  /'
-    found=1
+  if grep -iEn "$PATTERN" "$file" 2>/dev/null; then
+    echo "^^^ Banned term found in: $file"
+    echo "These terms must not appear in this repo."
+    echo "Configured in: $CONFIG (T3_BANNED_TERMS)"
+    echo ""
+    FOUND=1
   fi
 done
 
-if [ "$found" -ne 0 ]; then
-  echo ""
-  echo "Banned terms: $terms"
-  echo "These terms must not appear in this repo."
-  exit 1
-fi
+exit "$FOUND"
