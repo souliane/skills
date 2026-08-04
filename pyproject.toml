@@ -9,7 +9,12 @@ classifiers = [
 ]
 
 [dependency-groups]
-dev = [ "pytest>=9.0.3", "ty>=0.0.18", "typer>=0.25.1" ]
+dev = [
+  "pytest>=9.0.3",
+  "pytest-cov>=7.1",
+  "ty>=0.0.18",
+  "typer>=0.25.1",
+]
 
 [tool.ruff]
 target-version = "py313"
@@ -120,7 +125,6 @@ lint.per-file-ignores."tests/**/*.py" = [
   "S108",    # hardcoded-temp-file
   "S404",    # suspicious-subprocess-import (tests mock subprocess)
   "S603",    # subprocess-without-shell-equals-true (tests invoke the hooks)
-  "SIM201",  # use-not-equal (pytest skipif with `not X == []` is more readable)
   "SLF001",  # private-member-access
   "T201",    # print (fixture generation scripts use print)
 ]
@@ -158,18 +162,44 @@ analysis.allowed-unresolved-imports = [
   "tomlkit",
   "pypdf",
   "pypdf.generic",
-  # Test-only sibling helper; resolved via pytest's sys.path injection at
-  # runtime (the dir name has hyphens so it is not an importable package).
+  # Skill-script modules the tests reach through their conftest's sys.path
+  # injection (the skill dirs have hyphens, so they are not importable packages).
+  "_cli_import",
   "_gitutil",
+  "_stubs",
+  "acroform_errors",
+  "astgrep_scan",
 ]
 
 [tool.pytest]
 ini_options.testpaths = [ "tests" ]
 ini_options.python_files = [ "test_*.py" ]
 ini_options.addopts = """
---color=yes --doctest-modules --exitfirst --failed-first
+--color=yes --cov --doctest-modules --exitfirst --failed-first
 --ignore-glob=tests/**/fixtures/*.py
 --strict-config --strict-markers --verbose --log-cli-level=INFO
 """
 ini_options.xfail_strict = true
 ini_options.filterwarnings = [ "error" ]
+
+[tool.coverage]
+run.branch = true
+# Every shipped script, whether or not a test imports it: a module with no test
+# at all has to show up as 0%, not be absent from the denominator.
+run.source = [
+  "ac-adopting-ruff/scripts",
+  "ac-django/rules",
+  "ac-editing-acroforms/scripts",
+  "ac-generating-slides/scripts",
+  "ac-openclaw/references/scripts",
+  "ac-reviewing-codebase/scripts",
+  "scripts",
+]
+report.exclude_also = [ "if __name__ == .__main__.:" ]
+# A ratchet, not a target: this is the number the suite MEASURED (28.82%), rounded
+# down. Raise it when a change measures higher; never lower it to make a red run
+# green. See AGENTS.md "Coverage floor".
+report.fail_under = 28
+report.precision = 2
+report.show_missing = true
+report.skip_covered = true

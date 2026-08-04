@@ -1,24 +1,6 @@
-import importlib
-import sys
-from types import ModuleType
-
+import acroform_errors
 import pytest
-
-
-def import_with_pikepdf_stub(module_name: str):
-    sys.modules.pop(module_name, None)
-    stub = ModuleType("pikepdf")
-    stub.__dict__.update(
-        {
-            "Array": list,
-            "Dictionary": dict,
-            "Page": object,
-            "Pdf": object,
-            "Stream": object,
-        }
-    )
-    sys.modules["pikepdf"] = stub
-    return importlib.import_module(module_name)
+from _stubs import import_with_pikepdf_stub
 
 
 class TestApplyContentStreamReplacements:
@@ -33,7 +15,7 @@ class TestApplyContentStreamReplacements:
     def test_compile_flags_rejects_unknown_flag(self):
         module = import_with_pikepdf_stub("apply_content_stream_replacements")
 
-        with pytest.raises(SystemExit, match="unknown regex flag"):
+        with pytest.raises(acroform_errors.SpecError, match="unknown regex flag"):
             module._compile_flags(["NOT_A_FLAG"])
 
     def test_apply_literal_replacement(self):
@@ -74,7 +56,7 @@ class TestApplyContentStreamReplacements:
     def test_apply_replacement_fails_when_expected_match_missing(self):
         module = import_with_pikepdf_stub("apply_content_stream_replacements")
 
-        with pytest.raises(SystemExit, match="expected at least 1 literal matches, found 0"):
+        with pytest.raises(acroform_errors.VerificationError, match="expected at least 1 literal matches, found 0"):
             module._apply_replacement(
                 "alpha",
                 {

@@ -26,9 +26,6 @@ from pypdf.generic import (
     TextStringObject,
 )
 
-app = typer.Typer(no_args_is_help=True)
-
-
 # ---------------------------------------------------------------------------
 # Font handling
 # ---------------------------------------------------------------------------
@@ -917,7 +914,6 @@ ET
 # ---------------------------------------------------------------------------
 
 
-@app.command()
 def add_field(
     pdf_path: str = typer.Argument(help="Path to the PDF template"),
     field_name: str = typer.Argument(help="AcroForm field base name"),

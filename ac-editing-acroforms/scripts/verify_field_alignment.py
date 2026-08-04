@@ -5,14 +5,12 @@ Checks structural integrity of PDF templates by comparing:
 2. AcroForm field annotation rects
 3. Cross-template consistency for same-named fields
 
-Usage:
-    uv run verify_field_alignment.py templates/nl_broker/.../template.pdf --page 1
-    uv run verify_field_alignment.py templates/**/*.pdf --page 1 --cross
-    uv run verify_field_alignment.py templates/**/*.pdf --page 1 \\
-        --golden-dir src/test/resources/com/example/docGen/ --pixel
+Run it through the unified CLI:
+    ./cli.py verify-alignment templates/nl_broker/.../template.pdf --page 1
+    ./cli.py verify-alignment 'templates/**/*.pdf' --page 1 --report cross
+    ./cli.py verify-alignment 'templates/**/*.pdf' --page 1 --pixel src/test/resources/docGen/
 """
 
-import argparse
 import re
 import shutil
 import subprocess
@@ -22,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pikepdf  # ty: ignore[unresolved-import]
+import typer
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -709,82 +708,6 @@ def _find_golden_pdf(template_path: str, golden_dir: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Verify AcroForm field alignment with content stream underlines.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-Examples:
-    # Check a single template (page 2, 1-indexed)
-    uv run verify_field_alignment.py templates/nl_broker/.../template.pdf --page 2
-
-    # Check all templates with cross-template consistency
-    uv run verify_field_alignment.py 'templates/**/*.pdf' --page 2 --cross
-
-    # Include pixel-level checks
-    uv run verify_field_alignment.py 'templates/**/*.pdf' --page 2 \\
-        --golden-dir src/test/resources/com/example/docGen/ --pixel
-
-    # Focus on income section with custom tolerance
-    uv run verify_field_alignment.py template.pdf --page 2 --section income --tolerance 2.0
-""",
-    )
-    parser.add_argument(
-        "pdf_paths",
-        nargs="+",
-        help="PDF template path(s). Supports shell globs.",
-    )
-    parser.add_argument(
-        "--page",
-        "-p",
-        type=int,
-        default=2,
-        help="Page number to check (1-indexed, default: 2).",
-    )
-    parser.add_argument(
-        "--tolerance",
-        "-t",
-        type=float,
-        default=3.0,
-        help="Alignment tolerance in points (default: 3.0).",
-    )
-    parser.add_argument(
-        "--section",
-        "-s",
-        type=str,
-        default=None,
-        help="Section filter: 'income', 'charges', or 'min-max' Y range.",
-    )
-    parser.add_argument(
-        "--golden-dir",
-        type=str,
-        default=None,
-        help="Directory containing golden (filled) PDFs for pixel checks.",
-    )
-    parser.add_argument(
-        "--pixel",
-        action="store_true",
-        help="Enable pixel-level verification (requires --golden-dir and GhostScript).",
-    )
-    parser.add_argument(
-        "--cross",
-        action="store_true",
-        help="Enable cross-template consistency checks.",
-    )
-    parser.add_argument(
-        "--fix",
-        action="store_true",
-        help="Output suggested pikepdf commands to fix misaligned fields.",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Show all field alignments, not just misaligned ones.",
-    )
-    return parser
-
-
 def resolve_pdf_paths(patterns: list[str]) -> list[str]:
     """Expand glob patterns to actual file paths."""
     paths: list[str] = []
@@ -841,36 +764,75 @@ def _print_summary(reports: list[TemplateReport], *, all_ok: bool) -> None:
     print(f"{'=' * 70}")
 
 
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
+@dataclass
+class AlignSpec:
+    """``tolerance[,section]`` — how close counts as aligned, and where to look."""
 
-    if args.pixel and not args.golden_dir:
-        parser.error("--pixel requires --golden-dir")
+    tolerance: float = 3.0
+    section: str | None = None
 
-    if args.pixel and not _find_gs():
+    @classmethod
+    def parse(cls, raw: str) -> "AlignSpec":
+        if not raw:
+            return cls()
+        tol_part, _, section = raw.partition(",")
+        return cls(tolerance=float(tol_part) if tol_part else 3.0, section=section.strip() or None)
+
+
+@dataclass
+class ReportSpec:
+    """Comma flags — what the run reports beyond the misalignments themselves."""
+
+    cross: bool = False
+    fix: bool = False
+    verbose: bool = False
+
+    @classmethod
+    def parse(cls, raw: str) -> "ReportSpec":
+        flags = {p.strip() for p in raw.split(",") if p.strip()}
+        return cls(cross="cross" in flags, fix="fix" in flags, verbose="verbose" in flags)
+
+
+def main(
+    pdf_paths: list[str] = typer.Argument(help="PDF template path(s). Supports shell globs."),
+    page: int = typer.Option(2, "--page", "-p", help="Page number to check (1-indexed)"),
+    *,
+    align: str = typer.Option("", "--align", help="'tolerance[,section]' (e.g. 3.0,income)"),
+    pixel: str | None = typer.Option(
+        None,
+        "--pixel",
+        help="Directory of golden (filled) PDFs; supplying it enables pixel-level checks",
+    ),
+    report: str = typer.Option("", "--report", help="Comma flags: 'cross', 'fix', 'verbose'"),
+) -> None:
+    """Verify AcroForm field alignment with content stream underlines."""
+    align_spec = AlignSpec.parse(align)
+    report_spec = ReportSpec.parse(report)
+
+    if pixel and not _find_gs():
         print("Error: GhostScript not found. Install with: brew install ghostscript", file=sys.stderr)
-        return 1
+        raise typer.Exit(1)
 
-    pdf_paths = resolve_pdf_paths(args.pdf_paths)
-    if not pdf_paths:
+    resolved = resolve_pdf_paths(pdf_paths)
+    if not resolved:
         print("No PDF files found matching the given patterns.", file=sys.stderr)
-        return 1
+        raise typer.Exit(1)
 
-    print(f"Checking {len(pdf_paths)} template(s), page {args.page}, tolerance={args.tolerance}pt")
+    print(f"Checking {len(resolved)} template(s), page {page}, tolerance={align_spec.tolerance}pt")
 
     config = VerifyConfig(
-        page=args.page,
-        tolerance=args.tolerance,
-        section=args.section,
-        golden_dir=args.golden_dir,
-        pixel=args.pixel,
+        page=page,
+        tolerance=align_spec.tolerance,
+        section=align_spec.section,
+        golden_dir=pixel,
+        pixel=bool(pixel),
     )
-    reports = _run_templates(pdf_paths, config, fix=args.fix, verbose=args.verbose)
+    reports = _run_templates(resolved, config, fix=report_spec.fix, verbose=report_spec.verbose)
     all_ok = all(r.ok for r in reports)
 
-    if args.cross and len(reports) > 1:
+    if report_spec.cross and len(reports) > 1:
         all_ok = _print_cross_consistency(reports) and all_ok
 
     _print_summary(reports, all_ok=all_ok)
-    return 0 if all_ok else 1
+    if not all_ok:
+        raise typer.Exit(1)

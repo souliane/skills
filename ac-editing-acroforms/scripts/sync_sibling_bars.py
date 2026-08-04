@@ -18,8 +18,6 @@ from pathlib import Path
 import pikepdf  # ty: ignore[unresolved-import]
 import typer
 
-app = typer.Typer(no_args_is_help=True)
-
 BAR_PATTERN = re.compile(
     r"q\s+"
     r"([\d.]+)\s+0\s+0\s+([\d.]+)\s+"  # sx 0 0 sy
@@ -159,7 +157,6 @@ class MatchSpec:
         return cls(y_min=y_min, y_max=y_max, tolerance=tolerance)
 
 
-@app.command()
 def main(
     reference: str = typer.Argument(help="Reference template PDF (source of truth for bars)"),
     target: str = typer.Argument(help="Target template PDF to sync bars into (modified in place)"),
