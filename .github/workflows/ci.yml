@@ -33,13 +33,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-      # golden_diff shells out to these; without them its eight rendering tests
-      # skip and the coverage gate measures a smaller suite than the floor was
-      # measured from. fonts-dejavu-core is what _find_montage_font() looks for
-      # on Debian, so montage takes its labelled path rather than the fallback.
+      # golden_diff shells out to these; without them its rendering tests skip and
+      # the coverage gate measures a smaller suite than the floor was measured from.
+      # fonts-dejavu-core is what _find_montage_font() looks for on Debian, so
+      # montage takes its labelled path rather than the unlabelled fallback.
+      # diff-pdf is deliberately absent: it is not packaged for Ubuntu, so the two
+      # overlay tests stay environment-gated rather than have CI build it from source.
       - name: Install the external tools the suite exercises
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            diff-pdf fonts-dejavu-core ghostscript imagemagick
+            fonts-dejavu-core ghostscript imagemagick
       - run: uv run -p ${{ matrix.python-version }} pytest --no-header -q

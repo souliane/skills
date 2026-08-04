@@ -125,7 +125,6 @@ lint.per-file-ignores."tests/**/*.py" = [
   "S108",    # hardcoded-temp-file
   "S404",    # suspicious-subprocess-import (tests mock subprocess)
   "S603",    # subprocess-without-shell-equals-true (tests invoke the hooks)
-  "SIM201",  # use-not-equal (pytest skipif with `not X == []` is more readable)
   "SLF001",  # private-member-access
   "T201",    # print (fixture generation scripts use print)
 ]
@@ -198,6 +197,7 @@ allowed-unresolved-imports = [
   "_gitutil",
   "_stubs",
   "acroform_errors",
+  "astgrep_scan",
 ]
 
 [tool.ty]
