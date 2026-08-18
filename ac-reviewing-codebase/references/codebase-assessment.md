@@ -12,13 +12,62 @@ Deterministic metrics collection + LLM architectural judgment for full codebase 
 
 Run `scripts/cli.py assess` to collect metrics as JSON. The CLI handles:
 
-| Metric | Tool | What it measures |
-| -------- | ------ | ----------------- |
-| **Lint violations** | `ruff check --output-format json` | Rule violations by category and severity |
-| **Test coverage** | `coverage json` (if `.coverage` exists) | Line coverage percentage, uncovered files |
-| **Cyclomatic complexity** | `ruff check --select C901` | Functions exceeding complexity threshold |
-| **TODO/FIXME count** | `grep -rn` | Deferred work items by file |
-| **Dependency staleness** | `uv pip list --outdated` (if uv project) | Packages behind latest, security advisories |
+| Metric | Tool | What it measures | Scope reported |
+| -------- | ------ | ----------------- | ---------------- |
+| **Lint violations** | `ruff check --no-fix --output-format json` | Rule violations by category and severity | The repo's own ruff config (already excludes what it excludes) |
+| **Test coverage** | `coverage json` (if `.coverage` exists) | Line+branch coverage percentage, files measured | Total, then first-party and vendored separately |
+| **Cyclomatic complexity** | `ruff check --no-fix --select C901` | Functions exceeding complexity threshold | As ruff configures it |
+| **TODO/FIXME count** | `git grep` over tracked files | Deferred work items by marker | Total, split first-party / vendored |
+| **Dependency staleness** | `uv pip list --outdated` (if uv project) | Packages behind latest, security advisories | The target repo's own venv, never the assessor's |
+| **Lint suppressions** | comment tokens in tracked `.py` files | `# noqa`, `# type: ignore`, `# pragma: no cover`, `# ruff: noqa` | Split first-party / vendored, by top rule code, coded vs uncoded, and per-line vs whole-file |
+
+`--no-fix` is not optional: `[tool.ruff] fix = true` is a common setting, and without
+the flag the lint metric rewrites the tree it was asked to measure. Assessing a repo must
+never change it.
+
+### Reading the numbers honestly (Non-Negotiable)
+
+A count is only a finding once you know what it covers. Four splits exist because each
+one, missing, produced a wrong conclusion in a real review:
+
+- **Vendored vs first-party.** A fork carrying a vendored upstream reports thousands of
+  suppressions that nobody in the repo can remove. Only the first-party figure is a
+  finding against the repo. `assess` prints the vendored paths and where it read them
+  from, at the top of the report — check that line before quoting any total.
+- **Rule code.** One deliberate convention repeated (e.g. `PLC0415` deferred imports to
+  break cycles) can be >70% of all suppressions. Printing the top codes is what keeps a
+  single pattern from reading as broad, unexplained debt. Ask what the top code *is*
+  before treating the total as debt.
+- **Coded vs uncoded.** `# noqa: E501` silences one rule on purpose; a bare `# noqa`
+  silences every rule it covers, forever. The uncoded count is the one that signals
+  debt; report it separately and never fold it into the total.
+- **Reach.** `# ruff: noqa` on a line of its own silences a WHOLE FILE. Counted as one
+  per-line suppression it understates itself by the size of the file, so it is counted
+  and labelled separately.
+
+Suppressions are counted from **comment tokens**, not grep lines, and only where the
+marker can actually silence something: a line-level marker must TRAIL that line's code
+(standing alone it suppresses nothing, and ruff's own `RUF100` calls it unused), a
+file-level one must stand alone. Both halves are needed. A repo that reasons about
+suppressions writes the markers in docstrings, hook messages and test fixtures — those
+inflated one fork's bare-`# noqa` figure from 2 to 49 — and in comments *about* the
+markers, which then left the same fork reporting 2 where the truth is 0.
+
+Known boundary: mypy's file-level form (a bare `# type: ignore` on a file's first line)
+is not counted, because recognising it by shape alone would re-admit exactly those
+standalone false positives.
+
+**How vendored paths are decided** (first source that yields anything, never a hardcoded
+project path):
+
+1. `--vendored PREFIX` on the command line.
+2. `.gitattributes` entries marked `linguist-vendored`.
+3. `pyproject.toml` `[tool.ruff] exclude` / `extend-exclude` — the trees the repo does not lint.
+4. A conventional vendor directory (`vendor`, `third_party`, `external`, …).
+
+A candidate must be a directory whose files the repo actually tracks, so ignored `build`
+and `.venv` entries never get labelled somebody else's source. When nothing is declared,
+the report says so and every count covers the whole repo.
 
 **When the CLI is not available** (e.g., reviewing a non-Python codebase), collect equivalent metrics manually:
 
