@@ -47,7 +47,7 @@ from pathlib import Path
 
 from scanning import scan_files
 from ui import console
-from vendored_paths import SCOPES, VendoredPaths
+from vendored_paths import FIRST_PARTY, SCOPES, VENDORED, VendoredPaths
 
 TOP_CODES = 5
 
@@ -182,7 +182,8 @@ def print_counts(supps: dict, vendored: VendoredPaths) -> None:
     total = supps["total"]
     scopes = supps["scopes"]
     color = "green" if total == 0 else "yellow"
-    console.print(f"  Lint suppressions: [{color}]{total}[/{color}]{_split_note(scopes, vendored=vendored.declared)}")
+    note = vendored.split_note(scopes[FIRST_PARTY]["total"], scopes[VENDORED]["total"])
+    console.print(f"  Lint suppressions: [{color}]{total}[/{color}]{note}")
     uncoded = supps["uncoded"]
     console.print(
         f"    uncoded (no rule code, silences everything): "
@@ -193,12 +194,6 @@ def print_counts(supps: dict, vendored: VendoredPaths) -> None:
     for scope, tally in scopes.items():
         if tally["total"] or vendored.declared:
             _print_scope(scope, tally, vendored=vendored)
-
-
-def _split_note(scopes: dict, *, vendored: bool) -> str:
-    if not vendored:
-        return ""
-    return f" — first-party {scopes['first_party']['total']}, vendored {scopes['vendored']['total']}"
 
 
 def _print_scope(scope: str, tally: dict, *, vendored: VendoredPaths) -> None:

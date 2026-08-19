@@ -1,4 +1,4 @@
-"""Which directories in a repo hold somebody else's code.
+"""Which directories in a repo hold somebody else's code — and whether it is even linted.
 
 A metric that mixes vendored code with the repo's own is a number about a
 codebase nobody here can change. A fork whose vendored upstream carries
@@ -12,12 +12,18 @@ repo already says about itself, first source that yields anything:
 1. ``--vendored`` on the command line, when the caller states it outright.
 2. ``.gitattributes`` entries carrying git's ``linguist-vendored`` attribute —
     the one marker that means *vendored* and nothing else.
-3. ``pyproject.toml`` ``[tool.ruff] exclude`` / ``extend-exclude`` — the repo
-    naming the trees it does not lint, which is the trees it does not own.
+3. The repo's ruff configuration (``.ruff.toml``, ``ruff.toml`` or
+    ``pyproject.toml``) ``exclude`` / ``extend-exclude`` — the repo naming the
+    trees it does not lint, which is the trees it does not own.
 4. Conventional vendor directory names, when nothing above is declared.
 
 A candidate only survives if the repo actually tracks files under it, so
 ignored build and virtualenv directories drop out without being enumerated.
+
+Whether ruff is configured to skip a vendored tree travels with the paths,
+because a ruff-derived ``0`` over a skipped tree does not mean "clean" — it
+means nothing was looked at, and a report that prints those two the same way
+hands the reader a false all-clear.
 """
 
 import re
@@ -29,6 +35,11 @@ from pathlib import Path
 from scanning import is_git_repo, tracked_under
 
 VENDORED_ATTRIBUTE = "linguist-vendored"
+
+# Ruff reads the FIRST of these it finds and ignores the rest, so the search
+# order here is ruff's own. In `pyproject.toml` the settings live under
+# `[tool.ruff]`; in the dedicated files they are top-level.
+RUFF_CONFIG_FILES = (".ruff.toml", "ruff.toml", "pyproject.toml")
 
 CONVENTIONAL_VENDOR_DIRS = (
     "vendor",
@@ -50,14 +61,22 @@ _TRAILING_GLOB_RE = re.compile(r"/\*+$")
 
 @dataclass(frozen=True)
 class VendoredPaths:
-    """The vendored path prefixes of one repo, and where they were read from."""
+    """The vendored path prefixes of one repo, where they were read from, and their lint status."""
 
     prefixes: tuple[str, ...] = ()
     source: str = NOTHING_DECLARED
+    # The subset ruff is configured never to read. Not a judgement on the code:
+    # a fact about the measurement.
+    unlinted: tuple[str, ...] = ()
 
     @property
     def declared(self) -> bool:
         return bool(self.prefixes)
+
+    @property
+    def fully_unlinted(self) -> bool:
+        """Whether every vendored prefix is invisible to ruff, so ruff numbers are first-party only."""
+        return self.declared and set(self.unlinted) == set(self.prefixes)
 
     def covers(self, path: str) -> bool:
         return any(path == prefix or path.startswith(f"{prefix}/") for prefix in self.prefixes)
@@ -77,27 +96,51 @@ class VendoredPaths:
             return f"vendored ({', '.join(self.prefixes)})"
         return scope.replace("_", "-")
 
+    def split_note(self, first_party: int, vendored: int) -> str:
+        """The ``— first-party N, vendored N`` tail every split count carries.
+
+        Empty when nothing is vendored: there is one scope, and naming it twice
+        would invent a second.
+        """
+        if not self.declared:
+            return ""
+        return f" — first-party {first_party}, vendored {vendored}"
+
     def as_dict(self) -> dict[str, object]:
-        return {"paths": list(self.prefixes), "source": self.source}
+        return {"paths": list(self.prefixes), "source": self.source, "unlinted": list(self.unlinted)}
 
 
 def from_report(info: dict) -> VendoredPaths:
     """Rebuild the value ``assess --json`` serialised, so printing and JSON agree."""
-    return VendoredPaths(tuple(info.get("paths", [])), str(info.get("source", NOTHING_DECLARED)))
+    return VendoredPaths(
+        tuple(info.get("paths", [])),
+        str(info.get("source", NOTHING_DECLARED)),
+        tuple(info.get("unlinted", [])),
+    )
 
 
 def resolve(root: Path, override: Sequence[str] = ()) -> VendoredPaths:
     if override:
-        return VendoredPaths(_normalize(override), "--vendored")
+        return _resolved(root, _normalize(override), "--vendored")
     for source, candidates in (
         (f".gitattributes {VENDORED_ATTRIBUTE}", _from_gitattributes(root)),
-        ("pyproject [tool.ruff] exclude", _from_ruff_exclude(root)),
+        (_ruff_exclude_source(root), _ruff_excludes(root)),
         ("conventional vendor directory", _from_conventional_dirs(root)),
     ):
         prefixes = _really_present(root, candidates)
         if prefixes:
-            return VendoredPaths(prefixes, source)
+            return _resolved(root, prefixes, source)
     return VendoredPaths()
+
+
+def lint_excluded(root: Path, prefixes: Sequence[str]) -> tuple[str, ...]:
+    """Which of ``prefixes`` this repo's ruff config keeps ruff from ever reading."""
+    excluded = VendoredPaths(_normalize(_ruff_excludes(root)))
+    return tuple(prefix for prefix in prefixes if excluded.covers(prefix))
+
+
+def _resolved(root: Path, prefixes: tuple[str, ...], source: str) -> VendoredPaths:
+    return VendoredPaths(prefixes, source, lint_excluded(root, prefixes))
 
 
 def _from_gitattributes(root: Path) -> list[str]:
@@ -116,16 +159,26 @@ def _from_gitattributes(root: Path) -> list[str]:
     return patterns
 
 
-def _from_ruff_exclude(root: Path) -> list[str]:
-    pyproject = root / "pyproject.toml"
-    if not pyproject.exists():
+def _ruff_config_file(root: Path) -> Path | None:
+    return next((root / name for name in RUFF_CONFIG_FILES if (root / name).exists()), None)
+
+
+def _ruff_exclude_source(root: Path) -> str:
+    """Name the file the exclude list was read from — "ruff exclude" alone hides which one."""
+    config = _ruff_config_file(root)
+    return f"ruff exclude ({config.name})" if config else "ruff exclude"
+
+
+def _ruff_excludes(root: Path) -> list[str]:
+    config = _ruff_config_file(root)
+    if config is None:
         return []
     try:
-        config = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        data = tomllib.loads(config.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError):
         return []
-    ruff = config.get("tool", {}).get("ruff", {})
-    return [*ruff.get("exclude", []), *ruff.get("extend-exclude", [])]
+    settings = data.get("tool", {}).get("ruff", {}) if config.name == "pyproject.toml" else data
+    return [*settings.get("exclude", []), *settings.get("extend-exclude", [])]
 
 
 def _from_conventional_dirs(root: Path) -> list[str]:

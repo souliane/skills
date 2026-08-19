@@ -14,9 +14,9 @@ Run `scripts/cli.py assess` to collect metrics as JSON. The CLI handles:
 
 | Metric | Tool | What it measures | Scope reported |
 | -------- | ------ | ----------------- | ---------------- |
-| **Lint violations** | `ruff check --no-fix --output-format json` | Rule violations by category and severity | The repo's own ruff config (already excludes what it excludes) |
+| **Lint violations** | `ruff check --no-fix --output-format json` | Rule violations by rule code | Total, split first-party / vendored, top codes within each |
 | **Test coverage** | `coverage json` (if `.coverage` exists) | Line+branch coverage percentage, files measured | Total, then first-party and vendored separately |
-| **Cyclomatic complexity** | `ruff check --no-fix --select C901` | Functions exceeding complexity threshold | As ruff configures it |
+| **Cyclomatic complexity** | `ruff check --no-fix --select C901` | Functions exceeding complexity threshold | Total, split first-party / vendored |
 | **TODO/FIXME count** | `git grep` over tracked files | Deferred work items by marker | Total, split first-party / vendored |
 | **Dependency staleness** | `uv pip list --outdated` (if uv project) | Packages behind latest, security advisories | The target repo's own venv, never the assessor's |
 | **Lint suppressions** | comment tokens in tracked `.py` files | `# noqa`, `# type: ignore`, `# pragma: no cover`, `# ruff: noqa` | Split first-party / vendored, by top rule code, coded vs uncoded, and per-line vs whole-file |
@@ -44,6 +44,10 @@ one, missing, produced a wrong conclusion in a real review:
 - **Reach.** `# ruff: noqa` on a line of its own silences a WHOLE FILE. Counted as one
   per-line suppression it understates itself by the size of the file, so it is counted
   and labelled separately.
+- **Measured vs skipped.** Lint and complexity come from ruff, and ruff reports nothing
+  about a tree its config excludes. Printed as "vendored 0" that reads as a clean bill of
+  health for code nobody looked at, so the report prints `not linted` and names the tree.
+  A 0 you can act on and a 0 nobody measured are different facts.
 
 Suppressions are counted from **comment tokens**, not grep lines, and only where the
 marker can actually silence something: a line-level marker must TRAIL that line's code
@@ -62,7 +66,9 @@ project path):
 
 1. `--vendored PREFIX` on the command line.
 2. `.gitattributes` entries marked `linguist-vendored`.
-3. `pyproject.toml` `[tool.ruff] exclude` / `extend-exclude` — the trees the repo does not lint.
+3. The repo's ruff config `exclude` / `extend-exclude` — the trees it does not lint.
+   Read from the file ruff itself would use: `.ruff.toml`, then `ruff.toml`, then
+   `pyproject.toml` `[tool.ruff]` (ruff reads the first it finds and ignores the rest).
 4. A conventional vendor directory (`vendor`, `third_party`, `external`, …).
 
 A candidate must be a directory whose files the repo actually tracks, so ignored `build`

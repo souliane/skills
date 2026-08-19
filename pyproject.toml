@@ -201,7 +201,7 @@ report.exclude_also = [ "if __name__ == .__main__.:" ]
 # CI measures both interpreters and 3.14 is the lower of the two (the observed
 # gap is ~0.4pt), so the floor tracks 3.14 and rounding down keeps the margin.
 # Raise it when a change measures higher; never lower it to make a red run
-# green. See AGENTS.md "Coverage floor". Last measured: 35.15% (3.14), 35.50% (3.13).
+# green. See AGENTS.md "Coverage floor". Last measured: 35.97% (3.14), 36.31% (3.13).
 report.fail_under = 35
 report.precision = 2
 report.show_missing = true

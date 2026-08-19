@@ -9,7 +9,10 @@ rendering lives in ``metrics_report``.
 import json
 import re
 import tempfile
+from collections import Counter
 from collections.abc import Sequence
+from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 
 import suppressions
@@ -26,22 +29,73 @@ NO_FIX = "--no-fix"
 COVERAGE_GOOD_THRESHOLD = 80
 COVERAGE_WARN_THRESHOLD = 60
 
+TOP_LINT_CODES = 10
+
 _TODO_MARKER_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
 
 
-def count_lint_violations(root: Path) -> dict[str, object]:
-    result = run_tool([*ruff_cmd(), "check", NO_FIX, "--output-format", "json", "."], cwd=root)
+@dataclass(frozen=True)
+class RuffRun:
+    """What one ``ruff check`` produced: its findings, or why there are none to read."""
+
+    findings: tuple[dict, ...] = ()
+    error: str = ""
+
+
+def run_ruff(root: Path, select: str = "") -> RuffRun:
+    args = [*ruff_cmd(), "check", NO_FIX, *(["--select", select] if select else []), "--output-format", "json", "."]
+    result = run_tool(args, cwd=root)
     if result.returncode == 0:
-        return {"total": 0, "by_category": {}}
+        return RuffRun()
     try:
-        violations = json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError):
-        return {"error": "ruff not available or produced invalid output"}
-    by_code: dict[str, int] = {}
-    for v in violations:
-        code = v.get("code", "unknown")
-        by_code[code] = by_code.get(code, 0) + 1
-    return {"total": len(violations), "by_category": dict(sorted(by_code.items(), key=lambda x: -x[1])[:20])}
+        return RuffRun(tuple(json.loads(result.stdout)))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return RuffRun(error=f"ruff produced no readable output: {_first_line(result.stderr, result.stdout)}")
+
+
+def count_lint_violations(root: Path, vendored: VendoredPaths) -> dict[str, object]:
+    """Ruff violations, split by scope and by rule code within each scope.
+
+    A mixed top-N list is the same trap as a mixed total: a vendored upstream
+    with one dominant rule pushes the repo's own violations off the list
+    entirely.
+    """
+    ruff = run_ruff(root)
+    if ruff.error:
+        return {"error": ruff.error}
+    by_scope: dict[str, Counter[str]] = {scope: Counter() for scope in SCOPES}
+    for finding in ruff.findings:
+        scope = vendored.scope_of(_repo_relative(root, str(finding.get("filename", ""))))
+        by_scope[scope][finding.get("code") or "unknown"] += 1
+    return {
+        "total": len(ruff.findings),
+        "scopes": {
+            scope: {"total": sum(codes.values()), "by_code": dict(codes.most_common(TOP_LINT_CODES))}
+            for scope, codes in by_scope.items()
+        },
+    }
+
+
+def count_complexity(root: Path, vendored: VendoredPaths) -> dict[str, object]:
+    ruff = run_ruff(root, "C901")
+    if ruff.error:
+        return {"error": ruff.error}
+    by_scope = Counter(vendored.scope_of(_repo_relative(root, str(f.get("filename", "")))) for f in ruff.findings)
+    return {"violations": len(ruff.findings), "scopes": {scope: by_scope[scope] for scope in SCOPES}}
+
+
+def _repo_relative(root: Path, filename: str) -> str:
+    """The repo-relative path behind a ruff finding, whichever form ruff reported.
+
+    Scope is decided by path prefix, so an absolute filename would land every
+    finding in first-party — the split would exist and be silently wrong.
+    """
+    path = Path(filename)
+    if not path.is_absolute():
+        return path.as_posix().removeprefix("./")
+    with suppress(OSError, ValueError):
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    return path.as_posix()
 
 
 def count_todos(root: Path, vendored: VendoredPaths) -> dict[str, object]:
@@ -67,15 +121,6 @@ def count_todos(root: Path, vendored: VendoredPaths) -> dict[str, object]:
         "by_type": {k: v for k, v in by_type.items() if v > 0},
         "scopes": by_scope,
     }
-
-
-def count_complexity(root: Path) -> dict[str, object]:
-    result = run_tool([*ruff_cmd(), "check", NO_FIX, "--select", "C901", "--output-format", "json", "."], cwd=root)
-    try:
-        violations = json.loads(result.stdout) if result.stdout else []
-    except (json.JSONDecodeError, ValueError):
-        return {"error": "ruff not available"}
-    return {"violations": len(violations)}
 
 
 def check_coverage(root: Path, vendored: VendoredPaths) -> dict[str, object]:
@@ -160,9 +205,9 @@ def collect(root: Path, vendored_override: Sequence[str] = ()) -> dict[str, obje
     vendored = vendored_paths.resolve(root, vendored_override)
     return {
         "vendored": vendored.as_dict(),
-        "lint": count_lint_violations(root),
+        "lint": count_lint_violations(root, vendored),
         "todos": count_todos(root, vendored),
-        "complexity": count_complexity(root),
+        "complexity": count_complexity(root, vendored),
         "coverage": check_coverage(root, vendored),
         "dependencies": check_outdated_deps(root),
         "suppressions": suppressions.count(root, vendored),

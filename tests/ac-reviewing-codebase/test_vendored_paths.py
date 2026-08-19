@@ -62,7 +62,24 @@ class TestResolve:
         )
         resolved = vendored_paths.resolve(root)
         assert resolved.prefixes == ("upstream",)
-        assert "ruff" in resolved.source
+        assert resolved.source == "ruff exclude (pyproject.toml)"
+
+    def test_a_standalone_ruff_config_is_read_and_wins_as_ruff_reads_it(self, tmp_path: Path) -> None:
+        # ruff uses the FIRST config it finds and ignores the rest. Reading
+        # only pyproject.toml would miss the exclusion entirely and report a
+        # tree ruff never lints as this repo's own code.
+        root = _repo_with(
+            tmp_path,
+            {
+                ".ruff.toml": 'extend-exclude = ["upstream"]\n',
+                "pyproject.toml": '[tool.ruff]\nextend-exclude = ["src"]\n',
+                "upstream/core.py": "x = 1\n",
+                "src/app.py": "y = 2\n",
+            },
+        )
+        resolved = vendored_paths.resolve(root)
+        assert resolved.prefixes == ("upstream",)
+        assert resolved.source == "ruff exclude (.ruff.toml)"
 
     def test_an_excluded_but_untracked_dir_is_not_vendored_code(self, tmp_path: Path) -> None:
         # `.venv`/`build` land in every ruff exclude list and are nobody's
@@ -155,7 +172,70 @@ class TestLabel:
         assert vendored_paths.VendoredPaths().label("first_party") == "whole repo"
 
 
+class TestLintExclusion:
+    """Whether ruff even reads a vendored tree.
+
+    Ruff-derived counts (lint, complexity) report 0 for a tree ruff was told to
+    skip. Printed as "vendored 0" that is a clean bill of health for code
+    nobody measured, so the exclusion travels with the paths.
+    """
+
+    def test_a_ruff_excluded_vendored_tree_is_marked_unlinted(self, tmp_path: Path) -> None:
+        root = _repo_with(
+            tmp_path,
+            {
+                "pyproject.toml": '[tool.ruff]\nextend-exclude = ["upstream"]\n',
+                "upstream/core.py": "x = 1\n",
+            },
+        )
+        resolved = vendored_paths.resolve(root)
+        assert resolved.unlinted == ("upstream",)
+        assert resolved.fully_unlinted is True
+
+    def test_a_vendored_tree_ruff_does_lint_is_not_marked(self, tmp_path: Path) -> None:
+        root = _repo_with(
+            tmp_path,
+            {
+                ".gitattributes": "upstream/** linguist-vendored\n",
+                "pyproject.toml": "[tool.ruff]\nline-length = 120\n",
+                "upstream/core.py": "x = 1\n",
+            },
+        )
+        resolved = vendored_paths.resolve(root)
+        assert resolved.unlinted == ()
+        assert resolved.fully_unlinted is False
+
+    def test_an_exclusion_covering_only_part_of_the_set_is_not_full(self, tmp_path: Path) -> None:
+        root = _repo_with(
+            tmp_path,
+            {
+                "pyproject.toml": '[tool.ruff]\nextend-exclude = ["upstream"]\n',
+                "upstream/core.py": "x = 1\n",
+                "external/dep.py": "y = 2\n",
+            },
+        )
+        resolved = vendored_paths.resolve(root, ["upstream", "external"])
+        assert resolved.unlinted == ("upstream",)
+        assert resolved.fully_unlinted is False
+
+    def test_an_undeclared_repo_is_never_fully_unlinted(self) -> None:
+        assert vendored_paths.VendoredPaths().fully_unlinted is False
+
+
+class TestSplitNote:
+    def test_the_note_names_both_scopes(self) -> None:
+        assert vendored_paths.VendoredPaths(("vendor",)).split_note(3, 7) == " — first-party 3, vendored 7"
+
+    def test_an_undeclared_repo_gets_no_note(self) -> None:
+        # One scope named twice would invent a second one.
+        assert vendored_paths.VendoredPaths().split_note(3, 0) == ""
+
+
 class TestRoundTrip:
     def test_json_report_rebuilds_the_same_value(self) -> None:
-        original = vendored_paths.VendoredPaths(("vendor",), "pyproject [tool.ruff] exclude")
+        original = vendored_paths.VendoredPaths(("vendor",), "ruff exclude (pyproject.toml)", ("vendor",))
         assert vendored_paths.from_report(original.as_dict()) == original
+
+    def test_an_older_report_without_the_lint_status_still_loads(self) -> None:
+        rebuilt = vendored_paths.from_report({"paths": ["vendor"], "source": "--vendored"})
+        assert rebuilt.unlinted == ()

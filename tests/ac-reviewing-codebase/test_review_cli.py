@@ -93,7 +93,7 @@ class TestAssessCommand:
         monkeypatch.setattr(metrics, "run_tool", self._stub_run_tool)
         result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path), "--vendored", "elsewhere", "--json"])
         data = json.loads(result.output)
-        assert data["vendored"] == {"paths": ["elsewhere"], "source": "--vendored"}
+        assert data["vendored"] == {"paths": ["elsewhere"], "source": "--vendored", "unlinted": []}
         assert data["suppressions"]["scopes"]["vendored"]["total"] == 0
 
     def test_human_output_states_what_the_numbers_cover(self, tmp_path: Path, monkeypatch) -> None:

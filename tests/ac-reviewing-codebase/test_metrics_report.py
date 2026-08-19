@@ -25,10 +25,16 @@ def _render(metrics: dict) -> str:
 
 def _payload(**overrides: dict) -> dict:
     base = {
-        "vendored": {"paths": ["vendor"], "source": "pyproject [tool.ruff] exclude"},
-        "lint": {"total": 0, "by_category": {}},
+        "vendored": {"paths": ["vendor"], "source": "ruff exclude (pyproject.toml)", "unlinted": []},
+        "lint": {
+            "total": 12,
+            "scopes": {
+                "first_party": {"total": 2, "by_code": {"T201": 2}},
+                "vendored": {"total": 10, "by_code": {"BLE001": 10}},
+            },
+        },
         "todos": {"total": 3, "by_type": {"TODO": 3}, "scopes": {"first_party": 1, "vendored": 2}},
-        "complexity": {"violations": 0},
+        "complexity": {"violations": 4, "scopes": {"first_party": 1, "vendored": 3}},
         "coverage": {
             "available": True,
             "percent": 70.0,
@@ -70,7 +76,7 @@ class TestVendoredBanner:
     def test_the_report_names_the_vendored_paths_and_where_they_came_from(self) -> None:
         output = _render(_payload())
         assert "vendor" in output
-        assert "tool.ruff" in output
+        assert "pyproject.toml" in output
 
     def test_a_repo_with_no_vendored_declaration_says_the_counts_are_whole_repo(self) -> None:
         output = _render(_payload(vendored={"paths": [], "source": "nothing declared"}))
@@ -79,6 +85,52 @@ class TestVendoredBanner:
     def test_an_undeclared_repo_shows_no_empty_vendored_rows(self) -> None:
         output = _render(_payload(vendored={"paths": [], "source": "nothing declared"}))
         assert "vendored" not in output
+
+
+class TestRuffDerivedReporting:
+    """Lint and complexity come from ruff, so they carry ruff's blind spots.
+
+    Both are whole-repo numbers unless they say otherwise, and a tree ruff was
+    configured to skip contributes a 0 that means "never looked at".
+    """
+
+    def test_lint_and_complexity_both_show_the_split(self) -> None:
+        output = _render(_payload())
+        assert "Lint violations: 12 — first-party 2, vendored 10" in output
+        assert "Complex functions (C901): 4 — first-party 1, vendored 3" in output
+
+    def test_rule_codes_are_listed_per_scope(self) -> None:
+        # Mixed into one top-N list, a vendored upstream's dominant rule pushes
+        # the repo's own violations off the report entirely.
+        output = _render(_payload())
+        assert "first-party: T201=2" in output
+        assert "vendored (vendor): BLE001=10" in output
+
+    def test_a_tree_ruff_skips_is_not_reported_as_zero_violations(self) -> None:
+        payload = _payload()
+        payload["vendored"]["unlinted"] = ["vendor"]
+        output = _render(payload)
+        assert "vendored not linted" in output
+        assert "ruff is configured to skip vendor" in output
+
+    def test_an_undeclared_repo_gets_no_scope_tail(self) -> None:
+        payload = _payload(
+            vendored={"paths": [], "source": "nothing declared", "unlinted": []},
+            lint={
+                "total": 2,
+                "scopes": {
+                    "first_party": {"total": 2, "by_code": {"T201": 2}},
+                    "vendored": {"total": 0, "by_code": {}},
+                },
+            },
+        )
+        output = _render(payload)
+        assert "Lint violations: 2 (under this repo's own ruff config)" in output
+        assert "whole repo: T201=2" in output
+
+    def test_a_ruff_failure_says_what_ruff_said(self) -> None:
+        payload = _payload(lint={"error": "ruff produced no readable output: unknown rule"})
+        assert "unknown rule" in _render(payload)
 
 
 class TestSuppressionReporting:
