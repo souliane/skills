@@ -8,9 +8,9 @@ description: >
   channel integration, secure remote access, backups, and ongoing maintenance.
 compatibility: macOS/Linux, any AI coding agent (Claude Code, Codex, Copilot, Gemini CLI, Cursor, etc.)
 metadata:
-  version: 0.0.1
+  version: 0.0.2
   subagent_safe: false
-  last_research_date: "2026-04-13"
+  last_research_date: "2026-09-01"
 ---
 
 # Bootstrap OpenClaw
@@ -19,12 +19,12 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 
 > **OpenClaw** was originally published in November 2025 by Peter Steinberger as "Clawdbot", renamed "Moltbot" on 2026-01-27 (Anthropic trademark), then "OpenClaw" on 2026-01-30. MIT-licensed. 247k+ GitHub stars as of 2026-03.
 
-## Versions (baseline refreshed 2026-04-13)
+## Versions (baseline refreshed 2026-09-01)
 
 | Component | Version | Notes |
 | ----------- | --------- | ------- |
-| OpenClaw | v2026.3.13 (stable, 2026-03-14) | Releases use `vYYYY.M.D` scheme |
-| Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | Minimum: >=22.16; recommended: 24 LTS |
+| OpenClaw | v2026.8.1 (stable, 2026-08-30/31), branded **"OpenClaw 2.0"** | Releases use `vYYYY.M.D` scheme — **"2.0" is marketing, not a version you can install** (see below) |
+| Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | 2026.8.1 `engines`: `>=22.22.3 <23 \|\| >=24.15.0 <25 \|\| >=25.9.0`. The package `preinstall` **aborts** on an out-of-range Node |
 | signal-cli | **>= 0.14.5 — hard floor** | Requires Java 25+. Below 0.14.5 **every inbound 1:1 message is silently discarded** (see note below). On arm64 there is no usable native libsignal — run signal-cli from the `bbernhard/signal-cli-rest-api` container (`0.100`+ ships 0.14.5) |
 | Tailscale | Latest stable | Free Personal plan (3 users, 100 devices). Serve = free. Funnel = Premium only ($18/user/mo) |
 | Ollama | Latest stable | Native ARM64 support. CPU-only unless the server has a GPU |
@@ -42,6 +42,31 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 > (2026-06-11), first shipped in the container image `bbernhard/signal-cli-rest-api:0.100`.
 > Verify `signal-cli --version` after install **and** send yourself an inbound message as an
 > end-to-end check — an outbound-only test cannot detect this.
+
+### Installing 2026.8.1 ("OpenClaw 2.0")
+
+**`npm i openclaw@2.0` fails — no 2.x was ever published to npm.** The "2.0" branding sits on top of the
+unchanged CalVer scheme; the installable version is `2026.8.1`. Abandoned `v2.0.0-beta*` git tags exist
+from the pre-rename `clawdis` era and are unrelated to this release.
+
+dist-tags observed 2026-09-01:
+
+| Tag | Version | Notes |
+| ----- | --------- | ------- |
+| `latest` | `2026.8.1` | The 2.0 release |
+| `extended-stable` | `2026.6.34` | Previous line |
+| `beta` | `2026.9.1-beta.1` | **Mislabeled upstream** — its own release notes say it was mistakenly published as `2026.9.1-beta.1`; it is a pre-release of the 8.1 line |
+
+Install with the scripts flag on npm >= 11.16 — without it the bundled plugins are silently skipped:
+
+```bash
+npm i -g openclaw@2026.8.1 --allow-scripts=openclaw   # npm >= 11.16
+npm i -g openclaw@2026.8.1                            # npm <= 11.15 — the flag does not exist
+```
+
+Upgrading an existing 2026.6.x instance has its own blockers (config validates fail-closed, Signal is
+unbundled, OpenRouter keys trigger an uninstallable plugin). Follow
+[`references/upgrading.md`](references/upgrading.md) rather than running `npm i -g` on a live box.
 
 ## Dependencies
 
@@ -93,7 +118,7 @@ Without these, OpenClaw is indeed just a passthrough to an LLM API. The value is
 ## When NOT to Use
 
 - User wants to install a **different** AI assistant (not OpenClaw)
-- User already has OpenClaw running and needs help with **configuration changes only** (point them to [docs.openclaw.ai](https://docs.openclaw.ai/) instead)
+- User already has OpenClaw running and needs help with a **routine configuration change** ([docs.openclaw.ai](https://docs.openclaw.ai/) is faster). Upgrades of an existing instance **are** in scope — see [`references/upgrading.md`](references/upgrading.md)
 - User wants a managed/hosted OpenClaw (point them to [ClawHost](https://github.com/bfzli/clawhost) or similar)
 
 ## Compatibility
@@ -520,6 +545,8 @@ Detailed step-by-step instructions for each phase live in reference files. Load 
 | **11. Integrations** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 11 | Backups, tool integrations, heartbeat, cron jobs |
 | **11a. Press Review** | [`references/press-review.md`](references/press-review.md) | Ready-to-use daily news digest — aggregated RSS + HN, dedup cache, cross-source synthesis. Ship-in-60s Signal/Telegram/Discord delivery. Offer during install; skip if user declines. |
 | **12. Wrap Up** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 12 | Final verification, suggest retrospective |
+
+**Upgrading an existing instance** is not one of these phases — it has its own runbook (pre-flight, upgrade, config migration, verification, rollback) in [`references/upgrading.md`](references/upgrading.md).
 
 **Key rules for all phases:**
 

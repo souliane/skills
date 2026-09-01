@@ -73,6 +73,206 @@
 
 ---
 
+## Upgrading to 2026.8.1 ("OpenClaw 2.0")
+
+Blockers hit during a real 2026.6.6 -> 2026.8.1 in-place upgrade. The order to work through them is
+in [`upgrading.md`](upgrading.md); this section is the symptom -> cause -> fix detail.
+
+### 2.0 config validation fails closed, and `doctor --fix` cannot self-heal
+
+**Symptom.** The gateway refuses to start on an invalid config, and `openclaw doctor --fix` prints
+`Legacy config keys detected ... run openclaw doctor --fix` — it tells you to run the command you
+just ran.
+
+**Cause.** A retired key makes the **whole** config invalid. `doctor --fix` then refuses to persist
+*any* migration, because it cannot load the file it would be migrating. Every path out of the state
+is gated on the config already being valid.
+
+**Fix.** Break the loop by hand — remove or migrate the specific rejected keys with `jq`, then
+re-run `doctor --fix` for the rest:
+
+```bash
+cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak-$(date +%s)
+
+jq 'del(.meta.lastTouchedAt)
+    | del(.commands.ownerDisplay)
+    | if .agents.defaults.memorySearch then
+        .memory.search = .agents.defaults.memorySearch
+        | del(.agents.defaults.memorySearch)
+      else . end' \
+  ~/.openclaw/openclaw.json > /tmp/openclaw.json.new \
+  && mv /tmp/openclaw.json.new ~/.openclaw/openclaw.json
+
+openclaw doctor --fix
+```
+
+Keys hit in this upgrade:
+
+| Key | Action |
+| ----- | -------- |
+| `meta.lastTouchedAt` | drop |
+| `commands.ownerDisplay` | drop |
+| `agents.defaults.memorySearch` | migrate to `memory.search`, preserving the value |
+
+### Signal was unbundled into `@openclaw/signal`
+
+**Symptom.** `channels.signal: must not have additional properties: "cliPath", "autoStart",
+"httpUrl"` and `plugins.entries.signal: plugin not installed`.
+
+**Cause.** Signal moved out of core into the `@openclaw/signal` plugin, and the schema for those
+fields now ships **with the plugin**. Core no longer recognises them.
+
+This deadlocks: `plugins install` fails closed on an invalid config, and `doctor --fix` will not
+persist on an invalid config. `docs/cli/plugins.md` documents a **bundled-plugin recovery path**
+(opt-in via `openclaw.install.allowInvalidConfigRecovery`), but it only covers a missing
+bundled-plugin path or a stale `channels.<id>` entry for that same plugin — unrelated config errors
+still block. Retired transport fields are an unrelated error, so recovery does **not** apply.
+
+**Fix.** Strip the retired transport fields so the config validates, install the plugin, then write
+the fields back in the new shape:
+
+```bash
+jq 'del(.channels.signal.cliPath, .channels.signal.autoStart, .channels.signal.httpUrl)' \
+  ~/.openclaw/openclaw.json > /tmp/openclaw.json.new \
+  && mv /tmp/openclaw.json.new ~/.openclaw/openclaw.json
+
+openclaw plugins install @openclaw/signal
+```
+
+> **Do not use the `clawhub:` prefix.** `docs/cli/plugins.md` recommends
+> `openclaw plugins install clawhub:@openclaw/signal` to force a source, but the spec matcher
+> rejects any spec containing `:` except an `npm:` prefix — which silently disables the recovery
+> path. Use bare `@openclaw/signal` or `npm:@openclaw/signal`.
+
+**New shape.** Transport moved to `channels.signal.transport`, a discriminated union on `kind`:
+
+| `kind` | Allowed fields |
+| -------- | ---------------- |
+| `managed-native` | `cliPath`, `configPath`, `httpHost`, `httpPort`, `url`, `receiveMode`, `startupTimeoutMs`, `ignoreStories` |
+| `external-native` | `kind` + `url` **only**, both required |
+| `container` | `kind` + `url` **only**, both required |
+
+`httpUrl` is renamed `url`. For a box running the `bbernhard/signal-cli-rest-api` container:
+
+```json
+{
+  "channels": {
+    "signal": {
+      "transport": { "kind": "container", "url": "http://127.0.0.1:8080" }
+    }
+  }
+}
+```
+
+A `cliPath` shim is then unnecessary — every operation goes over REST.
+
+There is **no upstream migration guide** for this. The CHANGELOG's unbundling entry names Cohere,
+Meta, DuckDuckGo, Voyage and iMessage but not Signal, and `docs/plugins/reference/signal.md` has no
+migration content.
+
+### `OPENROUTER_API_KEY` alone makes 2.0 demand a perplexity plugin it cannot install
+
+**Symptom.** `Plugin "perplexity" requires capability consent` -> `plugin verification failed;
+refusing to report the gateway ready` -> exit 1. Under `Restart=always` this is a crash loop.
+
+This is an upstream defect and hits **any** OpenRouter user upgrading to 2026.8.1.
+
+**Why it is invisible.** perplexity appears nowhere: not in `plugins.entries`, not in
+`plugins list --json`, not in `claw_installs` or `plugin_binding_approvals`. `openclaw-perplexity-plugin`
+404s on npm — the real name is scoped, `@openclaw/perplexity-plugin`.
+
+**Cause.** `collectConfiguredPluginIds` adds every official-external catalog entry whose declared
+env vars are non-empty, whenever `tools.web.search.enabled !== false`. The perplexity catalog entry
+declares `envVars: ["PERPLEXITY_API_KEY", "OPENROUTER_API_KEY"]`, so an OpenRouter key alone selects
+it. The gateway then calls the install path with **no `onCapabilityConsent` handler**, so consent can
+never be granted; the resulting warning carries no `pluginId` and is therefore classified as blocking.
+
+Control that proves it — empty env yields `[]`, `OPENROUTER_API_KEY` alone yields `["perplexity"]`,
+and `OPENAI_API_KEY` alone yields `[]`, so the trigger is that one variable and not OpenRouter usage
+in general.
+
+**Fix (decline).** Add a deny entry under `plugins` in `~/.openclaw/openclaw.json`:
+
+```json
+{ "plugins": { "deny": ["perplexity"] } }
+```
+
+A cosmetic `plugin not found` diagnostic is then logged. It is warn-only and mutates nothing.
+
+**Fix (accept).**
+
+```bash
+openclaw plugins install @openclaw/perplexity-plugin --accept-capabilities
+```
+
+Then drop the `deny` entry.
+
+### A crash-looping gateway reports `active`
+
+**Symptom.** `systemctl is-active openclaw.service` returns `active`, but nothing works.
+
+**Cause.** `Restart=always` restarts the process for the whole loop, so `is-active` is `active`
+throughout. It reports the unit's intent, not the process's health.
+
+**Fix.** Never accept `is-active` as proof. Verify three things, with a control:
+
+```bash
+systemctl show openclaw.service -p NRestarts        # sample twice, a minute apart — stable, not climbing
+ss -ltnp | grep 18789                               # a listener actually exists
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18789/health
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:1     # control: must be 000
+```
+
+The unused-port probe is the control. Without it, a `curl` invocation that returns `000` for every
+port on the box is indistinguishable from a dead gateway.
+
+### Legacy session store migration is a separate, later blocker
+
+**Symptom.** `Legacy session store requires migration:
+~/.openclaw/agents/<agent>/sessions/sessions.json` — after the config blockers above are already
+cleared.
+
+**Fix.**
+
+```bash
+openclaw doctor --session-sqlite import --session-sqlite-all-agents --non-interactive
+```
+
+It can **exit 1 on pre-existing dangling transcript references while still completing the import**.
+Check whether the per-agent files were written before treating the non-zero exit as a failure:
+
+```bash
+ls -l ~/.openclaw/agents/*/openclaw-agent.sqlite
+```
+
+> **Never run `openclaw update cleanup` until end-to-end verification passes.** It destroys the
+> legacy transcripts and the in-place rollback path with them.
+
+### Stale Tailscale serve route blocks startup after upgrade
+
+**Symptom.** `Tailscale HTTPS port 443 is already owned by a route whose ownership OpenClaw cannot
+prove`, alongside `listener already exists for port 443`.
+
+**Cause.** 2.0 claims the route with a foreground `tailscale serve --yes --bg=false <port>` child
+process. That collides with a route **persisted** by an older version, which nothing now owns.
+
+**Fix.** Save the old route first, then clear it and let the gateway re-claim it on boot:
+
+```bash
+tailscale serve status --json > ~/backups/tailscale-serve-$(date +%s).json
+sudo tailscale serve --yes --https=443 --set-path=/ off
+sudo systemctl restart openclaw.service
+```
+
+`tailscale serve status` afterwards correctly shows no persisted config — ownership is process-held,
+not persisted. To restore the old route:
+
+```bash
+sudo tailscale serve --bg --https=443 --set-path=/ proxy http://127.0.0.1:<port>
+```
+
+---
+
 ## Automated Maintenance (Post-Install)
 
 Use `systemd --user` for ongoing OpenClaw automation unless you deliberately standardized on a root-managed system service. That keeps the gateway, health checks, and update timers in the same supervision model.
