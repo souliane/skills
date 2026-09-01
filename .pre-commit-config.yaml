@@ -70,7 +70,7 @@ repos:
     rev: 57b21406f092110c18776e39b0bda50d37c945c8  # v2.4.3
     hooks:
       - id: codespell
-        args: [--write-changes, --ignore-words-list=afterAll]
+        args: [--write-changes, "--ignore-words-list=afterAll,unparseable"]
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
     rev: 3aa28ce11a84d747c5695ad10b81945f2400b54f  # 3.8.0
     hooks:

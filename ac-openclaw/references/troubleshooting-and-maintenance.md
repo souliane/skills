@@ -92,7 +92,11 @@ is gated on the config already being valid.
 **Fix.** Break the loop by hand — remove or migrate the specific rejected keys with `jq`, then
 re-run `doctor --fix` for the rest:
 
+`--fix` also refuses to run while the gateway is up — stop the service first (see
+§ "After an upgrade, `doctor --fix` deadlocks on a CHAIN of legacy keys").
+
 ```bash
+sudo systemctl stop openclaw.service
 cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak-$(date +%s)
 
 jq 'del(.meta.lastTouchedAt)
@@ -114,6 +118,76 @@ Retired keys and their action:
 | `meta.lastTouchedAt` | drop |
 | `commands.ownerDisplay` | drop |
 | `agents.defaults.memorySearch` | migrate to `memory.search`, preserving the value |
+
+### A custom provider without an auth profile 401s intermittently
+
+**Symptom.** A provider declared in `models.providers` works, then fails roughly half the time with
+`Authentication failed (provider returned HTTP 401)` / `Invalid API key`, followed by
+`Provider <name> has auth issue (skipping all models)` and `All models failed (N)`. A retry loop
+fires every ~30s. The key itself is fine.
+
+**Cause.** `models.providers.<name>` with `baseUrl` + `api` + `apiKey: "$ENV_VAR"` is enough to
+make the provider work, but it registers **no auth profile**. On any request failure OpenClaw logs
+`decision=rotate_profile reason=auth` and rotates to the next profile in the agent's
+`auth_profile_store` — which for a config-only provider belongs to a **different** provider. It
+then sends that provider's key to your endpoint, which answers 401. One 401 marks the whole
+provider as an auth failure, so every model it serves is skipped for that run.
+
+**The control that isolates it.** Call the endpoint directly, several times, including concurrent
+and streaming requests. If raw HTTP returns 200s (and at most transient 429s) while the journal
+shows 401s over the same period, the credential OpenClaw sends is not the one in your store — it is
+rotating onto another provider's profile.
+
+**Fix.** Register a real profile for the provider on **every** agent (the store is per-agent):
+
+```bash
+pass show openclaw/<name>-key \
+  | openclaw models auth paste-token --agent <agent-id> --provider <name>
+```
+
+`openclaw infer model auth login` requires a TTY; `paste-token` is the automation path. It creates
+`<name>:manual`. Inspect what exists with
+`sqlite3 -readonly ~/.openclaw/agents/<id>/agent/openclaw-agent.sqlite "SELECT store_key, store_json FROM auth_profile_store;"`.
+
+**Do not clear a profile that is working.** `openclaw infer model auth logout --provider <name>`
+removes it, and the embedded agent path needs a materialized profile — it does **not** fall back to
+the env var. A gateway restart re-materializes it.
+
+Also keep at least one fallback on a **different** `models.providers` entry, so a provider-wide auth trip still
+produces a reply instead of `All models failed`.
+
+### After an upgrade, `doctor --fix` deadlocks on a CHAIN of legacy keys
+
+**Symptom.** Following an auto-update, every agent turn dies with
+`Legacy workspace setup state requires migration for <workspace>; run openclaw doctor --fix.` —
+and `doctor --fix` exits non-zero having changed nothing, telling you to run the command you just
+ran. The assistant looks healthy (`systemctl` active, channel OK) but answers nothing.
+
+**Cause.** Same fail-closed rule as the section above, but it is a **chain**: `--fix` aborts on the
+*first* legacy blocker it cannot migrate, so clearing one only reveals the next. Three blockers seen
+in the wild that are **not** in the retired-key table above:
+
+| Blocker | Action |
+| --- | --- |
+| `gateway.controlUi.dangerouslyDisableDeviceAuth` | drop the key |
+| `agents.list` | rewrite as keyed `agents.entries` (drop each entry's `id` and retired `default`), add `agents.ownership: "explicit"` |
+| `exec-approvals.json` | archive the file, run the fix, then restore policy with `openclaw approvals set --file <json>` |
+
+**Before stamping `ownership: "explicit"`**, confirm every ambient surface resolves an owner —
+explicit ownership makes channels, heartbeat, cron and bare CLI calls **fail closed** without one.
+Check `bindings[]` covers each channel (including a catch-all) first.
+
+**`--fix` also needs the gateway stopped**, or it refuses with
+`OpenClaw refused shared state schema mutation ... another Gateway owns that state directory`:
+
+```bash
+sudo systemctl stop openclaw.service
+openclaw doctor --fix        # exit 0 = migrations actually persisted
+sudo systemctl start openclaw.service
+```
+
+Verify with `openclaw config validate` (valid config) **and** a real turn — a passing validate is
+not proof the workspace state migrated.
 
 ### Signal ships as the external `@openclaw/signal` plugin
 
