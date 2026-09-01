@@ -34,7 +34,7 @@ you update it.
   upgrade. A version note interrupting the main
   path is a defect — move it down.
 - **Research order when refreshing.** Release notes and official docs first
-  (`https://docs.djangoproject.com/en/<version>/releases/<version>/` and the topic
+  (`docs.djangoproject.com/en/<version>/releases/<version>/` and the topic
   pages they link). Then the authors already cited under Canonical Sources. Blogs
   and newsletters last, briefly, for what the docs do not cover.
 - **Rotation.** When Django releases the next line, the current trailing section
