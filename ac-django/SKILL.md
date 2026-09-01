@@ -168,7 +168,7 @@ Avoid writing new code against these:
 - `QuerySet.select_related()` called with no arguments, and `ModelAdmin.list_select_related = True` — always pass explicit field names.
 - `QuerySet.values_list(flat=True)` without an explicit field name.
 - `Model.from_db()` implementations that do not accept the `fetch_mode` keyword argument.
-- `None` as a top-level JSON `null` on a `JSONField` — use `JSONNull`. Key and index lookups are unaffected.
+- `None` as the right-hand side of an exact lookup on a `JSONField`, meaning the JSON scalar `null` — query with `JSONNull()` instead. Querying only: storing `None` still writes SQL `NULL` and is unaffected, as are key and index lookups.
 - Double-dot template lookups (`{{ book..title }}`), which resolve to a lookup of the empty string.
 - `django.db.transaction.savepoint()` — use `savepoint_create()`.
 - The default HMAC algorithm for `salted_hmac()`/`base64_hmac()` flips from `sha1` to `sha256` — don't hardcode `sha1` expectations.
