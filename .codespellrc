@@ -1,3 +1,3 @@
 [codespell]
-ignore-words-list = berkley,cler
+ignore-words-list = berkley,cler,unparseable
 skip = *.pyc,*/__pycache__/*,*/.ruff_cache/*

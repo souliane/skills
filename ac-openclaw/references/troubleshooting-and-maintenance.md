@@ -109,6 +109,7 @@ jq 'del(.meta.lastTouchedAt)
   && mv /tmp/openclaw.json.new ~/.openclaw/openclaw.json
 
 openclaw doctor --fix
+sudo systemctl start openclaw.service
 ```
 
 Retired keys and their action:
@@ -121,37 +122,49 @@ Retired keys and their action:
 
 ### A custom provider without an auth profile 401s intermittently
 
+> Not strictly an upgrade blocker — this bites on **first configuration** of a custom provider too.
+> It lives here because the symptom and the `doctor`-adjacent tooling are the same.
+
 **Symptom.** A provider declared in `models.providers` works, then fails roughly half the time with
 `Authentication failed (provider returned HTTP 401)` / `Invalid API key`, followed by
 `Provider <name> has auth issue (skipping all models)` and `All models failed (N)`. A retry loop
 fires every ~30s. The key itself is fine.
 
-**Cause.** `models.providers.<name>` with `baseUrl` + `api` + `apiKey: "$ENV_VAR"` is enough to
-make the provider work, but it registers **no auth profile**. On any request failure OpenClaw logs
-`decision=rotate_profile reason=auth` and rotates to the next profile in the agent's
-`auth_profile_store` — which for a config-only provider belongs to a **different** provider. It
-then sends that provider's key to your endpoint, which answers 401. One 401 marks the whole
-provider as an auth failure, so every model it serves is skipped for that run.
+**Cause.** A config-declared provider gets exactly **one** auto-materialized profile,
+`<name>:default`, and no sibling. When a request fails, OpenClaw logs
+`decision=rotate_profile reason=auth` and puts that profile into an auth cooldown — visible as
+`cooldown:auth until <timestamp>` in `openclaw models auth list`. With no second profile for the
+provider to rotate to, the failover leaves the provider entirely and marks it
+`has auth issue (skipping all models)`, so every model it serves is skipped for that run.
 
 **The control that isolates it.** Call the endpoint directly, several times, including concurrent
 and streaming requests. If raw HTTP returns 200s (and at most transient 429s) while the journal
 shows 401s over the same period, the credential OpenClaw sends is not the one in your store — it is
 rotating onto another provider's profile.
 
-**Fix.** Register a real profile for the provider on **every** agent (the store is per-agent):
+**Fix.** Register a second, real profile for the provider on **every** agent (profiles are
+per-agent):
 
 ```bash
 pass show openclaw/<name>-key \
   | openclaw models auth paste-token --agent <agent-id> --provider <name>
 ```
 
-`openclaw infer model auth login` requires a TTY; `paste-token` is the automation path. It creates
-`<name>:manual`. Inspect what exists with
-`sqlite3 -readonly ~/.openclaw/agents/<id>/agent/openclaw-agent.sqlite "SELECT store_key, store_json FROM auth_profile_store;"`.
+That creates `<name>:manual` alongside the auto-materialized `<name>:default`.
 
-**Do not clear a profile that is working.** `openclaw infer model auth logout --provider <name>`
-removes it, and the embedded agent path needs a materialized profile — it does **not** fall back to
-the env var. A gateway restart re-materializes it.
+> **Mind the two CLI namespaces.** `paste-token` and `list` exist only under **`openclaw models
+> auth`**; `openclaw infer model auth` carries just `login` / `logout` / `status`. `login` needs a
+> TTY, so `paste-token` is the automation path. Use `models auth` throughout and they cannot drift.
+
+Inspect what actually exists — this also prints the store path, so you never have to guess it:
+
+```bash
+openclaw models auth list --agent <agent-id>
+```
+
+**Do not clear a profile that is working.** `openclaw models auth logout --provider <name>` removes
+it, and the embedded agent path needs a materialized profile — it does **not** fall back to the env
+var. A gateway restart re-materializes `<name>:default`.
 
 Also keep at least one fallback on a **different** `models.providers` entry, so a provider-wide auth trip still
 produces a reply instead of `All models failed`.
@@ -171,7 +184,18 @@ in the wild that are **not** in the retired-key table above:
 | --- | --- |
 | `gateway.controlUi.dangerouslyDisableDeviceAuth` | drop the key |
 | `agents.list` | rewrite as keyed `agents.entries` (drop each entry's `id` and retired `default`), add `agents.ownership: "explicit"` |
-| `exec-approvals.json` | archive the file, run the fix, then restore policy with `openclaw approvals set --file <json>` |
+| `exec-approvals.json` | **copy it aside first**, archive it, run the fix, then restore policy (see below) |
+
+`exec-approvals.json` governs tool-call auto-approval, so archiving it leaves **no exec-approval
+policy in force until you restore it** — do that in the same sitting, and keep your own copy,
+because the archived file is in the legacy shape the importer may reject:
+
+```bash
+cp ~/.openclaw/exec-approvals.json ~/exec-approvals.json.bak-$(date +%s)   # your restore source
+mv ~/.openclaw/exec-approvals.json ~/.openclaw/exec-approvals.json.legacy-$(date +%s)
+# ... run doctor --fix, restart, then re-apply the policy you copied aside:
+openclaw approvals set --file ~/exec-approvals.json.bak-<stamp>
+```
 
 **Before stamping `ownership: "explicit"`**, confirm every ambient surface resolves an owner —
 explicit ownership makes channels, heartbeat, cron and bare CLI calls **fail closed** without one.
@@ -313,7 +337,7 @@ It can **exit 1 on pre-existing dangling transcript references while still compl
 Check whether the per-agent files were written before treating the non-zero exit as a failure:
 
 ```bash
-ls -l ~/.openclaw/agents/*/openclaw-agent.sqlite
+ls -l ~/.openclaw/agents/*/agent/openclaw-agent.sqlite
 ```
 
 > **Never run `openclaw update cleanup` until end-to-end verification passes.** It destroys the

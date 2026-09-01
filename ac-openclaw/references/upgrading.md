@@ -130,20 +130,20 @@ Signal plugin deadlock, and the OpenRouter/perplexity blocker are all in
 The service is already stopped from § 1.2 — **keep it stopped**. `doctor --fix` refuses to run
 while the gateway is up (`OpenClaw refused shared state schema mutation ... another Gateway owns
 that state directory`), and it aborts on the *first* blocker it cannot migrate, so clearing one
-only reveals the next. Re-run until it exits 0:
-
-```bash
-openclaw doctor --fix           # exit 0 = migrations actually persisted
-```
+only reveals the next. Re-run the `doctor --fix` above until it **exits 0** — a non-zero exit means
+nothing was persisted, however much it printed.
 
 Blockers seen after a real upgrade, beyond the retired-key table: `agents.list` (rewrite as keyed
 `agents.entries` + `agents.ownership: "explicit"`), `gateway.controlUi.dangerouslyDisableDeviceAuth`
-(drop), and a legacy `exec-approvals.json` (archive it, fix, then restore with
-`openclaw approvals set --file`). Full procedure in
+(drop), and a legacy `exec-approvals.json` (copy it aside, archive it, fix, then restore the policy
+you copied). **Read the caveats there before acting on either**: `ownership: "explicit"` makes
+channels, heartbeat, cron and bare CLI calls fail closed unless a binding resolves an owner, and
+archiving `exec-approvals.json` leaves no exec-approval policy in force until you restore it. Full
+procedure in
 [`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md)
 § "After an upgrade, `doctor --fix` deadlocks on a CHAIN of legacy keys".
 
-**A clean `config validate` is not proof the upgrade landed.** Workspace setup state migrates
+**A clean `doctor --lint` (or `openclaw config validate`) is not proof the upgrade landed.** Workspace setup state migrates
 separately, and while it is pending *every agent turn fails* with `Legacy workspace setup state
 requires migration` while the service still reports `active (running)` and the channel reports OK.
 Always finish by running one real agent turn.
