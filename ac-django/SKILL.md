@@ -68,7 +68,7 @@ you update it.
 | --- | --- | --- |
 | [`references/models-and-schema.md`](references/models-and-schema.md) | Models, fields, constraints, QuerySets, managers, ORM performance | Model changes, query optimization, schema design |
 | [`references/transactions-and-migrations.md`](references/transactions-and-migrations.md) | Transactions, locking, idempotency, migration safety, FK index ops | Multi-step writes, migrations, schema changes |
-| [`references/views-and-templates.md`](references/views-and-templates.md) | Views, forms, templates, partials, HTMX, file uploads, i18n, middleware, management commands, connection pooling, Django 6 snippets | View/template work, form handling, HTMX, uploads |
+| [`references/views-and-templates.md`](references/views-and-templates.md) | Views, forms, templates, partials, HTMX, file uploads, i18n, middleware, management commands, connection pooling, reference snippets | View/template work, form handling, HTMX, uploads |
 | [`references/background-and-infra.md`](references/background-and-infra.md) | Background tasks, security, settings, observability, caching, async | Tasks, deployment, logging, caching, async views |
 | [`references/admin-and-drf.md`](references/admin-and-drf.md) | Django Admin, DRF serializers, viewsets, permissions, pagination, versioning | Admin customization, API endpoints |
 | [`references/testing-and-tooling.md`](references/testing-and-tooling.md) | Testing bible, Factory Boy, tooling, DX enforcement | Writing tests, CI setup, linting |

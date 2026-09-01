@@ -26,7 +26,7 @@ Minimum supported databases (6.1+): PostgreSQL 15+, MySQL 8.4+, MariaDB 10.11+, 
 
 - `null` controls DB nullability; `blank` controls validation.
 - Avoid `null=True` on strings unless tri-state semantics are required.
-- `choices` can be a callable (Django 5.0+) instead of a static list/mapping — use it for choices that change without a schema change (settings-driven, looked up from another table, a third-party inventory like currencies/timezones). Migrations serialize the function reference, not the values, so the list changing never produces a no-op migration ([Adam Johnson](https://adamj.eu/tech/2025/05/03/django-choices-change-without-migration/)). Doesn't help if the choices are also enforced by a DB-level constraint — that still needs its own migration.
+- `choices` can be a callable instead of a static list/mapping — use it for choices that change without a schema change (settings-driven, looked up from another table, a third-party inventory like currencies/timezones). Migrations serialize the function reference, not the values, so the list changing never produces a no-op migration ([Adam Johnson](https://adamj.eu/tech/2025/05/03/django-choices-change-without-migration/)). Doesn't help if the choices are also enforced by a DB-level constraint — that still needs its own migration.
 
 ### 4.3 Constraints and indexes (correctness-first)
 
@@ -88,7 +88,7 @@ class Event(models.Model):
 - Prefer `models.GeneratedField` for queryable derived values.
 - Prefer `db_default=` when the DB must own default behavior.
 - Composite primary keys are allowed when they match domain identity.
-  - If you use them, prefer the native API (e.g. `models.CompositePrimaryKey(...)`) when available for your Django version.
+  - If you use them, prefer the native API — `models.CompositePrimaryKey(...)`.
 - `JSONNull()` (6.1+) represents the JSON scalar `null` on a `JSONField`. The deprecation is on the *query* side only: `filter(data=None)` to mean JSON `null` raises `RemovedInDjango70Warning` and compiles to SQL `IS NULL` once the deprecation period ends — use `filter(data=JSONNull())` for JSON `null` and `data__isnull=True` for SQL `NULL`. Key and index lookups are unaffected. **Storing `None` is not deprecated and does not change**: as on any other field it writes SQL `NULL`, which is almost always what you want. `JSONNull()` on write stores a JSON `null` instead, which the docs do not recommend — so do not rewrite `obj.data = None` or `create(data=None)` to it.
 - `UUID4()` and `UUID7()` (6.1+) generate UUIDs database-side. `UUID7()` produces a version 7 UUID, which starts with a time-based component; it needs PostgreSQL 18+, MariaDB 11.7+, or SQLite under Python 3.14 or later.
 
