@@ -18,6 +18,7 @@
 
 - **Cause:** Serializer accesses related objects without prefetching.
 - **Fix:** Add a `for_api()` queryset method with appropriate `select_related()` / `prefetch_related()`. Use it in the viewset's `get_queryset()`. Verify with `assertNumQueries` in tests.
+- **Fallback:** where the queryset genuinely cannot be shaped ahead of time, `fetch_mode(models.FETCH_PEERS)` (6.1+) batches the on-demand fetch instead. Pin the result with `FETCH_RAISE` (6.1+) in the test, which fails at the offending attribute access rather than on a count.
 
 ## Removing App from Helper List Also Removes from `INSTALLED_APPS`
 

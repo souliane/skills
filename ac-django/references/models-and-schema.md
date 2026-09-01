@@ -6,6 +6,8 @@
 
 ## 4. Models & schema bible
 
+Minimum supported databases: PostgreSQL 15+, MySQL 8.4+, MariaDB 10.11+, SQLite 3.37+.
+
 ### 4.1 Model class ordering (strict)
 
 1. constants
@@ -41,7 +43,7 @@ Rule: indexes are not decoration.
 - Always set `related_name` intentionally.
 - Choose `on_delete` intentionally.
 - Avoid accidental cascades on core domain data.
-- Django 6.1+ adds DB-level `on_delete` options — `DB_CASCADE`, `DB_SET_NULL`, `DB_SET_DEFAULT` — which push the delete into the database's own `ON DELETE` clause instead of Django loading the referencing rows first. Faster for large fan-out deletes, but `DB_CASCADE` does **not** fire `pre_delete`/`post_delete` signals — don't reach for it on a relation whose deletion something else listens for.
+- `on_delete=models.DB_CASCADE` / `DB_SET_NULL` / `DB_SET_DEFAULT` (6.1+) push the delete into the database's own `ON DELETE` clause instead of Django loading the referencing rows first. Faster for large fan-out deletes, but `DB_CASCADE` does **not** fire `pre_delete`/`post_delete` signals — don't reach for it on a relation whose deletion something else listens for.
 
 #### 4.4.1 ForeignKey discipline (indexing + locks + migrations)
 
@@ -87,6 +89,8 @@ class Event(models.Model):
 - Prefer `db_default=` when the DB must own default behavior.
 - Composite primary keys are allowed when they match domain identity.
   - If you use them, prefer the native API (e.g. `models.CompositePrimaryKey(...)`) when available for your Django version.
+- `JSONNull()` (6.1+) is the explicit way to store or query a top-level JSON `null` on a `JSONField`. Bare `None` for that purpose is deprecated; key and index lookups are unaffected.
+- `UUID4()` and `UUID7()` (6.1+) generate UUIDs database-side. `UUID7()` produces a version 7 UUID, which starts with a time-based component; it needs PostgreSQL 18+, MariaDB 11.7+, or SQLite on Python 3.14+.
 
 ---
 
@@ -114,11 +118,49 @@ Patterns:
 - reverse FK/M2M: `prefetch_related()`
 - filtered prefetch: `Prefetch(...)`
 - templates must not trigger queries
-- Django 6.1+ adds fetch modes (`django.db.models.FETCH_ONE` / `FETCH_PEERS` / `RAISE`) on deferred/relation fields. `FETCH_PEERS` auto-batches an on-demand fetch across every instance from the same QuerySet — closing most N+1s to two queries with no explicit `select_related()`/`prefetch_related()` list to maintain. `RAISE` raises `FieldFetchBlocked` instead of silently querying, useful for asserting a hot path stays N+1-free.
+- `select_related()` with no arguments is deprecated (6.1+) — name the fields you want, or use `FETCH_PEERS`.
+
+#### Fetch modes (6.1+)
+
+A fetch mode decides what Django does when code touches a field the original
+query did not load. Set one with `QuerySet.fetch_mode(mode)`. The modes are
+defined in `django.db.models.fetch_modes` and re-exported into
+`django.db.models`; the documented convention is `from django.db import models`
+and then `models.<mode>`.
+
+```py
+from django.db import models
+
+books = Book.objects.fetch_mode(models.FETCH_PEERS)  # 2 queries, not 1 + N
+```
+
+| Mode | Behavior |
+| --- | --- |
+| `FETCH_ONE` | Fetches the field for the current instance only. The default, and the 1 + N shape. |
+| `FETCH_PEERS` | Fetches the field for every instance that came from the same QuerySet — 2 queries total, like an on-demand `prefetch_related()`. |
+| `FETCH_RAISE` | Raises `FieldFetchBlocked` instead of querying. |
+
+They apply to `ForeignKey`, `OneToOneField` and their reverse accessors, fields
+deferred by `defer()` / `only()`, and generic relations. Django copies an
+instance's mode onto the related objects it fetches, so a mode covers a whole
+relationship tree, not just the model the QuerySet started from. Make one the
+default for a model by overriding `get_queryset()` on a custom manager:
+
+```py
+class BookManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().fetch_mode(models.FETCH_PEERS)
+```
+
+`FETCH_PEERS` is an on-demand batch, not a replacement for a deliberately shaped
+`for_api()` queryset — it is the safety net for the accesses that shaping missed.
 
 ### 5.4 Query hygiene
 
 - don't rely on implicit ordering
+- `QuerySet.totally_ordered` (6.1+) reports whether a queryset is ordered and that ordering is deterministic
+- `first()` / `last()` no longer fall back to primary-key ordering once `order_by()` has been called with no arguments (6.1+)
+- `union()` / `difference()` / `intersection()` now apply default ordering, and raise `DatabaseError` when an `Options.ordering` field is not selected by `values()` / `values_list()` (6.1+) — call `order_by()` with no arguments after combining to clear it
 - use `exists()` when you only need existence
 - prefer DB-side computation for derived query values
 
