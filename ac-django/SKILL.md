@@ -44,8 +44,11 @@ you update it.
 
 ## Canonical Sources
 
-- Django docs index (6.0): <https://docs.djangoproject.com/en/6.0/>
-- Django 6.0 release notes: <https://docs.djangoproject.com/en/6.0/releases/6.0/>
+- Django docs index: <https://docs.djangoproject.com/en/6.1/>
+- Django 6.1 release notes: <https://docs.djangoproject.com/en/6.1/releases/6.1/>
+- Django 6.0 release notes — what unmarked content in this skill assumes: <https://docs.djangoproject.com/en/6.0/releases/6.0/>
+- Django docs — fetch modes: <https://docs.djangoproject.com/en/6.1/topics/db/fetch-modes/>
+- Django docs — migrating email to mailers: <https://docs.djangoproject.com/en/6.1/topics/email/#migrating-email-to-mailers>
 - Adam Johnson — `django-upgrade`: <https://adamj.eu/tech/2021/09/16/introducing-django-upgrade/>
 - Adam Johnson — `django-linear-migrations`: <https://adamj.eu/tech/2020/12/10/introducing-django-linear-migrations/>
 - Adam Johnson — Test for pending migrations: <https://adamj.eu/tech/2024/06/23/django-test-pending-migrations/>
@@ -56,7 +59,7 @@ you update it.
 - James Bennett — "Litestar is worth a look" (reaffirms no-service-layer specifically for Django, while allowing it for less-opinionated frameworks): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — model encapsulation (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
 - HackSoft Django Styleguide — the service-layer / `selectors.py` camp (one option, not this skill's default): <https://github.com/HackSoftware/Django-Styleguide>
-- DRF API guide: <https://www.django-rest-framework.org/api-guide/>
+- DRF docs: <https://www.django-rest-framework.org/>
 - Factory Boy best practices: <https://github.com/camilamaia/factory-boy-best-practices>
 
 ## Reference Files (load as needed)
@@ -122,7 +125,7 @@ User says: "Add a postal_code field to the Address model"
 ### Django docs first (always)
 
 - Use Django the way Django documents it.
-- Prefer built-ins over dependencies unless Django has a clear documented gap (notably Django 5.2 lacking native Tasks/CSP/Partials).
+- Prefer built-ins over dependencies unless Django has a clear documented gap.
 
 ### Fat Model is the default (not the only answer)
 
@@ -156,29 +159,24 @@ Not allowed at boundaries:
 - workflow rules
 - state transitions that define correctness
 
-## Version Matrix (Django 6 vs 5.2)
+## Deprecation Watch (flagged in 6.1, removal in the next major)
 
-| Capability | Django 6.x | Django 5.2 LTS delta |
-| --- | --- | --- |
-| Template partials | Native `{% partialdef %}` | Use `django-template-partials` (remove on upgrade) |
-| Background tasks | Native `django.tasks` (`@task`, `.enqueue()`) | Use Celery/Huey/RQ/etc. |
-| CSP | Native CSP middleware + `SECURE_CSP` | Use `django-csp` |
-
-Upgrade posture:
-
-- Run `django-upgrade` before manual refactors.
-- Leave explicit upgrade TODOs:
-  - `# TODO(Django6): switch @shared_task -> @task and .delay() -> .enqueue()`
-  - `# TODO(Django6): remove {% load partials %} (partials become native)`
-  - `# TODO(Django6): replace django-csp with built-in CSP middleware`
-
-Django 7.0 deprecation watch (flagged during the 6.1 cycle, removal in 7.0 — avoid writing new code against these):
+Avoid writing new code against these:
 
 - Flat `EMAIL_*` settings (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, etc.) are deprecated in favor of a `MAILERS` dict setting (mirrors `DATABASES`/`CACHES`); new code should not add to the flat settings.
+- `mail.get_connection()`, and the `connection` / `fail_silently` / `auth_user` / `auth_password` arguments to the mail helpers — pass `using=` with a `MAILERS` alias instead.
 - `QuerySet.select_related()` called with no arguments, and `ModelAdmin.list_select_related = True` — always pass explicit field names.
 - `QuerySet.values_list(flat=True)` without an explicit field name.
+- `Model.from_db()` implementations that do not accept the `fetch_mode` keyword argument.
+- `None` as a top-level JSON `null` on a `JSONField` — use `JSONNull`. Key and index lookups are unaffected.
+- Double-dot template lookups (`{{ book..title }}`), which resolve to a lookup of the empty string.
 - `django.db.transaction.savepoint()` — use `savepoint_create()`.
 - The default HMAC algorithm for `salted_hmac()`/`base64_hmac()` flips from `sha1` to `sha256` — don't hardcode `sha1` expectations.
+
+Django's 6.1 notes name Django 7.0 as the removal release. Django's release page
+states that 6.2 is the last release under the `A.B` scheme and that feature
+releases after it use a `YYYY` format. Upstream does not spell out how "7.0" maps
+onto that scheme.
 
 ## Project Layout & Boundaries
 
@@ -272,7 +270,7 @@ Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not 
 
 ### Sources for this doctrine
 
-- Django docs — Managers: row-level → Model methods, table-level → Manager/QuerySet methods: <https://docs.djangoproject.com/en/6.0/topics/db/managers/#adding-extra-manager-methods>
+- Django docs — Managers: row-level → Model methods, table-level → Manager/QuerySet methods: <https://docs.djangoproject.com/en/6.1/topics/db/managers/#adding-extra-manager-methods>
 - James Bennett — "Against service layers in Django" + followup ("More on service layers"): <https://www.b-list.org/weblog/2020/mar/16/no-service/> · <https://www.b-list.org/weblog/2020/mar/23/still-no-service/>
 - James Bennett — "Litestar is worth a look" (reaffirms the no-service-layer position specifically for Django): <https://www.b-list.org/weblog/2025/aug/06/litestar/>
 - DabApps — "Django models, encapsulation and data integrity" (never write a field / `save()` from outside): <https://www.dabapps.com/insights/django-models-and-encapsulation/>
@@ -386,3 +384,30 @@ the tree.
 and `setUpTestData()` for shared setup are house conventions, but a hook on them
 is too noisy — there are many legitimate non-factory `create()` calls and
 per-test `setUp()` needs. These stay review checklist items, not blocking hooks.
+
+## Previous line: Django 5.2 LTS
+
+Django 5.2 is the LTS, in extended support until April 2028, so it is still what
+a lot of production code runs. Everything above targets Django 6. This section is
+the diff.
+
+### What Django 6 has that 5.2 does not
+
+| Capability | Django 6 | On 5.2 instead |
+| --- | --- | --- |
+| Template partials | Native `{% partialdef %}` / `{% partial %}` | `django-template-partials` |
+| Background tasks | Native `django.tasks` (`@task`, `.enqueue()`) | Celery / Huey / RQ |
+| CSP | Native CSP middleware + `SECURE_CSP` | `django-csp` |
+| Fetch modes (6.1+) | `QuerySet.fetch_mode()` | Explicit `select_related()` / `prefetch_related()` |
+| DB-level `on_delete` (6.1+) | `DB_CASCADE` / `DB_SET_NULL` / `DB_SET_DEFAULT` | Python-level `on_delete` only |
+| Multiple mailers (6.1+) | `MAILERS` | Flat `EMAIL_*` settings |
+
+### Upgrading
+
+- Run `django-upgrade` before any manual refactor.
+- Leave explicit upgrade TODOs where a shim is in use:
+  - `# TODO(Django6): switch @shared_task -> @task and .delay() -> .enqueue()`
+  - `# TODO(Django6): remove {% load partials %} (partials become native)`
+  - `# TODO(Django6): replace django-csp with built-in CSP middleware`
+- Django 5.2 is the last line supporting Python 3.10 and 3.11; Django 6.x needs
+  Python 3.12+.
