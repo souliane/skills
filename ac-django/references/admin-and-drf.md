@@ -84,7 +84,7 @@ class AuditLogAdmin(admin.ModelAdmin):
 
 ## 17. DRF Bible
 
-DRF API Guide: <https://www.django-rest-framework.org/api-guide/>
+DRF docs: <https://www.django-rest-framework.org/>
 
 ### 17.1 DRF is a boundary
 
