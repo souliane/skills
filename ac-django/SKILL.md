@@ -26,10 +26,12 @@ you update it.
   form only. Do not write "Django X.Y+ adds", "new in X.Y", "as of X.Y", or a
   `### Django X.Y note` heading — the marker is the whole convention, and it is
   only useful if it is the only one.
-- **Older lines get one trailing section each, at the end of the document**, and
-  nothing anywhere else. Today that is `## Previous line: Django 5.2 LTS`. It
-  carries the diff a reader on that version needs: what is missing, what to use
-  instead, and what to change on upgrade. A version note interrupting the main
+- **Older lines get one trailing section each, at the end of `SKILL.md`**, and
+  nothing anywhere else — the reference files carry the current line only and get
+  no trailing section of their own. Today that is
+  `## Previous line: Django 5.2 LTS`. It carries the diff a reader on that
+  version needs: what is missing, what to use instead, and what to change on
+  upgrade. A version note interrupting the main
   path is a defect — move it down.
 - **Research order when refreshing.** Release notes and official docs first
   (`https://docs.djangoproject.com/en/<version>/releases/<version>/` and the topic
