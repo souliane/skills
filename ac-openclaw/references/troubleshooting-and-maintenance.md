@@ -26,9 +26,9 @@
 | Not fetching OpenClaw docs before starting installation | Agent guesses configs and commands, hits errors repeatedly | Fetch docs at the start of the install (Phase 5), not midway through debugging |
 | Installing BOTH a user-level `~/.config/systemd/user/openclaw-gateway.service` AND a system-level `/etc/systemd/system/openclaw.service` | They race for port 18789 on every restart, each one killing the other ("killing N stale gateway process(es) before restart"). Looks like the gateway "breaks constantly." | Pick ONE install method from the start. If both are already present, disable the one you don't want (`systemctl --user disable --now openclaw-gateway.service` + rename the unit file), then `systemctl daemon-reload`. |
 | Putting API keys in `Environment=` lines of a systemd unit file | Unit files are mode 664 by default — every logged-in user on the host can read them | Use `EnvironmentFile=` pointing at a `chmod 600` env file, OR a startup wrapper that reads from `pass` (the user's existing `~/.openclaw/start-gateway.sh` pattern). Rotate any key that was ever in a world/group-readable unit file. |
-| Running `openclaw` CLI commands on the same host as a running `openclaw.service` | In v2026.4.x, `openclaw cron list`/`doctor`/etc. detect the running gateway PID and SIGTERM it before trying to start their own in-process gateway, which then fails to resolve `OPENCLAW_GATEWAY_TOKEN` (not in interactive shells) and exits. Systemd restarts the real service, signal-cli dies for 20-30 s. Every CLI call causes a messaging outage. | Edit `~/.openclaw/cron/jobs.json` directly for cron tweaks, call signal-cli JSON-RPC at `http://127.0.0.1:8080/api/v1/rpc` (no trailing slash) for sends/probes, and use the Tailscale-served dashboard for everything else. If you must use the CLI, do it from a different machine against a remote gateway. |
+| Running non-`cron` `openclaw` CLI commands on the same host as a running `openclaw.service` | A CLI command that starts its own in-process gateway detects the running gateway PID and SIGTERMs it first, then usually fails to resolve `OPENCLAW_GATEWAY_TOKEN` (not set in interactive shells) and exits. Systemd restarts the real service, signal-cli dies for 20-30 s, and every such CLI call becomes a messaging outage. The `cron` subcommands are gateway-routed and safe (see the `cron run` row below); `doctor` and friends are the risk. | Call signal-cli JSON-RPC at `http://127.0.0.1:8080/api/v1/rpc` (no trailing slash) for sends/probes, and use the served dashboard for everything else. If you must use the CLI, do it from a different machine against a remote gateway. |
 | Auto-update landed new code but gateway still errors `ERR_MODULE_NOT_FOUND` | OpenClaw's npm auto-update replaces files on disk but the running Node.js process still references old content-hashed chunk filenames that aren't in the new tarball. Every outbound send throws. | Restart the service: `sudo systemctl restart openclaw.service`. Disk and package.json will show the newer version; `start-gateway.sh` loads the new `dist/index.js` on startup. Consider enabling an auto-restart-after-update hook if OpenClaw doesn't ship one. |
-| **Cron jobs (press-review, heartbeat) silently stop firing for a day or more after an auto-update — no error, no delivery, no run-log row for the missed day(s)** | **Same root CLASS as the `ERR_MODULE_NOT_FOUND` row above: auto-update applied new code to disk but did NOT restart the running process.** A version bump that *migrates the cron store* makes this silent instead of loud. Observed on the 2026-06-04 → 2026.6.1 bump: the new code consolidated the per-feature JSON stores into a single `~/.openclaw/state/openclaw.sqlite` and renamed the old files to `*.migrated` (`cron/jobs.json.migrated`, `cron/jobs-state.json.migrated`, `cron/runs/<id>.jsonl.migrated`, `flows/registry.sqlite.migrated`, `tasks/runs.sqlite.migrated`). But the *still-running* old process kept its in-memory scheduler pointed at the now-renamed `jobs.json` — so the next morning's cron never fired at all (no run-log row), while `systemctl status` showed the service "active (running)" and `NRestarts` low. The journal is the tell: `[gateway] auto-update applied` repeating **every hour** with no `full process restart` / `[gateway] ready` between them means the new code is on disk but never loaded. A manual `sudo systemctl restart openclaw.service` (or any gateway-tool restart) loads the new code, which reads the sqlite store, and cron resumes. | **Restart the gateway after any auto-update that you did not see followed by a `[gateway] ready` line:** `sudo systemctl restart openclaw.service`. Confirm the running PID's start time is **newer** than the mtime of `~/.npm-global/lib/node_modules/openclaw/package.json` (stale = on-disk code is newer than the process). v2026.6.1+ ships an `respawnGatewayProcessForUpdate` / `restartGatewayProcessWithFreshPid` path (in `dist/run-wssker-*.js`) that restarts after update, with an in-process-restart fallback — so the class is largely self-healing forward, but the fallback may not pick up a store migration. **Do not rely on it: install the press-review delivery watchdog (below) as the same-day safety net.** Verify a missed day via the cron store: `sqlite3 -readonly ~/.openclaw/state/openclaw.sqlite "SELECT date(run_at_ms/1000,'unixepoch','localtime') d, count(*), group_concat(status) FROM cron_run_logs WHERE job_id=(SELECT job_id FROM cron_jobs WHERE name='press-review') GROUP BY d ORDER BY d DESC LIMIT 7;"` — a date with **zero rows** is a silent skip. |
+| **Cron jobs (press-review, heartbeat) silently stop firing for a day or more after an auto-update — no error, no delivery, no run-log row for the missed day(s)** | **Same root CLASS as the `ERR_MODULE_NOT_FOUND` row above: auto-update applied new code to disk but did NOT restart the running process.** An update that also *migrates the cron store* makes this silent instead of loud: cron state lives in `~/.openclaw/state/openclaw.sqlite`, and a migration renames any superseded store file to `*.migrated`. A still-running process keeps its in-memory scheduler pointed at the file that just moved, so the next morning's cron never fires at all (no run-log row) while `systemctl status` shows "active (running)" and `NRestarts` low. The journal is the tell: `[gateway] auto-update applied` repeating **every hour** with no `full process restart` / `[gateway] ready` between them means the new code is on disk but never loaded. A manual `sudo systemctl restart openclaw.service` (or any gateway-tool restart) loads the new code, which reads the sqlite store, and cron resumes. | **Restart the gateway after any auto-update that you did not see followed by a `[gateway] ready` line:** `sudo systemctl restart openclaw.service`. Confirm the running PID's start time is **newer** than the mtime of `~/.npm-global/lib/node_modules/openclaw/package.json` (stale = on-disk code is newer than the process). The gateway ships a respawn-after-update path with an in-process-restart fallback, but that fallback may not pick up a store migration. **Do not rely on it: install the press-review delivery watchdog (below) as the same-day safety net.** Verify a missed day via the cron store: `sqlite3 -readonly ~/.openclaw/state/openclaw.sqlite "SELECT date(run_at_ms/1000,'unixepoch','localtime') d, count(*), group_concat(status) FROM cron_run_logs WHERE job_id=(SELECT job_id FROM cron_jobs WHERE name='press-review') GROUP BY d ORDER BY d DESC LIMIT 7;"` — a date with **zero rows** is a silent skip. |
 
 ## Troubleshooting Quick Reference
 
@@ -38,7 +38,7 @@
 | Gateway unreachable | `openclaw status`, check the configured service (`systemctl --user status openclaw` or `sudo systemctl status openclaw`) |
 | Channel not receiving messages | `openclaw channels status --probe` |
 | Signal: daemon not reachable | `pgrep -af signal-cli`, check signal-cli HTTP port |
-| **Assistant sends but never replies to anything I message it** | **Check `signal-cli --version` first.** Below **0.14.5**, sealed-sender envelopes lost `serverGuid` (Signal server change ~2026-06-10) and a non-null check in `libsignal-service-java` throws, so **every inbound 1:1 message is silently discarded** while outbound keeps working. Upstream: [AsamK/signal-cli#2059](https://github.com/AsamK/signal-cli/issues/2059). Fixed in 0.14.5 (2026-06-11), first in `bbernhard/signal-cli-rest-api:0.100`. There is no error to grep for — the version *is* the diagnosis. A send-only smoke test cannot detect this; always test an inbound message. |
+| **Assistant sends but never replies to anything I message it** | **Check `signal-cli --version` first.** Below the **0.14.5** floor, **every inbound 1:1 message is silently discarded** while outbound keeps working (container images: `bbernhard/signal-cli-rest-api:0.100`+). There is no error to grep for — the version *is* the diagnosis. A send-only smoke test cannot detect this; always test an inbound message. |
 | Signal account de-authorised after a container restart | The account data dir is **whatever the running container binds**, which can differ from a shipped `docker-compose.yml`. Starting against an empty volume looks like an unregistered account and triggers re-registration, de-authorising the number. Verify before restarting: `docker inspect <container> --format '{{json .Mounts}}'` |
 | The wrong service keeps getting OOM-killed | `sudo journalctl -k --grep="Out of memory" --since "30 days ago" \| tail -30`, and **read the victim lines** — the process the kernel kills is usually not the one that filled the box. More RAM makes a kill rarer but does not choose the victim: set `OOMScoreAdjust=-500` on the gateway and `OOMScoreAdjust=500` + `MemoryHigh=`/`MemoryMax=` on the bursty consumer. **A positive value marks a process as the PREFERRED victim** — an inverted setting on the gateway has been found in the wild. See [`../SKILL.md`](../SKILL.md) § 1.4a. |
 | Signal: "User is not registered" | Verify `getUserStatus` first, then restart gateway and restore the latest signal-cli backup before attempting destructive re-registration. See [`channel-setup.md`](channel-setup.md) § "Troubleshooting: Signal Registration Lost" |
@@ -54,9 +54,9 @@
 | `ERR_MODULE_NOT_FOUND: Cannot find module '.../dist/*.runtime-*.js'` in gateway logs | An `npm update -g openclaw` landed new code on disk but the running process still references old code-split chunk filenames (content-hashed — new tarball ships new hashes). Fix: `sudo systemctl restart openclaw.service`. This is visible via `/home/openclaw/.npm-global/lib/node_modules/openclaw/package.json` showing a version newer than what the gateway logs report at startup. |
 | Health check `signal-cli getUserStatus` hangs indefinitely | Classic data-dir lock contention. `signal-cli daemon` holds the exclusive lock on `~/.local/share/signal-cli/data/`; a second `signal-cli` subprocess waits forever on the lock without printing the "in use by another instance" error immediately. **Fix the script**: probe `http://127.0.0.1:8080/api/v1/rpc` (**no trailing slash**) instead of spawning a second `signal-cli` subprocess, and wrap with `timeout 10 curl`. Also add `TimeoutStartSec=90` to the health service unit so systemd kills any residual hang after 90 s. |
 | signal-cli JSON-RPC `send` returns `UNREGISTERED_FAILURE` | Check the `recipient` format. signal-cli's JSON-RPC `send` takes E.164 phone numbers (`+33612345678`) in `recipient`, NOT `uuid:...` strings. If you pass `"recipient": ["uuid:..."]`, signal-cli strips non-digits and treats it as a phone number — always fails. OpenClaw's internal `delivery.to: "uuid:..."` is fine because OpenClaw translates before calling signal-cli; only raw JSON-RPC calls need the phone-number format. |
-| `openclaw` CLI kills the running gateway every time I invoke it | Do NOT run `openclaw cron list` / `openclaw doctor` / any CLI command on the same host as a running `openclaw.service`. The CLI in v2026.4.x detects the running gateway PID and SIGTERMs it ("service-mode: cleared N stale gateway pid(s) before bind on port 18789") before trying to start its own in-process gateway — which usually fails because `OPENCLAW_GATEWAY_TOKEN` env var isn't set in the interactive shell. Use direct file edits for cron changes, signal-cli JSON-RPC for sends, or the Tailscale dashboard for everything else. |
+| `openclaw` CLI kills the running gateway when I invoke it | A CLI command that starts its own in-process gateway SIGTERMs the running one first ("service-mode: cleared N stale gateway pid(s) before bind on port 18789"), then usually fails because `OPENCLAW_GATEWAY_TOKEN` isn't set in the interactive shell. `cron` subcommands are gateway-routed and do not do this; `doctor` and friends do. Prefer signal-cli JSON-RPC for sends and the served dashboard for everything else, or run the CLI from a different machine against a remote gateway. |
 | Plaintext API keys visible in `~/.config/systemd/user/*.service` | Never put `Environment=OPENAI_API_KEY=sk-...` or similar in unit files — they end up mode 664 (group+world readable by default). Use `EnvironmentFile=%h/.openclaw/gateway.env` with `chmod 600`, OR a startup wrapper script that reads from `pass`. Rotate any key that was ever committed as plaintext in a user-readable file. |
-| Cron job fails with `cron: job execution timed out` (e.g. press-review) | The `payload.timeoutSeconds` budget includes the WHOLE agent turn: script exec + tool calls + model synthesis + delivery. Reasoning-heavy models (`gpt-oss-120b`, `deepseek-r1`) can drift well over 60 s for synthesis alone. Read `~/.openclaw/cron/runs/<jobId>.jsonl` to see the duration trend — durations creeping toward the budget cap mean a timeout is imminent. Bump `payload.timeoutSeconds` in `~/.openclaw/cron/jobs.json` (live-reloaded by the gateway, no service restart). Keep budget at ≥ 2× the recent p95 successful duration, not just the average. |
+| Cron job fails with `cron: job execution timed out` (e.g. press-review) | The `payload.timeoutSeconds` budget includes the WHOLE agent turn: script exec + tool calls + model synthesis + delivery. Reasoning-heavy models (`gpt-oss-120b`, `deepseek-r1`) can drift well over 60 s for synthesis alone. Read the duration trend from `cron_run_logs` in `~/.openclaw/state/openclaw.sqlite` — durations creeping toward the budget cap mean a timeout is imminent. Bump the job's `payload.timeoutSeconds`. Keep the budget at ≥ 2× the recent p95 successful duration, not just the average. |
 | Cron job fails with `⚠️ Agent couldn't generate a response` | OpenRouter / model-side empty completion, NOT a budget issue. Adding more time doesn't help. Likely causes: provider rate-limit, transient model error, or a model recently moved to "reasoning mandatory" without `"reasoning": true` in the agent's `models.json` (see `press-review.md` § "Model reasoning flag"). Add a fallback model under the agent's `models.fallback` chain. |
 | Press review (or any digest) arrives **empty / near-empty** — only the `## Press Review — <date>` header, ~150 output tokens, even though the *first* run of the day was full | The aggregator script's dedup + conditional-GET cache **starves repeat runs**: once any run (the cron, or a manual test) marks the day's items seen and stores feed ETags, the next run the same day returns "0 fresh" for every source and a 304 skips each feed entirely — so an on-demand pull *after* the cron gets nothing. **Fix lives in `press-review.py`:** dedup suppresses a URL only on a *later* day (same-day re-runs re-show today's items) and a 304 re-serves the last parsed items cached in `press-review-feeds.json` instead of returning nothing. Verify by running the script twice back-to-back — both runs must report the same non-empty `N fresh` counts. |
 | OpenRouter credits can drain unexpectedly — `402 Insufficient credits` after what should be free/BYOK usage; `https://openrouter.ai/activity` shows requests served by an **unexpected provider** (e.g. Azure) | **OpenRouter routes a model across many providers at very different prices, and falls back across them by default.** Two traps: (1) the BYOK *"Always use for this provider"* toggle only forces *your* key for *that* provider — it does NOT stop OpenRouter falling back to a *different* provider serving the same model, which bills your OpenRouter credits; (2) a normally-routed model (e.g. `openai/gpt-oss-120b` spans roughly $0.039–$0.95 per-M-token across providers) can silently land on an expensive one. **Fix: pin provider routing so OpenRouter only ever uses providers you chose and *fails* rather than falling back.** In OpenClaw set it under `models.providers.openrouter.params.provider`, e.g. `{"only": ["deepinfra","dekallm","novita"], "sort": "price"}` (use provider *slugs* from `GET /api/v1/models/<model>/endpoints` — the part before the `/` in each `tag` — not display names). A failed request then drops to the agent's free-model fallback instead of a pricey provider. Belt-and-braces: set a per-key spend cap at `https://openrouter.ai/settings/keys` (keys have **no limit** by default) and audit spend at `https://openrouter.ai/activity`. |
@@ -64,21 +64,22 @@
 | Tool/agent setup: tools misfire intermittently (bad JSON, wrong tool name, tool not called) on one model even though the same slug works elsewhere | The same weights give different tool-calling accuracy across providers. Two levers: (1) on OpenRouter, append the `:exacto` suffix to a supported model slug (e.g. `<vendor>/<model>:exacto`) to route only to providers with measurably better tool-use success; (2) detect a degraded provider before trusting it — run a tiny fixed eval canary (a handful of prompts with known-good answers plus one tool-call prompt) against the configured route and compare output, rather than trusting a perplexity or latency number. A cheap provider that fails the canary is the one to drop from `only`. |
 | Cron (press-review/heartbeat) **recurring `status=error`, `error="LLM request failed."`** after a long run (often 100–240 s), `error-then-ok` across days, gateway otherwise healthy (`[gateway] ready`, restart-after-update worked) | NOT the auto-update silent-miss — the agent's OpenRouter route is hitting **unreliable providers**. Either the agent's `params.provider` is **empty** (no pin → OpenRouter default routing) or pinned to the **cheapest** tier (`sort: price` → deepinfra/dekallm/novita = the flakiest). A daily-digest turn is long, so one bad provider fails the whole run. **Fix: pin to reliable, still-cheap *paid* providers and sort by throughput, not price** — `params.provider = {"only": ["groq","together","baseten"], "sort": "throughput"}` (Groq is fast + reliable, also cuts the 100 s+ latency). ~30k tokens/day ≈ **$0.20/mo** — reliability dwarfs the price gap. **Free models are a poor cron fallback** (low rate-limit / daily-quota → fails exactly when relied on). **Per-agent gotcha:** the cron agent (e.g. `souliane`) has its OWN `~/.openclaw/agents/<agent>/agent/plugins/openrouter/catalog.json` — `main`'s pin does NOT cover it; fix every cron-running agent. This is the reliability counter-weight to the cost-pin row above: for a *must-deliver* cron, favour throughput over price. |
 | Gateway crash-loops on restart: `Gateway failed to start: Invalid config at .../openclaw.json` → `agents.defaults.model: Invalid input` | You hand-edited `agents.defaults.model` (e.g. appended to `fallbacks` + `models`) and the shape failed schema validation; systemd then restart-loops the dead gateway. **Don't hand-edit `agents.defaults.model` for routing/reliability — set provider routing in the openrouter plugin catalog `params.provider` instead** (rows above). The config is validated only at gateway **startup**, so a bad edit isn't caught until the failed restart. Always `cp openclaw.json openclaw.json.bak-<ts>` before editing; recover with `cp` back + `sudo systemctl reset-failed openclaw.service && sudo systemctl restart openclaw.service`. Reuse a *proven* shape (copy another working agent's block) rather than authoring `model` config blind. |
-| Running a cron on demand fails: `unknown cron job id: <name>` or `GatewaySecretRefUnavailableError: gateway.auth.token ... unavailable` | v2026.6.1 cron CLI is **gateway-routed** — it does NOT kill the running service (the v2026.4.x kill-the-gateway behaviour in the earlier row is fixed for cron commands). Two gotchas: (1) `cron run` takes the **job ID, not the name** (get it from `openclaw cron list` or the journal `[cron:<id>]`); (2) it needs the gateway token in your shell: `export OPENCLAW_GATEWAY_TOKEN="$(pass show openclaw/gateway-token)"` (the systemd unit injects it at boot; an interactive shell doesn't). Then `node ~/.npm-global/lib/node_modules/openclaw/openclaw.mjs cron run <jobId>` → `{"ok":true,"enqueued":true}` and runs **async** — read the outcome from `cron_run_logs` in `~/.openclaw/state/openclaw.sqlite`, not the CLI's return. |
+| Running a cron on demand fails: `unknown cron job id: <name>` or `GatewaySecretRefUnavailableError: gateway.auth.token ... unavailable` | The cron CLI is **gateway-routed** — it does not kill the running service. Two gotchas: (1) `cron run` takes the **job ID, not the name** (get it from `openclaw cron list` or the journal `[cron:<id>]`); (2) it needs the gateway token in your shell: `export OPENCLAW_GATEWAY_TOKEN="$(pass show openclaw/gateway-token)"` (the systemd unit injects it at boot; an interactive shell doesn't). Then `node ~/.npm-global/lib/node_modules/openclaw/openclaw.mjs cron run <jobId>` → `{"ok":true,"enqueued":true}` and runs **async** — read the outcome from `cron_run_logs` in `~/.openclaw/state/openclaw.sqlite`, not the CLI's return. |
 | Proactive cron delivery (e.g. press-review `announce` mode) fails `Delivering to Signal requires target <…uuid:ID…>` even though `delivery.to` is a valid `uuid:` and chat **replies** to the same recipient succeed | Seen when OpenClaw talks to an **external/containerised** signal-cli daemon (`autoStart:false` + `httpUrl`, or a docker shim). The reply path resolves its target from the incoming message's session and works; the cron's *explicit* `uuid:` target resolution does not, across single/multi-account and autoStart on/off. Generation itself succeeds (the run record shows a full `summary` + token usage). **Workaround:** message the bot to get an on-demand briefing (chat path works). Root cause correlates with the external-daemon connection (native-spawned signal-cli resolves the same explicit target) rather than the target string. |
-| Where's the actual run history for a cron job? | The `state` block inside `~/.openclaw/cron/jobs.json` is a stale schema slot — recent OpenClaw versions write runtime state to `~/.openclaw/cron/jobs-state.json` (latest only) and per-run records to `~/.openclaw/cron/runs/<jobId>.jsonl`. The jsonl is append-only; tail it for the duration trend. The `lastErrorReason: "timeout"` field in `jobs-state.json` distinguishes a hard budget hit from a model-side failure. |
+| Where's the actual run history for a cron job? | Per-run records live in the `cron_run_logs` table of `~/.openclaw/state/openclaw.sqlite` (query in the auto-update row above). Read the duration trend from there; the recorded status distinguishes a hard `timeoutSeconds` budget hit from a model-side failure. The `state` block inside a `jobs.json` is a schema slot the runtime does not write — do not read it as run history. |
 | Gateway crash-loops every ~30-60 s; logs show `[plugins] bonjour: ... re-advertise ... state=probing` then `Unhandled promise rejection: CIAO PROBING CANCELLED` / `CIAO ANNOUNCEMENT CANCELLED`, `Main process exited, code=exited, status=1/FAILURE`, `Scheduled restart job` (rising `NRestarts`) | The `bonjour` (mDNS/CIAO) plugin's re-advertise watchdog throws an **unhandled** promise rejection that kills the Node process; systemd `Restart=always` loops it forever, so signal-cli never stays up and no cron/heartbeat runs. A cloud VPS has no LAN to advertise to, so the plugin is useless. **Fix: disable it** - add `"bonjour": { "enabled": false }` under `plugins.entries` in `~/.openclaw/openclaw.json`, then `sudo systemctl reset-failed openclaw.service && sudo systemctl restart openclaw.service`. Confirm via the startup log: `bonjour` no longer appears in `ready (N plugins: ...)`. NOTE: the repeated SIGKILLs from this loop frequently corrupt signal-cli's SQLite store - see the next row. |
 | signal-cli won't start: `[signal] signal-cli: Error loading state file for user <E.164>: Failed read from kyber_pre_key store (RuntimeException)`; RPC port 8080 refused; a read-only `PRAGMA integrity_check` on `~/.local/share/signal-cli/data/<accountId>.d/account.db` reports `database disk image is malformed` | The account SQLite DB is **corrupt** - usually a crash-looping gateway SIGKILLing signal-cli mid-write (see bonjour row). `account.db` mtime freezes on the day it broke (matches "silent since ..."); the account id is in `data/accounts.json` (state dirs are named by internal id, not phone number). **Fix: restore the newest non-corrupt `account.db` from backup.** Daily `~/backups/openclaw-YYYY-MM-DD.tar.gz` contain `home/<user>/.local/share/signal-cli/`. Scan newest->oldest, extract `.../<accountId>.d/account.db`, run `PRAGMA integrity_check` on each until one returns `ok` - every snapshot *after* corruption carries the same bad DB, so the clean one is the last backup *before* the break. Restore from **inside** the openclaw-owned `signal-cli/` dir (the parent `~/.local/share/` is often root-owned, so you cannot rename `signal-cli` itself): `mv data data.corrupt-<ts>`, then extract `.../signal-cli/data` from the good tarball into place; verify with a one-off read-only `signal-cli -a <E.164> listIdentities` (no daemon running -> no data-dir lock contention). The identity key is unchanged across snapshots -> **no Signal safety-number change**; you lose only messages since that backup. Never run `deleteLocalAccountData`/re-register without explicit approval. |
 | **ARM64 only:** signal-cli daemon crashes (`SIGABRT`) on every **send** while receive/`version` work fine; gateway logs `[signal] daemon exited (source=process code=null signal=SIGABRT)` + `OutboundDeliveryError: socket hang up`; `/tmp/hs_err_pid*.log` shows `SIGSEGV ... oopDesc::klass() ... jni_IsInstanceOf ... libsignal_jni.so ... Java_..._SessionCipher_1EncryptMessage` on a `ForkJoinPool-*-worker` (virtual-thread carrier). Model synthesis succeeds but **delivery always fails**; the heartbeat respawns the daemon so it recurs every ~30 min ("silent morning routine"). | **ARM64/aarch64 libsignal native-lib mismatch — the known signal-cli ARM64 gap.** signal-cli's `libsignal-client-*.jar` bundles native libs only for Linux-x86 (`libsignal_jni_amd64.so`) and macOS-ARM (`libsignal_jni_aarch64.dylib`), **never Linux-aarch64** — so it falls back to a hand-placed `/usr/java/packages/lib/libsignal_jni.so`, and any version drift between that `.so` and the jar's Java bindings corrupts JNI handles → `SIGSEGV` on encrypt. **No JVM flag fixes it** (verified: `-Xint`, `-XX:+UseSerialGC`, `-XX:-UseCompressedOops` all still crash — it is native, not JIT/GC). OpenClaw's own `install-signal-cli` also bails on `linux + non-x64`. **Fix (what the community does on ARM64): run signal-cli from the `bbernhard/signal-cli-rest-api` Docker image — it ships correctly-built ARM64 libsignal — as the native daemon, and connect OpenClaw to it instead of spawning the broken local binary.** (1) snapshot `~/.local/share/signal-cli/data` (a newer signal-cli may migrate the DB). (2) stop the gateway (frees `:8080`, releases the DB lock). (3) `docker run -d --name signal-daemon --restart unless-stopped --no-healthcheck -p 127.0.0.1:8080:8080 -e XDG_DATA_HOME=/data -e HOME=/tmp -v ~/.local/share:/data --user <uid:gid> --entrypoint signal-cli bbernhard/signal-cli-rest-api:latest -a <E.164> daemon --http 0.0.0.0:8080 --no-receive-stdout` (mounts the existing account → **no re-pairing**; `--user` matches the data owner uid; `--no-healthcheck` because the bbernhard healthcheck targets its REST wrapper, not the raw daemon). (4) in `~/.openclaw/openclaw.json` set `channels.signal.autoStart=false` and `channels.signal.httpUrl="http://127.0.0.1:8080"`; `openclaw config validate` then restart the gateway. (5) verify: `curl -s -X POST http://127.0.0.1:8080/api/v1/rpc -d '{"jsonrpc":"2.0","method":"send","id":1,"params":{"recipient":["<recipient-uuid>"],"message":"test"}}'` returns `"type":"SUCCESS"` (no crash), and the gateway shows a `signal:direct` lane on an incoming reply. `sudo systemctl enable docker` so the container survives reboot. Future signal-cli updates = `docker pull` a new image, no native-lib juggling. |
 
 ---
 
-## Upgrading to 2026.8.1 ("OpenClaw 2.0")
+## Upgrade blockers
 
-Blockers hit during a real 2026.6.6 -> 2026.8.1 in-place upgrade. The order to work through them is
-in [`upgrading.md`](upgrading.md); this section is the symptom -> cause -> fix detail.
+Config and startup blockers that surface when an existing box is upgraded in place. The order to
+work through them is in [`upgrading.md`](upgrading.md); this section is the symptom -> cause -> fix
+detail.
 
-### 2.0 config validation fails closed, and `doctor --fix` cannot self-heal
+### Config validation fails closed, and `doctor --fix` cannot self-heal
 
 **Symptom.** The gateway refuses to start on an invalid config, and `openclaw doctor --fix` prints
 `Legacy config keys detected ... run openclaw doctor --fix` — it tells you to run the command you
@@ -106,7 +107,7 @@ jq 'del(.meta.lastTouchedAt)
 openclaw doctor --fix
 ```
 
-Keys hit in this upgrade:
+Retired keys and their action:
 
 | Key | Action |
 | ----- | -------- |
@@ -114,13 +115,13 @@ Keys hit in this upgrade:
 | `commands.ownerDisplay` | drop |
 | `agents.defaults.memorySearch` | migrate to `memory.search`, preserving the value |
 
-### Signal was unbundled into `@openclaw/signal`
+### Signal ships as the external `@openclaw/signal` plugin
 
 **Symptom.** `channels.signal: must not have additional properties: "cliPath", "autoStart",
 "httpUrl"` and `plugins.entries.signal: plugin not installed`.
 
-**Cause.** Signal moved out of core into the `@openclaw/signal` plugin, and the schema for those
-fields now ships **with the plugin**. Core no longer recognises them.
+**Cause.** Signal lives in the `@openclaw/signal` plugin, and the schema for those transport fields
+ships **with the plugin**. Core does not recognise them.
 
 This deadlocks: `plugins install` fails closed on an invalid config, and `doctor --fix` will not
 persist on an invalid config. `docs/cli/plugins.md` documents a **bundled-plugin recovery path**
@@ -166,16 +167,12 @@ openclaw plugins install @openclaw/signal
 
 A `cliPath` shim is then unnecessary — every operation goes over REST.
 
-There is **no upstream migration guide** for this. The CHANGELOG's unbundling entry names Cohere,
-Meta, DuckDuckGo, Voyage and iMessage but not Signal, and `docs/plugins/reference/signal.md` has no
-migration content.
-
-### `OPENROUTER_API_KEY` alone makes 2.0 demand a perplexity plugin it cannot install
+### `OPENROUTER_API_KEY` alone makes OpenClaw demand a perplexity plugin it cannot install
 
 **Symptom.** `Plugin "perplexity" requires capability consent` -> `plugin verification failed;
 refusing to report the gateway ready` -> exit 1. Under `Restart=always` this is a crash loop.
 
-This is an upstream defect and hits **any** OpenRouter user upgrading to 2026.8.1.
+It hits **any** OpenRouter user.
 
 **Why it is invisible.** perplexity appears nowhere: not in `plugins.entries`, not in
 `plugins list --json`, not in `claw_installs` or `plugin_binding_approvals`. `openclaw-perplexity-plugin`
@@ -253,8 +250,9 @@ ls -l ~/.openclaw/agents/*/openclaw-agent.sqlite
 **Symptom.** `Tailscale HTTPS port 443 is already owned by a route whose ownership OpenClaw cannot
 prove`, alongside `listener already exists for port 443`.
 
-**Cause.** 2.0 claims the route with a foreground `tailscale serve --yes --bg=false <port>` child
-process. That collides with a route **persisted** by an older version, which nothing now owns.
+**Cause.** OpenClaw claims the route with a foreground `tailscale serve --yes --bg=false <port>`
+child process. Route ownership is process-held, so a route left **persisted** on the tailnet — by
+anything other than the running gateway — is owned by nothing and blocks the claim.
 
 **Fix.** Save the old route first, then clear it and let the gateway re-claim it on boot:
 
@@ -287,7 +285,7 @@ The health-check script should be conservative:
 4. Only if the daemon still doesn't answer, restore the latest backup of `~/.local/share/signal-cli/data/`, start the gateway, and notify via the same RPC.
 5. Do not auto-run `deleteLocalAccountData` or re-register without human approval.
 
-Example script skeleton (updated 2026-04-22 after a wedge-incident. The previous example spawned a second `signal-cli` subprocess to call `getUserStatus` — that contends for the data-dir lock and hangs forever. Use the HTTP JSON-RPC path instead; mind the exact URL `http://127.0.0.1:8080/api/v1/rpc` **with no trailing slash** — the trailing-slash variant silently 404s):
+Example script skeleton. Note the exact RPC URL — `http://127.0.0.1:8080/api/v1/rpc` **with no trailing slash**; the trailing-slash variant silently 404s:
 
 ```bash
 #!/usr/bin/env bash
@@ -342,7 +340,7 @@ fi
 log "Restored and restarted"
 ```
 
-**Unit file — do NOT forget `TimeoutStartSec`**, otherwise a hung run can freeze the timer for days (it happened on this user's VPS: 5 days silent because `Active: activating (start)` never ended):
+**Unit file — do NOT forget `TimeoutStartSec`.** Without it, one hung run leaves the unit stuck in `Active: activating (start)` and the timer never fires again — days of silence with nothing in the journal to explain it:
 
 ```ini
 # /etc/systemd/system/openclaw-health.service  (or ~/.config/systemd/user/... if user-scoped)
@@ -382,10 +380,8 @@ What it checks (all read-only, no `openclaw` CLI — that would cycle the gatewa
 3. **Stale-process detector (the root cause):** the on-disk code mtime
    (`~/.npm-global/lib/node_modules/openclaw/dist/index.js` + `package.json`) is
    NEWER than the running gateway process's start time (`/proc/<MainPID>` ctime).
-   That is exactly "auto-update landed but no restart". Deterministic — no log
-   scraping. (An early version scraped `current vX.Y` from the journal and
-   false-positived on a stale `update available` line; use the mtime-vs-start-time
-   signal instead.)
+   That is exactly "auto-update landed but no restart". Use the mtime-vs-start-time
+   signal, not journal scraping — a stale `update available` line false-positives.
 
 On any miss it sends ONE Signal message per day (date-keyed marker under
 `~/.openclaw/state/`) to the press-review recipient, naming the problem and the fix
@@ -604,13 +600,13 @@ Before starting, refresh cached data AND fetch OpenClaw docs. This is non-negoti
 
 **Refresh version data via web search:**
 
-1. `openclaw latest version release notes` — check for breaking changes vs cached v2026.3.13
-2. `signal-cli latest release ARM64` — check if native aarch64 build is now available
+1. `openclaw latest version release notes` — check for breaking changes vs the version in [`../SKILL.md`](../SKILL.md) § Versions
+2. `signal-cli latest release ARM64` — check if a native aarch64 build now exists
 3. `<provider> VPS pricing` — verify current prices for the user's chosen provider
 4. `tailscale pricing free plan serve` — confirm Serve is still free
-5. `openclaw cron job best practices 2026` — new scheduling features or patterns
+5. `openclaw cron job best practices` — new scheduling features or patterns
 6. `openclaw agent isolation security` — any new sandbox or per-agent auth features
-7. Update the `references/` files if any data changed. Note the new `last_updated` date.
+7. Update the `references/` files if any data changed, and the `last_research_date` in the skill frontmatter.
 
 > **Evolutive principle:** OpenClaw releases daily. This skill MUST web-search before any significant decision — don't rely solely on cached configs. If the user's setup uses a feature that has changed, flag it before proceeding.
 
@@ -633,33 +629,34 @@ Proceed with cached data but **warn the user** that some info may be stale.
 
 ## Sources & References
 
-All information gathered and verified on **2026-03-14**. Dates indicate when source was last known accurate.
+Fetch the OpenClaw docs live before Phase 5 (§ "If online" above) — these are where to look, not a
+cache of what they said.
 
-| Source | URL | Accessed |
-| -------- | ----- | ---------- |
-| OpenClaw GitHub (v2026.3.13) | [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw) | 2026-03-14 |
-| OpenClaw Docs — Install | [docs.openclaw.ai/install](https://docs.openclaw.ai/install) | 2026-03-14 |
-| OpenClaw Docs — Security | [docs.openclaw.ai/gateway/security](https://docs.openclaw.ai/gateway/security) | 2026-03-14 |
-| OpenClaw Docs — Tailscale | [docs.openclaw.ai/gateway/tailscale](https://docs.openclaw.ai/gateway/tailscale) | 2026-03-14 |
-| OpenClaw Docs — Channels | [docs.openclaw.ai/channels](https://docs.openclaw.ai/channels) | 2026-03-14 |
-| OpenClaw Docs — Signal | [docs.openclaw.ai/channels/signal](https://docs.openclaw.ai/channels/signal) | 2026-03-14 |
-| OpenClaw Docs — Model Providers | [docs.openclaw.ai/concepts/model-providers](https://docs.openclaw.ai/concepts/model-providers) | 2026-03-14 |
-| OpenClaw Docs — Multi-Agent | [docs.openclaw.ai/concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent) | 2026-03-16 |
-| OpenClaw Agents CLI | [github.com/openclaw/openclaw/.../agents.md](https://github.com/openclaw/openclaw/blob/main/docs/cli/agents.md) | 2026-03-16 |
-| Multi-Agent Orchestration Guide | [zenvanriel.com](https://zenvanriel.com/ai-engineer-blog/openclaw-multi-agent-orchestration-guide/) | 2026-03-16 |
-| Hetzner Cloud Pricing | [hetzner.com/cloud](https://www.hetzner.com/cloud) | 2026-03-14 |
-| Hetzner Ubuntu Security Guide | [community.hetzner.com](https://community.hetzner.com/tutorials/security-ubuntu-settings-firewall-tools/) | 2026 |
-| Tailscale Pricing | [tailscale.com/pricing](https://tailscale.com/pricing) | 2026-03-14 |
-| Tailscale Serve Docs | [tailscale.com/docs/features/tailscale-serve](https://tailscale.com/docs/features/tailscale-serve) | 2026-03-14 |
-| signal-cli (v0.14.1) | [github.com/AsamK/signal-cli](https://github.com/AsamK/signal-cli) | 2026-03-14 |
-| Baileys (WhatsApp Web) | [github.com/WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys) | 2026-03 |
-| Ollama | [ollama.ai](https://ollama.ai/) | 2026-03 |
-| Node.js 24 LTS (24.14.0) | [nodejs.org](https://nodejs.org/en/about/previous-releases) | 2026-03-14 |
-| OpenClaw Wikipedia | [en.wikipedia.org/wiki/OpenClaw](https://en.wikipedia.org/wiki/OpenClaw) | 2026-03 |
-| OpenClaw Security Risks — Bitsight | [bitsight.com](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances) | 2026-03 |
-| OpenClaw Privacy — TechXplore | [techxplore.com](https://techxplore.com/news/2026-02-openclaw-ai-agent-privacy-nightmare.html) | 2026-02 |
-| Cloudflare Tunnel Docs | [developers.cloudflare.com](https://developers.cloudflare.com/cloudflare-one/) | 2026-03 |
-| Cloudflare Zero Trust (free) | [cloudflare.com/zero-trust](https://www.cloudflare.com/zero-trust/products/access/) | 2026-03 |
-| OpenClaw + Cloudflare Tunnel Guide | [blog.canadianwebhosting.com](https://blog.canadianwebhosting.com/openclaw-cloudflare-tunnel-tailscale-no-public-ports/) | 2026-02 |
-| Post Bridge | [post-bridge.com/openclaw](https://www.post-bridge.com/openclaw) | 2026-02 |
-| Publora | [publora.com](https://publora.com/blog/connect-openclaw-ai-agent-social-media-publora) | 2026-02 |
+| Source | URL |
+| -------- | ----- |
+| OpenClaw GitHub | [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw) |
+| OpenClaw Docs — Install | [docs.openclaw.ai/install](https://docs.openclaw.ai/install) |
+| OpenClaw Docs — Security | [docs.openclaw.ai/gateway/security](https://docs.openclaw.ai/gateway/security) |
+| OpenClaw Docs — Tailscale | [docs.openclaw.ai/gateway/tailscale](https://docs.openclaw.ai/gateway/tailscale) |
+| OpenClaw Docs — Channels | [docs.openclaw.ai/channels](https://docs.openclaw.ai/channels) |
+| OpenClaw Docs — Signal | [docs.openclaw.ai/channels/signal](https://docs.openclaw.ai/channels/signal) |
+| OpenClaw Docs — Model Providers | [docs.openclaw.ai/concepts/model-providers](https://docs.openclaw.ai/concepts/model-providers) |
+| OpenClaw Docs — Multi-Agent | [docs.openclaw.ai/concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent) |
+| OpenClaw Agents CLI | [github.com/openclaw/openclaw/.../agents.md](https://github.com/openclaw/openclaw/blob/main/docs/cli/agents.md) |
+| Multi-Agent Orchestration Guide | [zenvanriel.com](https://zenvanriel.com/ai-engineer-blog/openclaw-multi-agent-orchestration-guide/) |
+| Hetzner Cloud Pricing | [hetzner.com/cloud](https://www.hetzner.com/cloud) |
+| Hetzner Ubuntu Security Guide | [community.hetzner.com](https://community.hetzner.com/tutorials/security-ubuntu-settings-firewall-tools/) |
+| Tailscale Pricing | [tailscale.com/pricing](https://tailscale.com/pricing) |
+| Tailscale Serve Docs | [tailscale.com/docs/features/tailscale-serve](https://tailscale.com/docs/features/tailscale-serve) |
+| signal-cli | [github.com/AsamK/signal-cli](https://github.com/AsamK/signal-cli) |
+| Baileys (WhatsApp Web) | [github.com/WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys) |
+| Ollama | [ollama.ai](https://ollama.ai/) |
+| Node.js release schedule | [nodejs.org](https://nodejs.org/en/about/previous-releases) |
+| OpenClaw Wikipedia | [en.wikipedia.org/wiki/OpenClaw](https://en.wikipedia.org/wiki/OpenClaw) |
+| OpenClaw Security Risks — Bitsight | [bitsight.com](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances) |
+| OpenClaw Privacy — TechXplore | [techxplore.com](https://techxplore.com/news/2026-02-openclaw-ai-agent-privacy-nightmare.html) |
+| Cloudflare Tunnel Docs | [developers.cloudflare.com](https://developers.cloudflare.com/cloudflare-one/) |
+| Cloudflare Zero Trust (free) | [cloudflare.com/zero-trust](https://www.cloudflare.com/zero-trust/products/access/) |
+| OpenClaw + Cloudflare Tunnel Guide | [blog.canadianwebhosting.com](https://blog.canadianwebhosting.com/openclaw-cloudflare-tunnel-tailscale-no-public-ports/) |
+| Post Bridge | [post-bridge.com/openclaw](https://www.post-bridge.com/openclaw) |
+| Publora | [publora.com](https://publora.com/blog/connect-openclaw-ai-agent-social-media-publora) |

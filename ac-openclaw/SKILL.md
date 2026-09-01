@@ -17,14 +17,14 @@ metadata:
 
 Interactive, step-by-step guide to install [OpenClaw](https://github.com/openclaw/openclaw) — a self-hosted personal AI assistant that connects to your messaging apps (Signal, WhatsApp, Telegram, Discord, Slack, and 20+ more).
 
-> **OpenClaw** was originally published in November 2025 by Peter Steinberger as "Clawdbot", renamed "Moltbot" on 2026-01-27 (Anthropic trademark), then "OpenClaw" on 2026-01-30. MIT-licensed. 247k+ GitHub stars as of 2026-03.
+> **OpenClaw** is MIT-licensed and developed in the open at [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw).
 
-## Versions (baseline refreshed 2026-09-01)
+## Versions
 
 | Component | Version | Notes |
 | ----------- | --------- | ------- |
-| OpenClaw | v2026.8.1 (stable, 2026-08-30/31), branded **"OpenClaw 2.0"** | Releases use `vYYYY.M.D` scheme — **"2.0" is marketing, not a version you can install** (see below) |
-| Node.js | 24.14.0 LTS "Krypton" (2026-03-05) | 2026.8.1 `engines`: `>=22.22.3 <23 \|\| >=24.15.0 <25 \|\| >=25.9.0`. The package `preinstall` **aborts** on an out-of-range Node |
+| OpenClaw | `2026.8.1`, branded **"OpenClaw 2.0"** | Releases use a `vYYYY.M.D` scheme — **"2.0" is marketing, not a version you can install** (see below) |
+| Node.js | 24.x LTS | `engines`: `>=22.22.3 <23 \|\| >=24.15.0 <25 \|\| >=25.9.0`. The package `preinstall` **aborts** on an out-of-range Node |
 | signal-cli | **>= 0.14.5 — hard floor** | Requires Java 25+. Below 0.14.5 **every inbound 1:1 message is silently discarded** (see note below). On arm64 there is no usable native libsignal — run signal-cli from the `bbernhard/signal-cli-rest-api` container (`0.100`+ ships 0.14.5) |
 | Tailscale | Latest stable | Free Personal plan (3 users, 100 devices). Serve = free. Funnel = Premium only ($18/user/mo) |
 | Ollama | Latest stable | Native ARM64 support. CPU-only unless the server has a GPU |
@@ -33,29 +33,16 @@ Interactive, step-by-step guide to install [OpenClaw](https://github.com/opencla
 
 > **When running this skill:** Web-search for latest versions first. OpenClaw releases daily. signal-cli and Node.js update less frequently.
 >
-> **signal-cli < 0.14.5 is a silent, write-only outage — never install one.** Around 2026-06-10
-> Signal's server stopped sending `serverGuid` in sealed-sender envelopes. A non-null check in
-> `libsignal-service-java` throws on every such envelope, so **inbound 1:1 messages are dropped
-> without an error the user would notice**, while outbound sending keeps working perfectly. The
-> assistant looks alive and answers cron jobs; it just never hears you. Upstream:
-> [AsamK/signal-cli#2059](https://github.com/AsamK/signal-cli/issues/2059). Fixed in **0.14.5**
-> (2026-06-11), first shipped in the container image `bbernhard/signal-cli-rest-api:0.100`.
+> **signal-cli < 0.14.5 is a silent, write-only outage — never install one.** Below the floor,
+> **inbound 1:1 messages are dropped with no error the user would notice**, while outbound sending
+> keeps working perfectly. The assistant looks alive and answers cron jobs; it just never hears you.
 > Verify `signal-cli --version` after install **and** send yourself an inbound message as an
 > end-to-end check — an outbound-only test cannot detect this.
 
-### Installing 2026.8.1 ("OpenClaw 2.0")
+### Installing
 
-**`npm i openclaw@2.0` fails — no 2.x was ever published to npm.** The "2.0" branding sits on top of the
-unchanged CalVer scheme; the installable version is `2026.8.1`. Abandoned `v2.0.0-beta*` git tags exist
-from the pre-rename `clawdis` era and are unrelated to this release.
-
-dist-tags observed 2026-09-01:
-
-| Tag | Version | Notes |
-| ----- | --------- | ------- |
-| `latest` | `2026.8.1` | The 2.0 release |
-| `extended-stable` | `2026.6.34` | Previous line |
-| `beta` | `2026.9.1-beta.1` | **Mislabeled upstream** — its own release notes say it was mistakenly published as `2026.9.1-beta.1`; it is a pre-release of the 8.1 line |
+**`npm i openclaw@2.0` fails — no 2.x exists on npm.** The "2.0" branding sits on top of the CalVer
+scheme; the installable version is `2026.8.1`.
 
 Install with the scripts flag on npm >= 11.16 — without it the bundled plugins are silently skipped:
 
@@ -64,8 +51,8 @@ npm i -g openclaw@2026.8.1 --allow-scripts=openclaw   # npm >= 11.16
 npm i -g openclaw@2026.8.1                            # npm <= 11.15 — the flag does not exist
 ```
 
-Upgrading an existing 2026.6.x instance has its own blockers (config validates fail-closed, Signal is
-unbundled, OpenRouter keys trigger an uninstallable plugin). Follow
+Upgrading an existing instance has its own blockers (config validates fail-closed, Signal is a
+separate plugin, an OpenRouter key triggers an uninstallable plugin). Follow
 [`references/upgrading.md`](references/upgrading.md) rather than running `npm i -g` on a live box.
 
 ## Dependencies
@@ -192,7 +179,7 @@ c) Local machine (skip provisioning)
 depends on the sizing answer in § 1.4 and on jurisdiction, and the market moves monthly.
 
 - **Always web-search for current pricing** before recommending anything: `"<provider> VPS pricing <year>"`, then fetch each candidate's number from the vendor's own page. A cached price is a lead, not a quote.
-- Read [`references/provider-selection.md`](references/provider-selection.md) first. It carries the durable **method** (normalize VAT before comparing; existence ≠ availability; read the CPU from the vendor's announcement, not the plan name; latency is almost never the axis; decide jurisdiction before price) plus a **dated, perishable** snapshot of EU options.
+- Read [`references/provider-selection.md`](references/provider-selection.md) first. It carries the durable **method** (normalize VAT before comparing; existence ≠ availability; read the CPU from the vendor's announcement, not the plan name; latency is almost never the axis; decide jurisdiction before price) and re-verify every price against the vendor's own page.
 - [`references/hetzner-servers.md`](references/hetzner-servers.md) is **one cached provider among several**, not the default. Use it if the user picks Hetzner; it is still accurate for the CAX line, subject to the availability check below.
 - If the user names a provider not covered by either reference, research it dynamically and apply the same method.
 - If **local machine**: skip to 1.4.
@@ -229,19 +216,22 @@ This is critical — it determines server sizing. **Present the cost comparison 
 >
 > **WARNING: The "Server RAM" column for local models is the MINIMUM for the model to load.** In practice, Ollama needs significantly more RAM for the KV cache during inference — an 8B model with OpenClaw's full context window (system prompt + SOUL.md + conversation history) can require **~20 GB**, not the ~5-6 GB that model weights alone suggest. Always budget 2-3x the model weight size for actual inference.
 >
-> **Bottom line:** A CAX11 (~4.49 EUR/mo) + Gemini 2.5 Flash (free, 250 req/day) or a paid API (~$1-5/mo) gives you frontier-quality models for less than running a mediocre local model on an expensive server. Self-hosting only makes sense for privacy absolutists or offline use.
+> **Bottom line:** the smallest 4 GB box plus a free-tier or low-single-digit-dollars API gives you frontier-quality models for less than a mediocre local model on an expensive server. Self-hosting only makes sense for privacy absolutists or offline use.
 >
 > **Reference:** See [OpenClaw Deploy Cost Guide](https://yu-wenhao.com/en/blog/2026-02-01-openclaw-deploy-cost-guide) for detailed cost breakdowns.
 
-**Free tier API comparison (as of 2026-03):**
+**Free tiers move constantly — fetch each candidate's current limits from the vendor's own page
+before recommending one.** Two things decide whether a free tier is usable for a personal
+messaging bot:
 
-| Provider | Model | Free tier limits | Quality |
-| ---------- | ------- | ----------------- | --------- |
-| **Gemini 2.5 Flash** | Best free option | 10 RPM / 250 RPD | Good |
-| **Gemini 2.5 Pro** | Paid only | — | Very good |
-| **Gemini 3 Flash** | Preview/limited | Stricter limits | Good |
-| **OpenAI GPT-3.5** | Only free model | 3 RPM (unusable) | Outdated |
-| **Anthropic Haiku** | Paid only | — | Good ($0.25/1M tokens) |
+- **Requests per day** — a personal bot sends tens to low hundreds of turns a day. A daily cap in
+  the hundreds is comfortable; a cap in the tens is not.
+- **Requests per minute** — a single-digit RPM limit throttles a normal back-and-forth conversation
+  and is unusable regardless of how generous the daily cap looks.
+
+Google's Gemini Flash line is the usual candidate that clears both bars. Verify rather than assume,
+and treat a paid tier at a few dollars a month as the fallback — it is cheaper than sizing a server
+for a local model.
 
 Then ask:
 
@@ -252,7 +242,7 @@ better quality for less money than self-hosting a model on a big server.
 How will you provide the AI model?
 
 a) BYOK — API Key only (cheapest server, best models)          [DEFAULT]
-   → Gemini 2.5 Flash free (250 msg/day) or paid (~$1-5/mo)
+   → a free tier that clears the RPM/RPD bars above, or paid at ~$1-5/mo
 b) BYOK + local Ollama fallback (needs more RAM for fallback)
    → Best of both but server costs more
 c) Local model only (needs expensive server, lower quality)
@@ -534,7 +524,7 @@ Detailed step-by-step instructions for each phase live in reference files. Load 
 
 | Phase | Reference | Summary |
 | ------- | ----------- | --------- |
-| **3. Provision Server** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 3 + [`references/provider-selection.md`](references/provider-selection.md) | Create VPS or configure existing server/local machine. Provider-agnostic selection method + dated price snapshot; [`references/hetzner-servers.md`](references/hetzner-servers.md) if Hetzner |
+| **3. Provision Server** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 3 + [`references/provider-selection.md`](references/provider-selection.md) | Create VPS or configure existing server/local machine. Provider-agnostic selection method; [`references/hetzner-servers.md`](references/hetzner-servers.md) if Hetzner |
 | **4. Harden the OS** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 4 | UFW, fail2ban, SSH hardening, unattended upgrades |
 | **5. Install OpenClaw** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 5 | Node.js 24, OpenClaw, gateway config, dashboard pairing |
 | **6. Configure Model** | [`references/installation-phases.md`](references/installation-phases.md) § Phase 6 | BYOK API keys, local Ollama, or hybrid setup |

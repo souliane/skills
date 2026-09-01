@@ -1,12 +1,11 @@
 # Upgrading an existing OpenClaw instance
 
-Covers upgrading a running box in place. Written from a 2026.6.6 → 2026.8.1 ("OpenClaw 2.0")
-upgrade; the sequence is version-agnostic, the named blockers are 2.0-specific.
+Covers upgrading a running box in place to `2026.8.1`.
 
-Order: **pre-flight → upgrade → config migration → verification → rollback**. The 2.0 blockers
-each have a symptom → cause → fix entry in
-[`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Upgrading to
-2026.8.1 (OpenClaw 2.0)"; this file is the order to hit them in.
+Order: **pre-flight → upgrade → config migration → verification → rollback**. Each blocker has a
+symptom → cause → fix entry in
+[`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Upgrade blockers";
+this file is the order to hit them in.
 
 ---
 
@@ -122,12 +121,11 @@ openclaw doctor --lint          # what 2.0 rejects in the existing config
 openclaw doctor --fix           # migrate what it can
 ```
 
-2.0 validates the config **fail-closed**, and `doctor --fix` cannot self-heal a config it cannot
-load — it will tell you to run the command you just ran. When that happens, hand-migrate the
-specific rejected keys with `jq`, then re-run `doctor --fix` for the rest. The loop, the exact keys
-hit in this upgrade, the Signal unbundling deadlock, and the OpenRouter/perplexity blocker are all
-in [`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Upgrading to
-2026.8.1 (OpenClaw 2.0)".
+Config validation is **fail-closed**, and `doctor --fix` cannot self-heal a config it cannot load —
+it will tell you to run the command you just ran. When that happens, hand-migrate the specific
+rejected keys with `jq`, then re-run `doctor --fix` for the rest. The loop, the retired keys, the
+Signal plugin deadlock, and the OpenRouter/perplexity blocker are all in
+[`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Upgrade blockers".
 
 Work through them until `openclaw doctor --lint` is clean, then:
 
