@@ -352,6 +352,87 @@ openclaw models set google/gemini-3-pro-preview
 openclaw models set openrouter/anthropic/claude-opus-4-6
 ```
 
+#### Custom OpenAI-compatible provider (a router or self-hosted endpoint)
+
+`openclaw models set <provider>/<model>` only works for providers OpenClaw ships. For anything
+else — an OpenAI-compatible router, a self-hosted gateway, a vendor OpenClaw does not know — you
+declare the provider yourself in `models.providers`. Four details decide whether it works; the
+first two produce **no error at all**, and the fourth surfaces only intermittently.
+
+```jsonc
+// ~/.openclaw/openclaw.json
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "myrouter": {                                   // <-- see the naming trap below
+        "baseUrl": "https://api.<router>.example/v1", // no trailing slash
+        "api": "openai-completions",
+        "apiKey": "$MYROUTER_API_KEY",                // <-- the "$" is REQUIRED
+        "models": [
+          { "id": "vendor/some-model", "name": "friendly-alias" }
+        ]
+      }
+    }
+  }
+}
+```
+
+**1. `apiKey` must be `$`-prefixed to mean "read this env var".** `ModelProviderSchema` is
+`.strict()` — there is no `apiKeyEnv` / `apiKeyEnvar` field, and an unknown key is rejected as
+`models.providers.<name>: Unrecognized key`. A bare `"MYROUTER_API_KEY"` is accepted and stored as
+a **literal key**, so every call returns 401.
+
+**2. Do not name the provider after the model-id prefix it serves.** `normalizeModelId` strips a
+leading `<provider>/` from a model id when it matches the provider's own name. A provider named
+`foo` serving id `foo/bar` sends `model: "bar"` upstream — not a catalog id — with no error. Name
+the provider something that is *not* a prefix of its model ids. Observed on `2026.8.1`; to see what
+is actually sent, check the `[provider-transport-fetch] [model-fetch]` line in the gateway journal,
+which logs the outgoing `model=` verbatim.
+
+**3. Models are referenced as `<provider>/<id>`,** so the example above is
+`myrouter/vendor/some-model`. **If** you have an `agents.defaults.modelPolicy.allow` list, add every
+ref you intend to use to it, or model selection throws `Configured default model ... is not allowed
+by agents.defaults.modelPolicy.allow`. If you have no such list, leave it absent — creating one
+turns on allow-listing and locks out every model you do not enumerate.
+
+**4. Declaring the provider does not create an auth profile.** Register one per agent, or the
+provider will 401 intermittently once any request fails — see
+[`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md)
+§ "A custom provider without an auth profile 401s intermittently":
+
+```bash
+pass show openclaw/<name>-key \
+  | openclaw models auth paste-token --agent <agent-id> --provider <name>
+```
+
+**Order of operations matters.** `openclaw.json` is hot-reloaded, but a new env var only reaches
+the gateway on restart. Do the secret first and the config last, so the provider is never live
+without its key:
+
+```bash
+pass insert openclaw/<name>-key                 # 1. secret exists first
+#   2. add the export to whatever launches the gateway, then:
+sudo systemctl restart openclaw.service         # 3. process picks up the env var
+#   4. edit openclaw.json last — the hot reload activates the provider with its key present
+#   5. register the auth profile (point 4 above) for EACH agent, then restart once more
+```
+
+**Verify — and do not trust the local CLI path.** `openclaw infer model run` without `--gateway`
+runs in-process and cannot materialize a `$VAR` secret reference, failing with
+`secret reference was not materialized by the active runtime` even when the gateway is perfectly
+healthy. Always test through the gateway:
+
+```bash
+openclaw infer model providers                     # your provider: "configured": true, "selected": true
+openclaw infer model run --agent <id> --prompt hi --json --gateway
+```
+
+**Give the fallback chain more than one provider.** A single 401 marks a whole provider
+`has auth issue (skipping all models)`, so if every fallback belongs to that provider the turn ends
+in `All models failed`. Routers also return transient `429 upstream busy`. Keep at least one
+fallback on a different `models.providers` entry.
+
 ### 6.2 Local Ollama
 
 ```bash
@@ -706,11 +787,11 @@ Config (use Python to edit JSON directly — see § 9.4 warning):
 
 ### 9.4 Config editing — use Python, not `openclaw config set` for complex changes
 
-**CRITICAL WARNING:** `openclaw config set` and `openclaw models set` can **silently overwrite** manually-added config sections (`agents.list`, `bindings`, custom entries). This has caused data loss (e.g., multi-agent bindings disappearing).
+**CRITICAL WARNING:** `openclaw config set` and `openclaw models set` can **silently overwrite** manually-added config sections (`agents.entries`, `bindings`, custom entries). This has caused data loss (e.g., multi-agent bindings disappearing).
 
 **For simple scalar values:** `openclaw config set` is fine (e.g., `gateway.mode`, `channels.signal.enabled`).
 
-**For complex structures** (agents.list, bindings, sandbox config): edit the JSON directly with Python:
+**For complex structures** (agents.entries, bindings, sandbox config): edit the JSON directly with Python:
 
 ```bash
 python3 -c "
@@ -724,32 +805,39 @@ with open('/home/openclaw/.openclaw/openclaw.json', 'w') as f:
 "
 ```
 
-**After ANY `openclaw config set` or `openclaw models set` command:** verify that `agents.list` and `bindings` are still intact. If they were wiped, restore from the backup or re-add them.
+**After ANY `openclaw config set` or `openclaw models set` command:** verify that `agents.entries` and `bindings` are still intact. If they were wiped, restore from the backup or re-add them.
 
 ### 9.5 Ollama fallback auth
 
-If using Ollama as a fallback model, OpenClaw requires an auth entry even though Ollama has no real API key. Write to **each agent's** `auth-profiles.json`:
+If using Ollama as a fallback model, OpenClaw requires an auth entry even though Ollama has no real
+API key. Register one per agent with the CLI — **do not hand-write `auth-profiles.json`**:
 
 ```bash
 # For EACH agent (main, darwin, etc.)
-python3 -c "
-import json
-auth = {
-    'ollama:local': {
-        'type': 'token',
-        'provider': 'ollama',
-        'token': 'ollama-local'
-    },
-    'lastGood': {
-        'ollama': 'ollama:local'
-    }
-}
-with open('/home/openclaw/.openclaw/agents/<AGENT_ID>/agent/auth-profiles.json', 'w') as f:
-    json.dump(auth, f, indent=2)
-"
+printf 'ollama-local' \
+  | openclaw models auth paste-token --agent <AGENT_ID> --provider ollama
 ```
 
 Also add `OLLAMA_API_KEY="ollama-local"` to the gateway wrapper script.
+
+> **Why not the JSON file.** `~/.openclaw/agents/<AGENT_ID>/agent/auth-profiles.json` is the
+> **pre-2026.8 layout**. As of `2026.8.1` auth profiles live in the per-agent SQLite store
+> (`openclaw-agent.sqlite`, table `auth_profile_store`), and `openclaw doctor --fix` imports the
+> legacy JSON and archives the original. A hand-written file whose shape does not match what the
+> importer expects is archived as `Archived unparseable auth profile input without import` — the
+> profile is silently NOT migrated, and the provider then has no auth entry at all.
+>
+> Inspect what actually exists with:
+>
+> ```bash
+> openclaw models auth list --agent <AGENT_ID>
+> ```
+>
+> That prints each profile and the store path it read, so you never have to guess the path.
+>
+> The same `paste-token` path applies to every provider, not just Ollama — see
+> [`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md)
+> § "A custom provider without an auth profile 401s intermittently".
 
 ### 9.6 Signal profile name
 
