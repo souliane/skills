@@ -89,8 +89,10 @@ User says: "Add a `LoanApplication` data model with validation"
 - Prefer the idiomatic Python solution over a generic one.
 - Use list comprehensions, walrus operator (`:=`), `itertools`, `operator` where they clarify intent.
 - Avoid intermediate variables that are only used once.
-- On Python 3.14+, prefer t-strings (`t"..."`, PEP 750) over f-strings or manual concatenation when building SQL/HTML/templates from interpolated values — the interpolated values stay separate from literal text instead of being flattened into one `str`, avoiding injection risk.
-- On Python 3.14+, use the stdlib `compression.zstd` module instead of the third-party `zstandard` package for zstd compression.
+- Prefer t-strings (`t"..."`, PEP 750) over f-strings when building SQL, HTML, shell commands, or templates from interpolated values. A t-string evaluates to a `string.templatelib.Template`, not a `str`: the static text and each `Interpolation` stay separable, so a processing function can escape every interpolated value for its target grammar. The safety is in that function — the stdlib ships none, so use a library's or write one. A `Template` passed where a `str` is expected is an error, not an escape.
+- Use the stdlib `compression.zstd` for zstd rather than the third-party `zstandard` package. `compression.lzma`, `compression.bz2`, `compression.gzip` and `compression.zlib` are the preferred import names for those modules too; the originals still work and are not deprecated. `tarfile`, `zipfile` and `shutil` read and write zstd archives.
+- Omit the brackets in a multi-type `except` when there is no `as` clause (PEP 758): `except TimeoutError, ConnectionRefusedError:`. With `as`, the brackets are still required.
+- Never `return`, `break`, or `continue` out of a `finally` block — it swallows the in-flight exception, and the compiler emits a `SyntaxWarning` for it (PEP 765).
 
 ### Types are documentation
 
@@ -192,3 +194,22 @@ Tests must be easy to read and maintain. Verbose tests get skimmed, misunderstoo
 - [ ] `@pytest.mark.parametrize` used where 3+ tests differ only by input/output
 - [ ] fixtures used for repeated setup — no copy-pasted boilerplate
 - [ ] mocks only for external boundaries (subprocess, network, clock)
+
+## Previous line: Python 3.13
+
+Everything above targets Python 3.14. On 3.13:
+
+- **No t-strings.** Build SQL/HTML with the target library's own parameterisation
+  or escaping (`cursor.execute(sql, params)`, `markupsafe`), never f-string
+  interpolation.
+- **No `compression.zstd`.** The third-party `zstandard` package is the option;
+  `tarfile`/`zipfile`/`shutil` do not read or write zstd.
+- **Annotations are evaluated eagerly.** `from __future__ import annotations` is
+  still needed for forward references, and there is no `annotationlib` — use
+  `typing.get_type_hints()`.
+- **`except` needs brackets** for multiple types:
+  `except (TimeoutError, ConnectionRefusedError):`.
+- **Free-threading is experimental**, not officially supported, and carries a much
+  larger single-threaded penalty than 3.14's ~5–10%.
+- Pin `python_version` / `python-version` to `"3.13"` in the mypy/ty config while
+  the project targets it.

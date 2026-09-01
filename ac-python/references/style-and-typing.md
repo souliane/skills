@@ -122,6 +122,32 @@ for job in queue:
 
 `except BaseException` is reserved for cleanup-then-raise (it also catches `KeyboardInterrupt`/`SystemExit`); always re-raise after the cleanup.
 
+Multiple exception types need no brackets when there is no `as` clause (PEP 758):
+
+```python
+try:
+    connect_to_server()
+except TimeoutError, ConnectionRefusedError:
+    reconnect()
+
+try:
+    connect_to_server()
+except (TimeoutError, ConnectionRefusedError) as exc:  # `as` still needs the brackets
+    logger.warning("connect failed: %s", exc)
+```
+
+Never leave a `finally` block with `return`, `break`, or `continue`. The compiler emits a
+`SyntaxWarning` for it (PEP 765):
+
+```python
+# bad — the return discards whatever the try raised
+def load(path: Path) -> str:
+    try:
+        return path.read_text()
+    finally:
+        return ""
+```
+
 ### Exception groups for concurrent/batch failures
 
 When an operation can fail in multiple independent ways at once — fanning out over `asyncio.TaskGroup`, a thread pool, or validating a batch where every error matters, not just the first — raise an `ExceptionGroup` instead of surfacing one exception and discarding the rest:
@@ -187,7 +213,7 @@ Any time a value may legitimately be `null` from an external source (API payload
 
 ## Typing: Full Modern Annotations
 
-### Use built-in generics (Python 3.9+)
+### Use built-in generics
 
 ```python
 # bad (old style)
@@ -258,20 +284,19 @@ def render(obj: Labeled | str) -> str:
 
 ### `TYPE_CHECKING` guard for import cycles
 
-`from __future__ import annotations` is the one valid exception to the `__future__` ban — it's required inside `TYPE_CHECKING` guards to avoid circular imports at runtime.
+Import a type that appears only in annotations under a `TYPE_CHECKING` guard, so the
+import never runs at runtime and cannot close a cycle.
 
 ```python
-from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 ```
 
-On Python 3.14+, PEP 649 makes annotation evaluation lazy by default, so the `__future__`
-import is no longer needed *for the annotations themselves* — a forward reference in a
-signature resolves without quoting. Keep writing it while the baseline includes 3.13,
-which still evaluates annotations eagerly.
+PEP 649 makes annotation evaluation lazy, so a forward reference in a signature resolves
+without quoting and `from __future__ import annotations` is not needed for the annotations
+themselves.
 
 **Lazy is not the same as never evaluated.** Anything that *materializes* annotations
 evaluates them for real, and a name imported only under `TYPE_CHECKING` is not bound at
@@ -282,10 +307,13 @@ eager readers to watch for:
 - `dataclasses.dataclass` field resolution, and Pydantic model construction
 - Django's `as_view()` and system checks, which walk annotations during startup
 
-So the `TYPE_CHECKING` guard still earns its place on 3.14+: it keeps the import cost out
-of the runtime path. What changes is only that you no longer need the `__future__` import
-to make the annotation itself parse. If a type is read back at runtime by any of the above,
-import it normally rather than under the guard.
+So the `TYPE_CHECKING` guard still earns its place: it keeps the import cost out of the
+runtime path. If a type is read back at runtime by any of the above, import it normally
+rather than under the guard.
+
+Read deferred annotations back with `annotationlib.get_annotations(obj, format=...)`.
+`Format.VALUE` evaluates them, `Format.FORWARDREF` substitutes a `ForwardRef` proxy for a
+name that cannot be resolved, and `Format.STRING` returns the annotation's source text.
 
 ### Annotate everything public
 

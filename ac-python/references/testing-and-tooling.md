@@ -134,7 +134,7 @@ lint.per-file-ignores."tests/**/*.py" = [
   "SLF001",   # private member access
 ]
 lint.flake8-implicit-str-concat.allow-multiline = false
-lint.flake8-tidy-imports.banned-api."__future__.annotations" = { msg = "Use native 3.10+ syntax (X | Y)" }
+lint.flake8-tidy-imports.banned-api."__future__.annotations" = { msg = "Use X | Y syntax" }
 lint.fixable = ["ALL"]
 lint.pylint.max-args = 5
 lint.pylint.max-bool-expr = 5
@@ -175,7 +175,7 @@ Use `mypy` for production projects. `ty` is Astral's type checker — fast but s
 
 ```toml
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_unused_ignores = true
 ```
@@ -184,7 +184,7 @@ Or with `ty` (experimental):
 
 ```toml
 [tool.ty]
-environment = { python-version = "3.13" }
+environment = { python-version = "3.14" }
 terminal = { error-on-warning = true }
 
 [tool.ty.rules]
