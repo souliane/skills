@@ -39,6 +39,7 @@ openclaw plugins enable <channel-name>
 - signal-cli **>= 0.14.5** — see the version floor below. This is not a "prefer newer"; older builds silently drop every inbound 1:1 message
 - signal-cli binary: native Linux build or JVM variant (needs Java 25+)
 - Gateway talks to signal-cli over HTTP JSON-RPC + SSE
+- **From OpenClaw 2026.8.1, Signal is a plugin** — `openclaw plugins install @openclaw/signal` — and transport config lives under `channels.signal.transport` (a discriminated union on `kind`), not as loose `cliPath` / `autoStart` / `httpUrl` keys. Migrating an existing install deadlocks unless done in the right order: see [`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Signal was unbundled into `@openclaw/signal`"
 
 ### Version floor: signal-cli >= 0.14.5 (silent inbound outage below it)
 
