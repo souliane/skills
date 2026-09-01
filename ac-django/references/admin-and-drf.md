@@ -14,7 +14,7 @@ Admin docs: <https://docs.djangoproject.com/en/6.1/ref/contrib/admin/>
 
 ### 15.2 Admin performance
 
-- use `list_select_related` with an explicit field list — `= True` is deprecated
+- use `list_select_related` with an explicit field list — `= True` is deprecated (6.1+)
 - with `list_select_related = False` (the default) the change list now selects only the FK fields named in `list_display` (6.1+) rather than every FK, which is a straight win on models with many relations
 - `delete_confirmation_max_display` (6.1+) caps how many objects a delete confirmation page renders before truncating the rest
 - avoid expensive computed changelist columns without indexes
