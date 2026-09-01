@@ -18,11 +18,14 @@ you update it.
 
 - **Main path = the current feature release.** Today that is Python **3.14**. When
   3.15 ships, the main path moves to it in the same edit.
-- **Unmarked prose means the current line.** Python adds features only in a
-  feature release, so a marker is rarely needed here; when one is, it is a
-  `(3.15+)` suffix placed right after the API it qualifies, and that is the only
-  form. Do not write "On Python 3.X+, ..." or "if you are on 3.13" in the main
-  path — a conditional in the main path is the defect this rule exists to stop.
+- **Unmarked prose means the current line, and there is no marker form.** Python
+  ships features only in a feature release, and the main path always *is* the
+  current feature release — so nothing in it can post-date the line, and a version
+  suffix would have nothing to qualify. (This is where the sibling `ac-django`
+  policy differs: Django adds features *within* a line, so it needs version
+  markers; Python does not.) Do not write "On Python 3.X+, ..." or "if you are on
+  3.13" in the main path — a conditional in the main path is the defect this rule
+  exists to stop.
 - **Older lines get one trailing section each, at the end of `SKILL.md`**, and
   nothing anywhere else — the reference files carry the current line only and get
   no trailing section of their own. Today that is `## Previous line: Python 3.13`.
@@ -207,7 +210,10 @@ Everything above targets Python 3.14. On 3.13:
   `tarfile`/`zipfile`/`shutil` do not read or write zstd.
 - **Annotations are evaluated eagerly.** `from __future__ import annotations` is
   still needed for forward references, and there is no `annotationlib` — use
-  `typing.get_type_hints()`.
+  `typing.get_type_hints()`. The main path's ruff config bans that import
+  (`lint.flake8-tidy-imports.banned-api."__future__.annotations"` in
+  [`references/testing-and-tooling.md`](references/testing-and-tooling.md)); drop
+  that one entry while the project targets 3.13, and restore it on 3.14.
 - **`except` needs brackets** for multiple types:
   `except (TimeoutError, ConnectionRefusedError):`.
 - **Free-threading is experimental**, not officially supported, and carries a much
