@@ -1,17 +1,46 @@
 ---
 name: ac-django
-description: Definitive Django bible covering Django 6.x, 5.2 LTS, and optional DRF. Fat Models doctrine with migrations, transactions, security, testing, and tooling. Use when writing Django models, views, forms, serializers, migrations, tests, or reviewing Django code. Do NOT use for project-specific Django patterns (load the project overlay skill instead).
+description: Django bible for Django 6.1 with a trailing Django 5.2 LTS section and optional DRF. Fat Models doctrine with migrations, transactions, security, testing, and tooling. Use when writing Django models, views, forms, serializers, migrations, tests, or reviewing Django code. Do NOT use for project-specific Django patterns (load the project overlay skill instead).
 compatibility: python3. Knowledge-only skill with no external tool requirements beyond a Django codebase.
 requires:
   - ac-python
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
-# Django Bible (Django 6.x baseline · Django 5.2 deltas · optional DRF)
+# Django Bible (Django 6 · optional DRF)
 
-**Baseline:** Django **6.x** + Python **3.13+** · **Compat:** Django **5.2 LTS** · **API:** DRF _when you choose it_
+**Targets:** Django **6.1** on Python **3.14** · **Previous line:** Django **5.2 LTS** (trailing section) · **API:** DRF _when you choose it_
+
+## Version Policy
+
+This skill documents **one** Django line: the current one. Keep it that way when
+you update it.
+
+- **Main path = the current feature release.** Today that is Django **6.1**. When
+  a newer feature release lands, the main path moves to it in the same edit.
+- **Unmarked prose means the first release of the current line** — Django **6.0**.
+  Anything the line gained _after_ that carries a `(6.1+)` marker placed right
+  after the API or feature it qualifies: `` `QuerySet.fetch_mode()` (6.1+) ``. One
+  form only. Do not write "Django X.Y+ adds", "new in X.Y", "as of X.Y", or a
+  `### Django X.Y note` heading — the marker is the whole convention, and it is
+  only useful if it is the only one.
+- **Older lines get one trailing section each, at the end of the document**, and
+  nothing anywhere else. Today that is `## Previous line: Django 5.2 LTS`. It
+  carries the diff a reader on that version needs: what is missing, what to use
+  instead, and what to change on upgrade. A version note interrupting the main
+  path is a defect — move it down.
+- **Research order when refreshing.** Release notes and official docs first
+  (`https://docs.djangoproject.com/en/<version>/releases/<version>/` and the topic
+  pages they link). Then the authors already cited under Canonical Sources. Blogs
+  and newsletters last, briefly, for what the docs do not cover.
+- **Rotation.** When Django releases the next line, the current trailing section
+  is replaced by the line being retired, unmarked prose is re-based on the new
+  line's first release, and markers below that release are dropped. Django 6.2 is
+  the last release under the `A.B` scheme; feature releases after it use a
+  calendar `YYYY` format, one every January. "Current line" then means the newest
+  `YYYY` release, and the same rules apply unchanged.
 
 ## Canonical Sources
 

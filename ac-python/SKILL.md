@@ -3,13 +3,35 @@ name: ac-python
 description: Generic Python coding guidelines covering style, typing, OOP design, testing, and tooling. Use when writing Python code outside of a Django context — scripts, CLIs, microservices, data pipelines, tooling. Do NOT use for Django-specific patterns (use ac-django instead).
 compatibility: python3. Knowledge-only skill with no external tool requirements beyond a Python codebase.
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
-# Python Bible (Python 3.13+ baseline)
+# Python Bible (Python 3.14)
 
-**Baseline:** Python **3.13+** · **Tooling:** uv · ruff · mypy/ty · prek · pytest
+**Targets:** Python **3.14** · **Previous line:** Python **3.13** (trailing section) · **Tooling:** uv · ruff · mypy/ty · prek · pytest
+
+## Version Policy
+
+This skill documents **one** Python line: the current one. Keep it that way when
+you update it.
+
+- **Main path = the current feature release.** Today that is Python **3.14**. When
+  3.15 ships, the main path moves to it in the same edit.
+- **Unmarked prose means the current line.** Python adds features only in a
+  feature release, so a marker is rarely needed here; when one is, it is a
+  `(3.15+)` suffix placed right after the API it qualifies, and that is the only
+  form. Do not write "On Python 3.X+, ..." or "if you are on 3.13" in the main
+  path — a conditional in the main path is the defect this rule exists to stop.
+- **Older lines get one trailing section each, at the end of the document**, and
+  nothing anywhere else. Today that is `## Previous line: Python 3.13`. It carries
+  the diff a reader on that version needs: what is missing, what to use instead,
+  and what to change on upgrade.
+- **Research order when refreshing.** `https://docs.python.org/3/whatsnew/` and
+  the library reference first. Then the sources already cited under Canonical
+  Sources. Blogs and newsletters last, briefly, for what the docs do not cover.
+- **Rotation.** Each October a new line ships: re-base unmarked prose on it,
+  replace the trailing section with the line being retired, drop stale markers.
 
 ## Canonical Sources
 
