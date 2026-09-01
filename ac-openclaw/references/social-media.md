@@ -1,15 +1,14 @@
 # OpenClaw Social Media Integrations — Reference
 
-> **Last updated:** 2026-03-14
 > **Sources:**
 >
-> - [openclaw-plugin-social](https://github.com/pepicrft/openclaw-plugin-social) (open source, 2026-02)
-> - [Post Bridge + OpenClaw](https://www.post-bridge.com/openclaw) (2026-02)
-> - [Publora + OpenClaw](https://publora.com/blog/connect-openclaw-ai-agent-social-media-publora) (2026-02)
-> - [Genviral OpenClaw Skill](https://finance.yahoo.com/news/genviral-releases-openclaw-skill-automate-051000525.html) (2026-02)
-> - [Composio Twitter MCP](https://composio.dev/toolkits/twitter/framework/openclaw) (2026)
-> - [OpenClaw Security Risks — Bitsight](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances) (2026-03)
-> - [OpenClaw Privacy Concerns — TechXplore](https://techxplore.com/news/2026-02-openclaw-ai-agent-privacy-nightmare.html) (2026-02)
+> - [openclaw-plugin-social](https://github.com/pepicrft/openclaw-plugin-social) (open source)
+> - [Post Bridge + OpenClaw](https://www.post-bridge.com/openclaw)
+> - [Publora + OpenClaw](https://publora.com/blog/connect-openclaw-ai-agent-social-media-publora)
+> - [Genviral OpenClaw Skill](https://finance.yahoo.com/news/genviral-releases-openclaw-skill-automate-051000525.html)
+> - [Composio Twitter MCP](https://composio.dev/toolkits/twitter/framework/openclaw)
+> - [OpenClaw Security Risks — Bitsight](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances)
+> - [OpenClaw Privacy Concerns — TechXplore](https://techxplore.com/news/2026-02-openclaw-ai-agent-privacy-nightmare.html)
 
 ## Messaging Channels vs Social Media Posting
 
@@ -86,7 +85,7 @@ OpenClaw can use its browser control to directly interact with social media webs
 
 ## Security & Privacy Warnings
 
-> **"OpenClaw is a huge security and privacy risk for the naive user"** — [Bitsight, 2026-03](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances)
+> **"OpenClaw is a huge security and privacy risk for the naive user"** — [Bitsight](https://www.bitsight.com/blog/openclaw-ai-security-risks-exposed-instances)
 
 1. **Use dedicated accounts for social media.** Never connect your primary personal accounts. If OpenClaw is compromised, an attacker could post under your identity, read your DMs, or exfiltrate data.
 

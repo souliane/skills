@@ -100,9 +100,9 @@ ssh "$SSH_HOST" "python3 $WORKSPACE/scripts/press-review.py | head -40"
 
 Expect a `# Press Review Sources — <date>` header and at least 2-3 fetched sections. If everything is empty, check egress connectivity from the VPS.
 
-**Step 4 — add the cron job.** Patch `~/.openclaw/cron/jobs.json` directly with `jq` — **never use the `openclaw cron add` CLI on the same VPS** (it cycles the gateway; see `troubleshooting-and-maintenance.md`).
+**Step 4 — add the cron job.** Patch `~/.openclaw/cron/jobs.json` directly with `jq`. Keep every other `openclaw` CLI call off the VPS while the gateway runs — see `troubleshooting-and-maintenance.md` § Common Mistakes.
 
-> **Budget guidance:** `timeoutSeconds` covers the WHOLE agent turn (script exec + tool calls + synthesis + delivery), not just the LLM call. Reasoning-mandatory models (`gpt-oss-120b`, `deepseek-r1`, thinking-tier Claude/Gemini) routinely spend 60-150 s on synthesis alone and the tail is fat. The default below is **360 s** based on observed p95 + headroom. Tighten only after you've seen ≥ 2 weeks of `~/.openclaw/cron/runs/<jobId>.jsonl` durations and confirmed they sit comfortably under your target.
+> **Budget guidance:** `timeoutSeconds` covers the WHOLE agent turn (script exec + tool calls + synthesis + delivery), not just the LLM call. Reasoning-mandatory models (`gpt-oss-120b`, `deepseek-r1`, thinking-tier Claude/Gemini) routinely spend 60-150 s on synthesis alone and the tail is fat. The default below is **360 s** based on observed p95 + headroom. Tighten only after you've seen ≥ 2 weeks of durations in `cron_run_logs` (`~/.openclaw/state/openclaw.sqlite`) and confirmed they sit comfortably under your target.
 
 ```bash
 NOW_MS=$(date +%s%N | cut -c1-13)
@@ -293,7 +293,7 @@ Check during install: if `agents.defaults.model.primary` (in `openclaw.json`) re
 
 ## What to NOT do
 
-- **Don't** use `openclaw cron add` / `openclaw cron list` on the same VPS as the running gateway — it SIGTERMs the service every call (see `troubleshooting-and-maintenance.md` § Common Mistakes row "Running `openclaw` CLI on VPS").
+- **Don't** run `openclaw doctor` or any other in-process-gateway CLI command on the same VPS as the running gateway — it SIGTERMs the service (see `troubleshooting-and-maintenance.md` § Common Mistakes).
 - **Don't** put API keys or secrets into the cron payload — the prompt is agent-visible, but any tokens belong in `pass` and are injected via the gateway wrapper, never inline.
 - **Don't** hard-code absolute paths in the script. The canonical script uses `Path(__file__).resolve().parent.parent / "state"` so it works for any agent workspace.
 - **Don't** set `delivery.mode` to anything other than `none` unless you've verified the gateway's current delivery driver behaviour for that channel. The agent calling the send tool is the portable path.
