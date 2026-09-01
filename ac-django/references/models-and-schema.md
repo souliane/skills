@@ -90,7 +90,7 @@ class Event(models.Model):
 - Composite primary keys are allowed when they match domain identity.
   - If you use them, prefer the native API (e.g. `models.CompositePrimaryKey(...)`) when available for your Django version.
 - `JSONNull()` (6.1+) is the explicit way to store or query a top-level JSON `null` on a `JSONField`. Bare `None` for that purpose is deprecated; key and index lookups are unaffected.
-- `UUID4()` and `UUID7()` (6.1+) generate UUIDs database-side. `UUID7()` produces a version 7 UUID, which starts with a time-based component; it needs PostgreSQL 18+, MariaDB 11.7+, or SQLite on Python 3.14+.
+- `UUID4()` and `UUID7()` (6.1+) generate UUIDs database-side. `UUID7()` produces a version 7 UUID, which starts with a time-based component; it needs PostgreSQL 18+, MariaDB 11.7+, or SQLite under Python 3.14 or later.
 
 ---
 
