@@ -13,7 +13,7 @@ Skill-Driven Development
 | `ac-generating-slides` | 0.0.1 | Generates presentation slides from Markdown using Marp |
 | `ac-openclaw` | 0.0.2 | Install, configure, and maintain OpenClaw (personal AI assistant) on a VPS or local machine |
 | `ac-python` | 0.0.1 | Generic Python coding guidelines covering style, typing, OOP design, testing, and tooling |
-| `ac-reviewing-codebase` | 0.4.0 | Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting |
+| `ac-reviewing-codebase` | 0.6.0 | Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting |
 | `ac-scaffolding-skill-repos` | 0.0.1 | Scaffold a new AI agent skill repository or update an existing one to align with current best practices |
 | `ac-writing-blog-posts` | 0.0.1 | Write blog articles and generate social media posts to promote them |
 <!-- END SKILLS -->

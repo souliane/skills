@@ -58,7 +58,52 @@ class TestAssessCommand:
         result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path), "--json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert set(data) == {"lint", "todos", "complexity", "coverage", "dependencies", "suppressions"}
+        assert set(data) == {"vendored", "lint", "todos", "complexity", "coverage", "dependencies", "suppressions"}
+
+    def test_vendored_paths_are_detected_and_named_in_the_report(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "vendor").mkdir()
+        (tmp_path / "vendor" / "dep.py").write_text("a = 1  # noqa: PLC0415\n", encoding="utf-8")
+        (tmp_path / "app.py").write_text("x = 1  # noqa: E501\n", encoding="utf-8")
+        monkeypatch.setattr(metrics, "run_tool", self._stub_run_tool)
+        result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path), "--json"])
+        data = json.loads(result.output)
+        assert data["vendored"]["paths"] == ["vendor"]
+        assert data["suppressions"]["scopes"] == {
+            "first_party": {
+                "total": 1,
+                "by_kind": {"noqa": 1},
+                "uncoded": 0,
+                "uncoded_by_kind": {},
+                "file_level": 0,
+                "top_codes": {"E501": 1},
+            },
+            "vendored": {
+                "total": 1,
+                "by_kind": {"noqa": 1},
+                "uncoded": 0,
+                "uncoded_by_kind": {},
+                "file_level": 0,
+                "top_codes": {"PLC0415": 1},
+            },
+        }
+
+    def test_vendored_flag_overrides_detection(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "vendor").mkdir()
+        (tmp_path / "vendor" / "dep.py").write_text("a = 1  # noqa: PLC0415\n", encoding="utf-8")
+        monkeypatch.setattr(metrics, "run_tool", self._stub_run_tool)
+        result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path), "--vendored", "elsewhere", "--json"])
+        data = json.loads(result.output)
+        assert data["vendored"] == {"paths": ["elsewhere"], "source": "--vendored", "unlinted": []}
+        assert data["suppressions"]["scopes"]["vendored"]["total"] == 0
+
+    def test_human_output_states_what_the_numbers_cover(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "vendor").mkdir()
+        (tmp_path / "vendor" / "dep.py").write_text("a = 1  # noqa: PLC0415\n", encoding="utf-8")
+        monkeypatch.setattr(metrics, "run_tool", self._stub_run_tool)
+        result = runner.invoke(cli.app, ["assess", "--root", str(tmp_path)])
+        assert "Vendored" in result.output
+        assert "uncoded" in result.output
+        assert "PLC0415" in result.output
 
     def test_human_output(self, tmp_path: Path, monkeypatch) -> None:
         (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
@@ -104,6 +149,9 @@ class TestRepoSelectionFlags:
         result = runner.invoke(cli.app, ["status", "--name", "repo-z"])
         assert result.exit_code == 1
         assert "No matching repos" in result.output
+
+    def test_assess_takes_a_vendored_override(self) -> None:
+        assert "--vendored" in _option_names("assess")
 
     def test_root_is_a_path_on_every_command_that_takes_one(self) -> None:
         for command in ("check", "assess"):

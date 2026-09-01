@@ -18,8 +18,15 @@ def _git_binary() -> str:
 GIT = _git_binary()
 
 
+# A fixture repo must not depend on the developer's global git config. With
+# `commit.gpgsign = true` set globally, every commit here goes through gpg —
+# and a stale keyring lock left by a dead process then fails the whole suite
+# with an error that says nothing about the code under test.
+NO_SIGNING = ("-c", "commit.gpgsign=false")
+
+
 def run_git(cwd: Path, *args: str) -> None:
-    subprocess.run([GIT, *args], cwd=cwd, check=True, capture_output=True, text=True)
+    subprocess.run([GIT, *NO_SIGNING, *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 def init_repo(path: Path) -> Path:
