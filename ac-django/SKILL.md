@@ -31,8 +31,7 @@ you update it.
   no trailing section of their own. Today that is
   `## Previous line: Django 5.2 LTS`. It carries the diff a reader on that
   version needs: what is missing, what to use instead, and what to change on
-  upgrade. A version note interrupting the main
-  path is a defect — move it down.
+  upgrade. A version note interrupting the main path is a defect — move it down.
 - **Research order when refreshing.** Release notes and official docs first
   (`docs.djangoproject.com/en/<version>/releases/<version>/` and the topic
   pages they link). Then the authors already cited under Canonical Sources. Blogs
