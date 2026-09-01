@@ -6,7 +6,7 @@
 
 ## 4. Models & schema bible
 
-Minimum supported databases: PostgreSQL 15+, MySQL 8.4+, MariaDB 10.11+, SQLite 3.37+.
+Minimum supported databases (6.1+): PostgreSQL 15+, MySQL 8.4+, MariaDB 10.11+, SQLite 3.37+.
 
 ### 4.1 Model class ordering (strict)
 
