@@ -3,10 +3,10 @@
 
 Runs once daily AFTER the press-review cron is due. Verifies the press review
 actually DELIVERED today by reading OpenClaw's own cron store (the consolidated
-state sqlite, with a fallback to the legacy jobs.json), and ALSO checks for the
-specific failure CLASS that silently broke delivery on 2026-06-04: the gateway
-auto-updated on disk and migrated the cron store, but the running process was
-never restarted, so the in-memory scheduler lost its store and stopped firing.
+state sqlite, with a fallback to a jobs.json), and ALSO checks for the failure
+CLASS that breaks delivery silently: the gateway auto-updates on disk and
+migrates the cron store, but the running process is never restarted, so the
+in-memory scheduler loses its store and stops firing.
 
 On any miss it alerts the user over the SAME channel the press review uses
 (signal-cli JSON-RPC), so a silent failure surfaces the same day, not days later.
@@ -194,9 +194,9 @@ def code_mtime_epoch() -> int | None:
 def version_mismatch_alert() -> str | None:
     """Detect 'auto-update landed on disk but the process was not restarted'.
 
-    Signal: on-disk code mtime NEWER than the running process start time.
-    That is exactly the 2026-06-04 failure class — the running scheduler keeps
-    a stale view of the (now-migrated) cron store and silently stops firing.
+    Signal: on-disk code mtime NEWER than the running process start time. The
+    running scheduler then holds a stale view of the (now-migrated) cron store
+    and silently stops firing.
     A small slack avoids flagging an update that happened during this very run.
     """
     started = gateway_start_epoch()
@@ -208,9 +208,8 @@ def version_mismatch_alert() -> str | None:
         disk = disk_version() or "?"
         return (
             f"gateway code on disk (v{disk}) was updated AFTER the running process "
-            f"started — an auto-update landed without a process restart. This is the "
-            f"failure class that silently broke the 2026-06-04 brief (the migrated "
-            f"cron store is invisible to the stale process). Fix: "
+            f"started — an auto-update landed without a process restart, so the "
+            f"migrated cron store is invisible to the stale process. Fix: "
             f"`sudo systemctl restart {SERVICE}`."
         )
     return None

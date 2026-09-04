@@ -11,7 +11,7 @@ Subcommands:
     check   — Validate SKILL.md frontmatter in a tracked skills repo.
     status  — Show delivery status across all managed repos.
     config  — Inventory config files and health checks.
-    assess  — Run deterministic codebase metrics (ruff, coverage, complexity, TODOs, deps).
+    assess  — Run deterministic codebase metrics, split first-party vs vendored.
 
 Repo selection is one flag everywhere: ``--root`` is the path to a repository.
 ``status`` works across every managed repo, so it narrows by directory name with
@@ -31,6 +31,7 @@ import typer
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import codebase_metrics
+import metrics_report
 import repo_status
 import review_config
 import review_gate
@@ -183,15 +184,23 @@ def review_verify(
 @app.command()
 def assess(
     root: Annotated[Path, typer.Option(help="Repository root to assess")] = Path.cwd(),
+    vendored: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--vendored",
+            help="Path prefix holding vendored third-party code (repeatable). "
+            "Overrides detection from .gitattributes / ruff exclude / convention.",
+        ),
+    ] = None,
     *,
     output_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
 ) -> None:
-    """Run deterministic codebase metrics."""
-    metrics = codebase_metrics.collect(root.resolve())
+    """Run deterministic codebase metrics, split into first-party and vendored code."""
+    metrics = codebase_metrics.collect(root.resolve(), vendored or ())
     if output_json:
         print(json.dumps(metrics, indent=2))
         return
-    codebase_metrics.print_report(metrics)
+    metrics_report.print_report(metrics)
 
 
 if __name__ == "__main__":  # pragma: no cover

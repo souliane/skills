@@ -25,24 +25,34 @@ Each agent gets:
 ```json
 {
   "agents": {
-    "assistant": {
-      "model": "claude-sonnet-4-6",
-      "systemPrompt": "You are a helpful personal assistant.",
-      "workspace": "~/.openclaw/agents/assistant"
-    },
-    "friend": {
-      "model": "claude-sonnet-4-6",
-      "systemPrompt": "You are a casual, witty friend. Keep it light.",
-      "workspace": "~/.openclaw/agents/friend"
-    },
-    "work": {
-      "model": "claude-sonnet-4-6",
-      "systemPrompt": "You are a professional work assistant. Be concise.",
-      "workspace": "~/.openclaw/agents/work"
+    "ownership": "explicit",
+    "entries": {
+      "assistant": {
+        "model": "claude-sonnet-4-6",
+        "systemPrompt": "You are a helpful personal assistant.",
+        "workspace": "~/.openclaw/agents/assistant"
+      },
+      "friend": {
+        "model": "claude-sonnet-4-6",
+        "systemPrompt": "You are a casual, witty friend. Keep it light.",
+        "workspace": "~/.openclaw/agents/friend"
+      },
+      "work": {
+        "model": "claude-sonnet-4-6",
+        "systemPrompt": "You are a professional work assistant. Be concise.",
+        "workspace": "~/.openclaw/agents/work"
+      }
     }
   }
 }
 ```
+
+> Agents are keyed under **`agents.entries`**, not directly under `agents` — `agents` itself only
+> accepts `ownership`, `defaults` and `entries`. A multi-agent roster also needs
+> `"ownership": "explicit"`, which makes ambient surfaces (channels, heartbeat, cron, bare CLI)
+> **fail closed** unless a binding resolves an owner — so define the bindings below before you
+> stamp it. Older docs showing `agents.list` describe a retired layout; `openclaw doctor --fix`
+> migrates it.
 
 ### Route Signal contacts to agents via bindings
 

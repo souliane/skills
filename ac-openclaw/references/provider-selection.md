@@ -1,9 +1,8 @@
 # Choosing a VPS provider
 
-> **The method below is the durable part. The snapshot table is a worked example that will rot.**
-> Every price in it was fetched from the vendor's own live page on **2026-07-17** and is net /
-> ex-VAT. Prices in this market move *monthly* — re-verify before buying, never quote these
-> numbers to a user as current.
+> **This file carries a method, not prices.** Every number you quote to a user comes from the
+> vendor's own live page, fetched in the session you quote it in. Prices in this market move
+> *monthly*, so a cached figure is a lead to verify, never a quote.
 
 This skill is **not** tied to one provider. [`hetzner-servers.md`](hetzner-servers.md) is one
 cached provider among several — useful if the user picks Hetzner, not a default.
@@ -60,13 +59,24 @@ around capacity that has never appeared.
 
 Plan names lie by omission. A "heavy" or "performance" tier tells you nothing about silicon —
 vendors publish the actual part in blog posts and news announcements, not in the pricing table.
+Assuming a top tier means the vendor's fastest silicon gets both the performance model and the
+budget wrong, because the fast line is usually a separately named product at 1.5–2.5× the price.
 
-One vendor's `vm.v3-*` line is **EPYC 9354 @3.25 GHz**, while its Ryzen boxes are a separately
-named product line at 1.5–2.5× the price. Assuming "heavy tier = Ryzen" gets both the
-performance model and the budget wrong.
+Also check the *age*. The cheapest RAM-per-euro tier is routinely decade-old Xeon, and a budget
+host will happily tell you it may deploy on either of two generations with no buyer's choice
+offered. If the store will not name the part, treat the tier as the oldest one it could be.
 
-Also check the *age*: one budget host's own store warned deployment could be **either** a 2017
-Skylake part **or** a 2013 Ivy Bridge part, with no buyer's choice offered.
+### 4b. Compare adjacent generations before buying the newer one
+
+Vendors keep two generations of the same tier on sale at identical vCPU / RAM / disk and a real
+price gap — a double-digit percentage, for silicon and memory generation alone. Look up the older
+sibling of whatever plan you are about to recommend:
+
+- **RAM-bound** (the usual case for an assistant plus a couple of concurrent jobs) → the older
+  generation is the better buy, and the delta is pure waste.
+- **CPU-bound** (agent fan-out, parallel test workers) → the newer generation earns it.
+
+Naming the newer plan without checking the older one is the easiest recurring overspend here.
 
 ### 5. Latency is almost never the axis
 
@@ -89,42 +99,24 @@ a preference:
 
 Decide this *before* comparing prices; it removes options and shortens the comparison.
 
-### 7. Why the numbers keep moving (2026)
+### 7. Why the numbers keep moving
 
-Memory foundries reallocated cleanroom capacity from commodity DDR4/DDR5 to HBM for AI
-accelerators, and conventional DRAM contract prices rose steeply through early 2026. The effect
-is structural rather than logistical: several hosts raised prices more than once in a single
-year, including on existing contracts, and free ARM tiers were quietly halved. Relief is not
-expected soon.
+Memory foundries have reallocated cleanroom capacity from commodity DDR4/DDR5 to HBM for AI
+accelerators, so conventional DRAM contract prices are rising. The effect is structural rather
+than logistical: hosts raise prices more than once a year, sometimes on existing contracts, and
+free or cheap ARM tiers get quietly cut.
 
 Practical consequence for a fresh install: **a cached price is a lead, not a quote**, and
 "wait for a restock / for prices to fall" is not a plan.
 
-## Snapshot — verified 2026-07-17 (WILL BE STALE)
+## Candidates
 
-All net / ex-VAT. EU locations only. Sized for a box that runs OpenClaw *and* agent
-orchestration (see [`SKILL.md`](../SKILL.md) § 1.4) — for a chat-only assistant, much smaller
-tiers apply.
+Do not carry a shortlist in this file — it rots faster than anything else here. Search for current
+EU options, then run each candidate through §§ 1–7 above.
 
-| Provider | Plan | vCPU | RAM | Disk | Location | €/mo net |
-| --- | --- | --- | --- | --- | --- | --- |
-| Hostkey | `vm.v2-medium` | 8 | 16 GB | 160 GB NVMe | Amsterdam | 14.00 |
-| Hostkey | **`vm.v2-heavy`** | 8 | **32 GB** | 240 GB NVMe | Amsterdam | **28.00** |
-| Hostkey | **`vm.v3-heavy`** | 8 | **32 GB** | 240 GB NVMe | Amsterdam | **36.40** |
-| Alwyzon | `E16+` | 6 | 16 GB DDR5 ECC | NVMe RAID 10 | Vienna | 38.49 |
-| Luxvps | `Lux Deal #2` | 6 | 26 GB | NVMe | Frankfurt | 11.95 |
-| Prepaid-Hoster | `Essential 16` | 6 | 16 GB | NVMe | Offenbach | ~11.76 |
+Size for a box that runs OpenClaw *and* whatever else the user answered in
+[`SKILL.md`](../SKILL.md) § 1.4a — for a chat-only assistant, much smaller tiers apply.
 
-Notes that matter more than the numbers:
-
-- **The `v2` vs `v3` trap.** Identical vCPU / RAM / disk, **€8.40/mo apart**. `v3` is the newer
-  generation (EPYC 9354, DDR5). If the bottleneck is RAM, `v2` is the better buy; if the
-  workload is CPU-bound agent fan-out, `v3` earns the delta. A recommendation naming `v3`
-  without mentioning `v2` costs ~€100/yr for nothing.
-- **Luxvps** is by a wide margin the cheapest RAM per euro — but the silicon is 2013–2017 Xeon
-  and the store would not commit to which.
-- **Alwyzon** is the newest silicon here and the only Austrian option, but its larger tiers rise
-  steeply.
-- Hetzner's ARM (CAX) line stays in [`hetzner-servers.md`](hetzner-servers.md); check
-  availability per §3 before recommending it, and see the arm64 signal-cli caveat in
-  [`channel-setup.md`](channel-setup.md) before choosing ARM at all.
+Hetzner's ARM (CAX) line has a cached spec table in [`hetzner-servers.md`](hetzner-servers.md);
+check availability per §3 before recommending it, and read the arm64 signal-cli caveat in
+[`channel-setup.md`](channel-setup.md) before choosing ARM at all.

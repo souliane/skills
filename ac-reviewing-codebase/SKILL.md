@@ -3,7 +3,7 @@ name: ac-reviewing-codebase
 description: Unified codebase review — audits skill quality, code health, infrastructure alignment, and cross-consistency across a portfolio of repos. Runs deterministic metrics (ruff, coverage, complexity, TODOs, dependency staleness) and LLM-driven architectural judgment. Also handles delivery status, commit squashing, infrastructure harmonization, and boilerplate backporting. Use when user says "review skills", "audit skills", "audit codebase", "code quality", "repo status", "what needs pushing", "align repos", "backport", "upgrade deps", "assess codebase", "health check", or wants a thorough quality pass on skills and/or code.
 compatibility: Any git-based repository portfolio. CLI requires Python 3.12+, uv, Typer.
 metadata:
-  version: 0.4.0
+  version: 0.6.0
   subagent_safe: false
   last_research_date: "2026-06-02"
 ---
@@ -101,7 +101,12 @@ uv run ac-reviewing-codebase/scripts/cli.py status [--name NAME] [--verbose]
 uv run ac-reviewing-codebase/scripts/cli.py config
 
 # Run deterministic codebase metrics → JSON
-uv run ac-reviewing-codebase/scripts/cli.py assess [--root PATH] [--json]
+# Counts that can span vendored code are reported per scope. Vendored paths are
+# read from the repo (.gitattributes `linguist-vendored`, then the ruff config's
+# exclude, then a conventional vendor dir); `--vendored` overrides when the repo
+# declares none. When ruff is configured to skip the vendored tree, the report
+# says so instead of printing a 0 nobody measured.
+uv run ac-reviewing-codebase/scripts/cli.py assess [--root PATH] [--vendored PREFIX]... [--json]
 ```
 
 In this repo's pre-commit hook, the `check` command runs automatically. When reviewing another repo interactively, call explicitly before the deeper review.
@@ -284,7 +289,7 @@ Deterministic metrics + LLM architectural judgment. Read [`references/codebase-a
 
 **Quick summary:**
 
-1. **Run deterministic metrics** via `scripts/cli.py assess`. Collects: ruff violations, test coverage gaps, cyclomatic complexity, TODO/FIXME counts, dependency staleness. Plus cheap **file-hierarchy signals** (root-level file count, files-per-directory, max tree depth, oversized modules, directories mixing unrelated file types) computed manually over `git ls-files` — see [`references/codebase-assessment.md`](references/codebase-assessment.md) Part 1.
+1. **Run deterministic metrics** via `scripts/cli.py assess`. Collects: ruff violations, test coverage gaps, cyclomatic complexity, TODO/FIXME counts, dependency staleness, lint suppressions. **Read every count with its scope**: lint, complexity, suppressions, TODOs and coverage are all split first-party vs vendored, lint and suppressions additionally by rule code, suppressions further by whether a rule was named and by whether the marker covers one line or a whole file. A vendored total is not a finding against this repo, and one dominant rule code is one convention, not broad debt. A ruff-derived count over a tree ruff is configured to skip is an absent measurement, not a clean bill — the report labels it `not linted`. Plus cheap **file-hierarchy signals** (root-level file count, files-per-directory, max tree depth, oversized modules, directories mixing unrelated file types) computed manually over `git ls-files` — see [`references/codebase-assessment.md`](references/codebase-assessment.md) Part 1.
 2. **Architectural judgment** (LLM-driven): naming consistency, separation of concerns, abstraction quality, module boundaries, coupling analysis, **file hierarchy & module organization** (cohesion/scoping, misplaced files, root clutter, god-modules, `__init__` surface, test-mirrors-source — emits concrete `from -> to` moves; see [`references/codebase-assessment.md`](references/codebase-assessment.md) § 2h), **prose about code** (comment proportionality and documentation currency — § 2i; reported, never gated), **duplication & factorization** (repeated logic across scripts/modules/repos, and the same convention encoded differently in two repos — § 2j).
 3. **Output:** Three scores (cleanliness, maintainability, architecture, each 1–10) + ranked improvement list with impact/effort/affected files.
 4. **Action items are primary, scores are secondary.** Nobody acts on "architecture is a 6." They act on "extract payment logic from the view layer (high impact, medium effort, 4 files)."

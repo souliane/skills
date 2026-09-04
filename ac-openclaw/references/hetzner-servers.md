@@ -9,19 +9,20 @@
 > usable native libsignal, so Signal must run from a container
 > ([`channel-setup.md`](channel-setup.md) § ARM64). x86-64 avoids both.
 >
-> **Last updated:** 2026-03-14
-> **Source:** [hetzner.com/cloud](https://www.hetzner.com/cloud), [costgoat.com/pricing/hetzner](https://costgoat.com/pricing/hetzner)
+> **Source:** [hetzner.com/cloud](https://www.hetzner.com/cloud)
 
 ## CAX Series (Ampere Altra ARM64)
 
-| Model | vCPUs | RAM | SSD | Traffic | Price/mo (excl. VAT) |
-| ------- | ------- | ----- | ----- | --------- | --------------------- |
-| CAX11 | 2 | 4 GB | 40 GB | 20 TB | ~4.49 EUR |
-| CAX21 | 4 | 8 GB | 80 GB | 20 TB | ~7-8 EUR |
-| CAX31 | 8 | 16 GB | 160 GB | 20 TB | ~14-15 EUR |
-| CAX41 | 16 | 32 GB | 320 GB | 20 TB | ~28-30 EUR |
+| Model | vCPUs | RAM | SSD | Traffic |
+| ------- | ------- | ----- | ----- | --------- |
+| CAX11 | 2 | 4 GB | 40 GB | 20 TB |
+| CAX21 | 4 | 8 GB | 80 GB | 20 TB |
+| CAX31 | 8 | 16 GB | 160 GB | 20 TB |
+| CAX41 | 16 | 32 GB | 320 GB | 20 TB |
 
-> **Pricing date:** Effective April 1, 2026. Prices are estimates for CAX21-41 based on the confirmed CAX11 increase (3.29→4.49). Verify at [hetzner.com/cloud](https://www.hetzner.com/cloud) before provisioning.
+> **No prices here on purpose.** Fetch the current per-model price from
+> [hetzner.com/cloud](https://www.hetzner.com/cloud) before quoting one to the user, and mind the
+> VAT footnote — see [`provider-selection.md`](provider-selection.md) § 2.
 
 ## Availability by Location
 
@@ -40,14 +41,14 @@
 > on top and size for peak concurrency — see [`../SKILL.md`](../SKILL.md) § 1.4a. Sizing a shared
 > host from this table undersizes it badly.
 
-| Use case | Recommended | Monthly cost |
-| ---------- | ------------- | ------------- |
-| BYOK only (no local model) | CAX11 | ~4-5 EUR |
-| Local model 3-4B (basic) | CAX11 | ~4-5 EUR |
-| Local model 7-8B (good) | CAX21 | ~7-8 EUR |
-| Local model 14B (very good) | CAX31 | ~13-15 EUR |
-| Local model 20B+ | CAX41 | ~25-30 EUR |
-| Local model 70B+ | Not feasible on CAX | Dedicated server |
+| Use case | Recommended |
+| ---------- | ------------- |
+| BYOK only (no local model) | CAX11 |
+| Local model 3-4B (basic) | CAX11 |
+| Local model 7-8B (good) | CAX21 |
+| Local model 14B (very good) | CAX31 |
+| Local model 20B+ | CAX41 |
+| Local model 70B+ | Not feasible on CAX — dedicated server |
 
 ## hcloud CLI Quick Reference
 

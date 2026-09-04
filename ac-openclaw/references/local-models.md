@@ -1,12 +1,11 @@
 # Local LLM Models for OpenClaw — Reference
 
-> **Last updated:** 2026-03-14
 > **Sources:**
 >
-> - [ollama.ai](https://ollama.ai/) (accessed 2026-03-14)
-> - [localllm.in — VRAM requirements](https://localllm.in/blog/ollama-vram-requirements-for-local-llms) (2026-01)
-> - [Contabo — Open Source LLMs 2026](https://contabo.com/blog/open-source-llms/) (2026-02)
-> - [Ollama architecture deep dive](https://dasroot.net/posts/2026/01/ollama-behind-the-scenes-architecture/) (2026-01)
+> - [ollama.ai](https://ollama.ai/)
+> - [localllm.in — VRAM requirements](https://localllm.in/blog/ollama-vram-requirements-for-local-llms)
+> - [Contabo — Open Source LLMs](https://contabo.com/blog/open-source-llms/)
+> - [Ollama architecture deep dive](https://dasroot.net/posts/2026/01/ollama-behind-the-scenes-architecture/)
 
 ## Ollama on ARM64 (CPU-only)
 

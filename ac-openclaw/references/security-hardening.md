@@ -1,6 +1,5 @@
 # OpenClaw Security Hardening Reference
 
-> **Last updated:** 2026-03-14
 > **Sources:**
 >
 > - [docs.openclaw.ai/gateway/security](https://docs.openclaw.ai/gateway/security)

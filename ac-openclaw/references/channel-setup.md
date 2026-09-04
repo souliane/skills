@@ -1,6 +1,5 @@
 # OpenClaw Channel Setup Reference
 
-**Last updated:** 2026-03-14
 **Source:** [docs.openclaw.ai/channels](https://docs.openclaw.ai/channels)
 
 ## All Supported Channels (24+)
@@ -39,26 +38,26 @@ openclaw plugins enable <channel-name>
 - signal-cli **>= 0.14.5** — see the version floor below. This is not a "prefer newer"; older builds silently drop every inbound 1:1 message
 - signal-cli binary: native Linux build or JVM variant (needs Java 25+)
 - Gateway talks to signal-cli over HTTP JSON-RPC + SSE
+- **Signal is a plugin** — `openclaw plugins install @openclaw/signal` — and transport config lives under `channels.signal.transport` (a discriminated union on `kind`), not as loose `cliPath` / `autoStart` / `httpUrl` keys. Migrating an install that predates the plugin deadlocks unless done in the right order: see [`troubleshooting-and-maintenance.md`](troubleshooting-and-maintenance.md) § "Signal ships as the external `@openclaw/signal` plugin"
 
 ### Version floor: signal-cli >= 0.14.5 (silent inbound outage below it)
 
-Around **2026-06-10**, Signal's server stopped sending `serverGuid` in sealed-sender envelopes. A non-null check in `libsignal-service-java` throws on every such envelope, so signal-cli **discards every inbound 1:1 message** — with no error surfaced to the user. Outbound sending is unaffected.
+Below **0.14.5**, signal-cli **discards every inbound 1:1 message** with no error surfaced to the user. Outbound sending is unaffected.
 
-The symptom is therefore *not* "Signal is broken". The assistant answers cron jobs, posts digests, and replies to nothing you send: **write-only, and it looks alive.** This went undetected for six weeks on a real deployment.
+The symptom is therefore *not* "Signal is broken". The assistant answers cron jobs, posts digests, and replies to nothing you send: **write-only, and it looks alive.** Nothing about it draws attention, so it can run for weeks unnoticed.
 
-- Upstream issue: [AsamK/signal-cli#2059](https://github.com/AsamK/signal-cli/issues/2059)
-- Fixed in **signal-cli 0.14.5** (2026-06-11)
-- First container image carrying the fix: **`bbernhard/signal-cli-rest-api:0.100`**
+- Floor: **signal-cli 0.14.5**
+- Earliest container image at or above it: **`bbernhard/signal-cli-rest-api:0.100`**
 
 **Verification must include an inbound message.** `signal-cli --version` plus a successful send does not exercise the broken path — message yourself from another device and confirm the assistant reacts.
 
 ### ARM64/aarch64 — prefer x86-64; otherwise use the container
 
-**For a fresh install, choose x86-64.** There is **no pre-built ARM64 `libsignal_jni.so`**; the upstream `-Linux-native` release asset is x86_64-only. Building it from source on arm64 is possible but has been observed to produce a **version-mismatched library that SIGSEGVs on send**. Picking x86-64 *removes* this maintenance burden — it does not add an "x86 transition tax".
+**For a fresh install, choose x86-64.** There is **no pre-built ARM64 `libsignal_jni.so`**; the `-Linux-native` release asset is x86_64-only. Building it from source on arm64 is possible but has been observed to produce a **version-mismatched library that SIGSEGVs on send**. Picking x86-64 *removes* this maintenance burden — it does not add an "x86 transition tax".
 
 If the box must be arm64, the working arrangement is to bypass the host JVM and run signal-cli from the **`bbernhard/signal-cli-rest-api`** container image (its manifest list covers amd64, arm, and arm64), pinned to `0.100` or newer for the version floor above.
 
-> An earlier revision of this skill said never to use that image because it exposes a REST API while the gateway expects JSON-RPC + SSE. That is superseded for arm64 — the container is what has actually been observed working. Confirm the transport the gateway is configured for matches how you run the container, and look for a host shim such as `/usr/local/bin/signal-cli-docker`; its comments usually explain the local arrangement.
+> That image exposes a REST API. Confirm the transport the gateway is configured for (`channels.signal.transport.kind`) matches how you actually run the container, and check for a host shim such as `/usr/local/bin/signal-cli-docker` — its comments usually explain the local arrangement.
 
 **When signal-cli runs in a container, the account data directory is whatever the RUNNING container binds — not what a shipped `docker-compose.yml` says.** The two drift. Starting the container against an empty volume makes signal-cli believe the account is unregistered and triggers **re-registration, which de-authorises the Signal account**. Always confirm the real mount first:
 
@@ -240,7 +239,8 @@ systemctl --user stop openclaw.service
 # or: sudo systemctl stop openclaw.service
 
 # 3. Download and install (JVM variant — use the plain .tar.gz, not -Linux-native or -Linux-client)
-VERSION="0.14.2"
+#    Use the tag printed in step 1. Never below the 0.14.5 floor.
+VERSION="<tag-from-step-1>"
 curl -sL "https://github.com/AsamK/signal-cli/releases/download/v${VERSION}/signal-cli-${VERSION}.tar.gz" -o /tmp/signal-cli-${VERSION}.tar.gz
 sudo tar xf /tmp/signal-cli-${VERSION}.tar.gz -C /opt/
 sudo ln -sf /opt/signal-cli-${VERSION}/bin/signal-cli /usr/local/bin/signal-cli
