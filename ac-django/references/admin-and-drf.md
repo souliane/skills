@@ -6,7 +6,7 @@
 
 ## 15. Admin and ops
 
-Admin docs: <https://docs.djangoproject.com/en/6.0/ref/contrib/admin/>
+Admin docs: <https://docs.djangoproject.com/en/6.1/ref/contrib/admin/>
 
 ### 15.1 Admin uses the same domain API
 
@@ -14,7 +14,9 @@ Admin docs: <https://docs.djangoproject.com/en/6.0/ref/contrib/admin/>
 
 ### 15.2 Admin performance
 
-- use `list_select_related`
+- use `list_select_related` with an explicit field list — `= True` is deprecated (6.1+)
+- with `list_select_related = False` (the default) the change list now selects only the FK fields named in `list_display` (6.1+) rather than every FK, which is a straight win on models with many relations
+- `delete_confirmation_max_display` (6.1+) caps how many objects a delete confirmation page renders before truncating the rest
 - avoid expensive computed changelist columns without indexes
 
 ### 15.3 Safety
@@ -44,6 +46,21 @@ class OrderAdmin(admin.ModelAdmin):
         self.message_user(request, f"Shipped {eligible.count()} orders.")
 ```
 
+An action lives on the change list only, unless `location` (6.1+) says otherwise.
+When it is on both surfaces, `description` labels it on the change form and
+`description_plural` on the change list:
+
+```py
+from django.contrib.admin import ActionLocation
+
+@admin.action(
+    location=[ActionLocation.CHANGE_FORM, ActionLocation.CHANGE_LIST],
+    description="Mark shipped",
+    description_plural="Mark selected orders as shipped",
+)
+def mark_shipped(modeladmin, request, queryset): ...
+```
+
 ### 15.5 Read-only admin for audit models
 
 ```py
@@ -67,7 +84,7 @@ class AuditLogAdmin(admin.ModelAdmin):
 
 ## 17. DRF Bible
 
-DRF API Guide: <https://www.django-rest-framework.org/api-guide/>
+DRF docs: <https://www.django-rest-framework.org/>
 
 ### 17.1 DRF is a boundary
 

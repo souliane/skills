@@ -6,15 +6,14 @@
 
 ## 10. Background work
 
-### 10.1 Django 6 tasks
+### 10.1 Background tasks
 
 Write against `django.tasks` (`@task`, `.enqueue()`).
 
-> **Note:** Django 6.0 ships `ImmediateBackend` (sync, dev/test) and `DummyBackend` (testing). Production requires a third-party backend — Django's own docs are deliberately backend-agnostic here and point to the [Community Ecosystem page](https://www.djangoproject.com/community/ecosystem/#tasks) rather than recommending one.
+> **Note:** Django ships `ImmediateBackend` (sync, dev/test) and `DummyBackend` (testing). Production requires a third-party backend — Django's own docs are deliberately backend-agnostic here and point to the [Community Ecosystem page](https://www.djangoproject.com/community/ecosystem/#tasks) rather than recommending one.
 
-### Django 5.2 note
-
-Use Celery/Huey/RQ/etc.
+- `@task(**kwargs)` (6.1+) forwards its extra keyword arguments to the backend's `task_class`, which is how a backend exposes per-task options of its own.
+- `Task` and `TaskResult` instances can be pickled (6.1+).
 
 ### 10.1a Production backend: `django-tasks-db`
 
@@ -106,7 +105,7 @@ def process_payment(payment_id: int) -> None:
 
 ## 11. Security (docs-mirror checklist)
 
-Baseline: <https://docs.djangoproject.com/en/6.0/topics/security/>
+Baseline: <https://docs.djangoproject.com/en/6.1/topics/security/>
 
 ### 11.1 Core protections
 
@@ -115,12 +114,15 @@ Baseline: <https://docs.djangoproject.com/en/6.0/topics/security/>
 - clickjacking protections enabled
 - host header validation via `ALLOWED_HOSTS`
 - secure cookies in production
+- signed cookies use an unambiguous salt derivation (6.1+), and `SIGNED_COOKIE_LEGACY_SALT_FALLBACK` now defaults to `False` — upgrading invalidates cookies signed by an older Django unless that setting is turned on for the transition. It is itself deprecated, so plan the cutover rather than leaving it on.
 
 ### 11.2 CSP
 
-**Django 6:** native CSP config + nonces; avoid `unsafe-inline`.
+Native CSP config + nonces; avoid `unsafe-inline`.
 
-**Django 5.2 note:** use `django-csp`.
+- The `csp_nonce_attr` template tag (6.1+) renders the nonce attribute on `<script>` and `<link>` elements, or on a `Media` object's assets, when the `csp()` context processor is configured.
+- With that context processor configured, nonces are applied automatically in admin and built-in templates (6.1+).
+- `security.W027` (6.1+) warns when `ContentSecurityPolicyMiddleware` is enabled with `CSP.NONCE` in a policy but `django.template.context_processors.csp` is not configured.
 
 ### 11.3 AuthZ is boundary + invariant
 
@@ -131,7 +133,7 @@ Baseline: <https://docs.djangoproject.com/en/6.0/topics/security/>
 
 ## 12. Settings & deployment (docs-mirror checklist)
 
-Deployment checklist: <https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/>
+Deployment checklist: <https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/>
 
 ### 12.1 Settings hygiene
 
@@ -168,6 +170,28 @@ Slimming a Django image is risky because Django imports modules dynamically (app
   - one real management command runs end to end (`migrate --check`, a custom command)
 - **Keep `--include-path` lists for Django's dynamic imports** — installed apps, `migrations/`, `templatetags/`, any module loaded by string. Slimming tools prune these because nothing imports them statically.
 - **Pin the slimming tool version** and verify the slimmed image actually boots and serves a request before opening the MR — a passing build is not a running image.
+
+### 12.6 Mailers
+
+`MAILERS` (6.1+) configures several email backends the way `DATABASES`,
+`CACHES`, `STORAGES` and `TASKS` configure theirs:
+
+```py
+MAILERS = {
+    "default": {
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {"host": "smtp.example.com", "use_tls": True},
+    },
+    "marketing": {
+        "BACKEND": "example.third.party.EmailBackend",
+        "OPTIONS": {"region": "africa-1"},
+    },
+}
+```
+
+- Pick a mailer per send with the `using=` argument on the send helpers, or take a backend instance from `mail.mailers[alias]`.
+- `mail.E001` (6.1+) is a deployment check that refuses a non-production backend as the `default` mailer. `mail.W001` (6.1+) warns when `MAILERS` is defined without a `default` entry.
+- `MAILERS` is not enabled by default in existing projects: the flat `EMAIL_*` settings still work, now with deprecation warnings — see the deprecation watch in [`../SKILL.md`](../SKILL.md). Migrate with Django's [Migrating email to mailers](https://docs.djangoproject.com/en/6.1/topics/email/#migrating-email-to-mailers) guide.
 
 ---
 
@@ -251,7 +275,7 @@ Persist audit events for sensitive operations:
 
 ## 14. Caching and performance
 
-Cache docs: <https://docs.djangoproject.com/en/6.0/topics/cache/>
+Cache docs: <https://docs.djangoproject.com/en/6.1/topics/cache/>
 
 ### 14.1 Cache only after query shaping
 
@@ -305,7 +329,7 @@ class Product(models.Model):
 
 ## 16. Async & concurrency
 
-Async docs: <https://docs.djangoproject.com/en/6.0/topics/async/>
+Async docs: <https://docs.djangoproject.com/en/6.1/topics/async/>
 
 ### 16.1 Async safety rule
 

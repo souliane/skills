@@ -33,7 +33,7 @@
 - **Fetching the logged-in user with a query**: Use `request.user`. If you need the latest DB state, call `request.user.refresh_from_db()`.
 - **Fill the primary key gaps**: Don't try to "reuse" deleted IDs. Treat primary keys as opaque; let the DB generate them.
 - **Filter on arbitrary input like `request.GET`**: Don't pass request query dicts directly to ORM filtering. Whitelist/validate allowed filters (e.g., via `django-filter` / DRF filter backends).
-- **Filtering in the template**: Don't do data selection in templates. Filter and prefetch in QuerySets/views; templates should only render.
+- **Filtering in the template**: Don't do data selection in templates. Filter and prefetch in QuerySets/views; templates should only render. Fetch modes (6.1+) are a safety net for the accesses a shaped queryset missed, not a substitute for shaping it — see [`models-and-schema.md`](models-and-schema.md) §5.3.
 
   ```py
   # BAD: filtering in template (N+1 and logic leak)

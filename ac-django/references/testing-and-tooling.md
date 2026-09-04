@@ -51,6 +51,8 @@ When performance matters:
 
 - pick a hot endpoint
 - assert query counts don't regress into N+1
+- or set `FETCH_RAISE` (6.1+) on the queryset under test, so an accidental lazy load raises `FieldFetchBlocked` at the access site instead of quietly inflating a count — see [`models-and-schema.md`](models-and-schema.md) §5.3
+- `assertContains()` / `assertNotContains()` can be called more than once against the same `StreamingHttpResponse` (6.1+); before that, the first call consumed the stream
 
 ### 18.4 DRF tests
 

@@ -16,11 +16,16 @@ Views:
 - call a domain method
 - return response
 
+Set `RedirectView.preserve_request = True` (6.1+) when a redirect must keep the
+HTTP method and body — it answers with 307/308 instead of 302/301, so a
+redirected POST stays a POST.
+
 ### 8.2 Forms are boundary validation
 
 - forms validate request payload
 - forms normalize values
 - domain mutation happens through model methods
+- the blank entry in a `choices` list renders `BLANK_CHOICE_LABEL` (6.1+), a translatable label instead of a dash; `USE_BLANK_CHOICE_DASH` restores the old one but is itself deprecated, so treat it as a migration aid only
 
 ### 8.3 Templates are presentation
 
@@ -73,14 +78,11 @@ class ArticleViewSet(viewsets.ModelViewSet):
 
 ## 9. Templates, partials, HTMX ergonomics
 
-### 9.1 Django 6 native partials
+### 9.1 Native template partials
 
-- `{% partialdef name %} ... {% endpartialdef %}`
-- render fragments via `template.html#partial_name`
-
-### Django 5.2 note
-
-Use `django-template-partials` and plan removal on upgrade.
+- `{% partialdef name %} ... {% endpartialdef %}` defines a fragment
+- `{% partial name %}` renders it wherever you need it in the same template
+- render it as a response on its own via `template.html#partial_name`
 
 ### 9.2 Partial definition and rendering
 
@@ -294,14 +296,14 @@ class Command(BaseCommand):
 
 ## 16e. Connection pooling
 
-### 16e.1 Django 5.1+ built-in pooling
+### 16e.1 Built-in pooling
 
 ```py
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "OPTIONS": {
-            "pool": True,  # enables built-in connection pooling (Django 5.1+)
+            "pool": True,  # built-in connection pooling
         },
     }
 }
@@ -310,13 +312,13 @@ DATABASES = {
 ### 16e.2 Rules
 
 - Enable connection pooling in production to avoid per-request connection overhead.
-- For Django < 5.1 or advanced needs, use `django-db-connection-pool` or PgBouncer.
+- For pooling across processes, or transaction-level pooling, use `django-db-connection-pool` or PgBouncer.
 - Set `CONN_MAX_AGE` to a reasonable value (e.g., 600 seconds) if not using pooling.
 - Monitor connection counts; pool size should match expected concurrency.
 
 ---
 
-## Django 6 Reference Snippets
+## Reference Snippets
 
 ### Partial rendering endpoint pattern
 
@@ -332,7 +334,7 @@ def fragment(request):
     return render(request, "video.html#view_count", {...})
 ```
 
-### Django 6 tasks pattern
+### Tasks pattern
 
 ```py
 from django.tasks import task

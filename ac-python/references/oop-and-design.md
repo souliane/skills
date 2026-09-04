@@ -162,6 +162,21 @@ Pick the direct path. If a clean solution does not exist, reconsider the design 
 
 Do not fight third-party frameworks. If a framework provides a lifecycle hook, use it. If it expects a certain structure, follow it.
 
+### Concurrency: pick the primitive, not the habit
+
+"Reach for `multiprocessing` to escape the GIL" is no longer the only answer.
+
+- **asyncio** for I/O-bound concurrency; plain threads for blocking I/O a library
+  gives you no async API for.
+- **Free-threaded CPython** is officially supported (PEP 779). The single-threaded
+  penalty is now roughly 5-10%, and the specialising interpreter is enabled in that
+  build. C-extension support is still uneven, so measure your own dependencies
+  before adopting it.
+- **`concurrent.interpreters`** (PEP 734) gives each interpreter its own GIL inside
+  one process — CPU-bound parallelism without the pickling cost of processes.
+- **`multiprocessing`** stays the answer when you need OS-level isolation, or a
+  dependency that is not safe under free threading.
+
 ### Project layout: `src/` layout
 
 ```text

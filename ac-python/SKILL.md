@@ -3,13 +3,39 @@ name: ac-python
 description: Generic Python coding guidelines covering style, typing, OOP design, testing, and tooling. Use when writing Python code outside of a Django context — scripts, CLIs, microservices, data pipelines, tooling. Do NOT use for Django-specific patterns (use ac-django instead).
 compatibility: python3. Knowledge-only skill with no external tool requirements beyond a Python codebase.
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
-# Python Bible (Python 3.13+ baseline)
+# Python Bible (Python 3.14)
 
-**Baseline:** Python **3.13+** · **Tooling:** uv · ruff · mypy/ty · prek · pytest
+**Targets:** Python **3.14** · **Previous line:** Python **3.13** (trailing section) · **Tooling:** uv · ruff · mypy/ty · prek · pytest
+
+## Version Policy
+
+This skill documents **one** Python line: the current one. Keep it that way when
+you update it.
+
+- **Main path = the current feature release.** Today that is Python **3.14**. When
+  3.15 ships, the main path moves to it in the same edit.
+- **Unmarked prose means the current line, and there is no marker form.** Python
+  ships features only in a feature release, and the main path always *is* the
+  current feature release — so nothing in it can post-date the line, and a version
+  suffix would have nothing to qualify. (This is where the sibling `ac-django`
+  policy differs: Django adds features *within* a line, so it needs version
+  markers; Python does not.) Do not write "On Python 3.X+, ..." or "if you are on
+  3.13" in the main path — a conditional in the main path is the defect this rule
+  exists to stop.
+- **Older lines get one trailing section each, at the end of `SKILL.md`**, and
+  nothing anywhere else — the reference files carry the current line only and get
+  no trailing section of their own. Today that is `## Previous line: Python 3.13`.
+  It carries the diff a reader on that version needs: what is missing, what to
+  use instead, and what to change on upgrade.
+- **Research order when refreshing.** `https://docs.python.org/3/whatsnew/` and
+  the library reference first. Then the sources already cited under Canonical
+  Sources. Blogs and newsletters last, briefly, for what the docs do not cover.
+- **Rotation.** Each October a new line ships: re-base unmarked prose on it,
+  replace the trailing section with the line being retired, drop stale markers.
 
 ## Canonical Sources
 
@@ -67,8 +93,10 @@ User says: "Add a `LoanApplication` data model with validation"
 - Prefer the idiomatic Python solution over a generic one.
 - Use list comprehensions, walrus operator (`:=`), `itertools`, `operator` where they clarify intent.
 - Avoid intermediate variables that are only used once.
-- On Python 3.14+, prefer t-strings (`t"..."`, PEP 750) over f-strings or manual concatenation when building SQL/HTML/templates from interpolated values — the interpolated values stay separate from literal text instead of being flattened into one `str`, avoiding injection risk.
-- On Python 3.14+, use the stdlib `compression.zstd` module instead of the third-party `zstandard` package for zstd compression.
+- Prefer t-strings (`t"..."`, PEP 750) over f-strings when building SQL, HTML, shell commands, or templates from interpolated values. A t-string evaluates to a `string.templatelib.Template`, not a `str`: the static text and each `Interpolation` stay separable, so a processing function can escape every interpolated value for its target grammar. The safety is in that function — the stdlib ships none, so use a library's or write one. A `Template` passed where a `str` is expected is an error, not an escape.
+- Use the stdlib `compression.zstd` for zstd rather than the third-party `zstandard` package. `compression.lzma`, `compression.bz2`, `compression.gzip` and `compression.zlib` are the preferred import names for those modules too; the originals still work and are not deprecated. `tarfile`, `zipfile` and `shutil` read and write zstd archives.
+- Omit the brackets in a multi-type `except` when there is no `as` clause (PEP 758): `except TimeoutError, ConnectionRefusedError:`. With `as`, the brackets are still required.
+- Never `return`, `break`, or `continue` out of a `finally` block — it swallows the in-flight exception, and the compiler emits a `SyntaxWarning` for it (PEP 765).
 
 ### Types are documentation
 
@@ -170,3 +198,25 @@ Tests must be easy to read and maintain. Verbose tests get skimmed, misunderstoo
 - [ ] `@pytest.mark.parametrize` used where 3+ tests differ only by input/output
 - [ ] fixtures used for repeated setup — no copy-pasted boilerplate
 - [ ] mocks only for external boundaries (subprocess, network, clock)
+
+## Previous line: Python 3.13
+
+Everything above targets Python 3.14. On 3.13:
+
+- **No t-strings.** Build SQL/HTML with the target library's own parameterisation
+  or escaping (`cursor.execute(sql, params)`, `markupsafe`), never f-string
+  interpolation.
+- **No `compression.zstd`.** The third-party `zstandard` package is the option;
+  `tarfile`/`zipfile`/`shutil` do not read or write zstd.
+- **Annotations are evaluated eagerly.** `from __future__ import annotations` is
+  still needed for forward references, and there is no `annotationlib` — use
+  `typing.get_type_hints()`. The main path's ruff config bans that import
+  (`lint.flake8-tidy-imports.banned-api."__future__.annotations"` in
+  [`references/testing-and-tooling.md`](references/testing-and-tooling.md)); drop
+  that one entry while the project targets 3.13, and restore it on 3.14.
+- **`except` needs brackets** for multiple types:
+  `except (TimeoutError, ConnectionRefusedError):`.
+- **Free-threading is experimental**, not officially supported, and carries a much
+  larger single-threaded penalty than 3.14's ~5–10%.
+- Pin `python_version` / `python-version` to `"3.13"` in the mypy/ty config while
+  the project targets it.
