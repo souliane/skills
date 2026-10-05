@@ -231,3 +231,7 @@ When Django's model state must change but DB operations must be controlled:
 
 - Use `SeparateDatabaseAndState` to keep Django's migration state accurate while executing only the safe DB operations you intend.
 - Custom SQL must be reversible (`reverse_sql`) and follow concurrency constraints (e.g. `DROP INDEX CONCURRENTLY` requires `atomic = False`).
+
+### 7.9 Squashing an app's migrations
+
+See [`squashing-migrations.md`](squashing-migrations.md): `squashmigrations` with `replaces`, or a fresh initial migration under a new name plus a one-time `django_migrations` rewrite on each live database.
