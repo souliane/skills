@@ -234,4 +234,4 @@ When Django's model state must change but DB operations must be controlled:
 
 ### 7.9 Squashing an app's migrations
 
-See [`squashing-migrations.md`](squashing-migrations.md): `squashmigrations` with `replaces`, or a fresh initial migration under a new name plus a one-time `django_migrations` rewrite on each live database.
+See [`squashing-migrations.md`](squashing-migrations.md): regenerate with `makemigrations` and keep `replaces` (the default), `squashmigrations`, or, when `replaces` cannot be used, a one-time `django_migrations` rewrite on each live database.

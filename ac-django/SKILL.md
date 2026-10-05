@@ -70,7 +70,7 @@ you update it.
 | --- | --- | --- |
 | [`references/models-and-schema.md`](references/models-and-schema.md) | Models, fields, constraints, QuerySets, managers, ORM performance | Model changes, query optimization, schema design |
 | [`references/transactions-and-migrations.md`](references/transactions-and-migrations.md) | Transactions, locking, idempotency, migration safety, FK index ops | Multi-step writes, migrations, schema changes |
-| [`references/squashing-migrations.md`](references/squashing-migrations.md) | Squashing an app's migrations: `replaces` vs a fresh initial under a new name, the `django_migrations` rewrite on live databases, rollback | Shortening a long migration history that deployed databases already ran |
+| [`references/squashing-migrations.md`](references/squashing-migrations.md) | Squashing an app's migrations: regenerate and keep `replaces` (default), `squashmigrations`, or a `django_migrations` rewrite without `replaces`; refusing part-way databases; rollback | Shortening a long migration history that deployed databases already ran |
 | [`references/views-and-templates.md`](references/views-and-templates.md) | Views, forms, templates, partials, HTMX, file uploads, i18n, middleware, management commands, connection pooling, reference snippets | View/template work, form handling, HTMX, uploads |
 | [`references/background-and-infra.md`](references/background-and-infra.md) | Background tasks, security, settings, observability, caching, async | Tasks, deployment, logging, caching, async views |
 | [`references/admin-and-drf.md`](references/admin-and-drf.md) | Django Admin, DRF serializers, viewsets, permissions, pagination, versioning | Admin customization, API endpoints |
@@ -306,7 +306,7 @@ Each rung has a **WHEN**. Take the lowest rung that fixes the signal — do not 
 - [ ] linear migrations enforced (one leaf per app — `django-linear-migrations` or manual review)
 - [ ] `makemigrations --check` passes
 - [ ] migration safe/reviewable
-- [ ] a squash that deletes migration files names its plan for existing databases (backup, row count, schema diff, `django_migrations` rewrite, rollback) — see [`references/squashing-migrations.md`](references/squashing-migrations.md)
+- [ ] a squash that deletes migration files keeps `replaces` until every database has recorded it and refuses part-way databases before `migrate` (without `replaces`: names its backup, row-count, schema-diff, rewrite and rollback plan) — see [`references/squashing-migrations.md`](references/squashing-migrations.md)
 - [ ] comments-as-code (per ac-python): no signature-echo docstring, no inline comment restating the RunPython body — a data migration's intent is its function name, not a 6-line docstring
 
 ### Tasks
@@ -405,6 +405,7 @@ the diff.
 | Fetch modes (6.1+) | `QuerySet.fetch_mode()` | Explicit `select_related()` / `prefetch_related()` |
 | DB-level `on_delete` (6.1+) | `DB_CASCADE` / `DB_SET_NULL` / `DB_SET_DEFAULT` | Python-level `on_delete` only |
 | Multiple mailers (6.1+) | `MAILERS` | Flat `EMAIL_*` settings |
+| Squashing a squash | `squashmigrations` accepts a squashed migration | Turn the earlier squash into a normal migration first (delete its replaced files, remove `replaces`) |
 
 ### Upgrading
 
