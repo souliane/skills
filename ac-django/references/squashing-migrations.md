@@ -29,20 +29,20 @@ What follows is what worked for us when we squashed one app's long linear histor
 3. Only after **every** installation has run that `migrate`, in a later release: delete the replaced files, point migrations that depended on them at the squash, and remove `replaces` from it.
 4. `manage.py migrate <app> --prune` then deletes the rows of the removed files ([`--prune`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-prune)). Django refuses to prune while a squash still carries `replaces` for those rows.
 
-Deleting the old files early strands any installation that has not reached the old leaf yet: it then tries to apply the squash from the start, over tables that already exist.
+Deleting the old files early strands any installation that has not recorded the squash yet: it then tries to apply the squash from the start, over tables that already exist.
 
 #### B. A fresh initial migration under a new name
 
 Generating it:
 
 1. Delete the app's migration files, and any helper module only they import.
-2. Temporarily remove other apps' dependencies on them. The graph refuses to load with a dependency on a node that has no file (`NodeNotFoundError`), and that includes the new name until its file exists.
-3. `manage.py makemigrations <app> --name squashed` writes `0001_squashed.py` with `initial = True` and no `replaces`.
-4. Point those dependencies at `("<app>", "0001_squashed")`. Dependent apps that live in other repositories need the same change in the release that picks up the squash.
+2. Search every app, including apps in other repositories, for a dependency on any deleted name (not only the old leaf: a dependency can target an intermediate migration), and remove those dependencies for now. The graph refuses to load with a dependency on a node that has no file (`NodeNotFoundError`), and that includes the new name until its file exists.
+3. `manage.py makemigrations <app> --name squashed` writes `0001_squashed.py` with `initial = True` and no `replaces`. If this app and another app have foreign keys to each other, that one file cycles with the other app's migration (`CircularDependencyError`). Generate it in two passes instead, first without the foreign keys to the other app and then with them, which gives `0001_squashed` and `0002_squashed`. The rewrite below then inserts every new name.
+4. Point those dependencies at the new migration that creates what they need, e.g. `("<app>", "0001_squashed")`. Dependent apps in other repositories need the same change in the release that picks up the squash.
 5. `makemigrations` writes schema only. If old data migrations seeded rows that a fresh database needs, add them back as a `RunPython` with literal values (no imports of app code) and a reverse function.
 6. Update `max_migration.txt` if you use `django-linear-migrations`, and delete or rewrite tests that import numbered migration modules or migrate to nodes that no longer exist.
 
-**Use a new name, never `0001_initial`.** Old code meeting a rewritten database looks for its own migration names. With a new name it finds none recorded and stops: at `InconsistentMigrationHistory` when another app's applied migration depends on the old files, otherwise at its first `CreateModel` on an existing table. With `0001_initial` it would read the new row as its own first migration and apply its `0002` onwards on top of the squashed schema. Also check that the new name is not any old migration's name; Django's docs raise the same concern about reusing a deleted migration's name (the pruning note under [Squashing migrations](https://docs.djangoproject.com/en/6.1/topics/migrations/#migration-squashing)).
+**Use a new name, never `0001_initial`.** Old code meeting a rewritten database looks for its own migration names. With a new name it finds none recorded and stops: at `InconsistentMigrationHistory` when another app's applied migration depends on the old files, otherwise at its first `CreateModel` on an existing table. With `0001_initial` it would read the new row as its own first migration and apply its `0002` onwards on top of the squashed schema. Also check that no new name is an old migration's name; Django's docs raise the same concern about reusing a deleted migration's name (the pruning note under [Squashing migrations](https://docs.djangoproject.com/en/6.1/topics/migrations/#migration-squashing)).
 
 Before touching any existing database, check the migration itself:
 
@@ -52,11 +52,13 @@ Before touching any existing database, check the migration itself:
 
 ### 7.9.3 Rewriting `django_migrations` on an existing database (approach B)
 
-Django's own commands do not fit here. Once another app's applied migration depends on the new name, [`migrate --prune`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-prune) and [`migrate --fake`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-fake) both stop with `InconsistentMigrationHistory` against the unrewritten database ([history consistency](https://docs.djangoproject.com/en/6.1/topics/migrations/#history-consistency)). Without such a dependency they work, but as separate writes with no checks in between. So the rewrite is a small script: delete the app's rows and insert the new name as applied, in one transaction.
+Django's own commands do not fit here. Once another app's applied migration depends on the new name, [`migrate --prune`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-prune) and [`migrate --fake`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-fake) both stop with `InconsistentMigrationHistory` against the unrewritten database ([history consistency](https://docs.djangoproject.com/en/6.1/topics/migrations/#history-consistency)). Without such a dependency they work, but as separate writes with no checks in between. So the rewrite is a small script: delete the app's rows and insert the new names as applied, in one transaction.
 
-1. **Stop every process that opens the database**: web, workers, schedulers, admin shells, cron jobs, and anything that redeploys or restarts them on its own.
+When the database file lives in a container volume, run the backup, the rewrite and the checks in a one-off container that mounts the volume, as the app's user, rather than copying the file out. The host's `sqlite3` and Python can differ from the image's.
+
+1. **Stop every process that opens the database**: web, workers, schedulers, admin shells, cron jobs, and one-off CLI or management-command processes started by tools or other sessions. Stop supervisors and watchdogs that restart services on their own (restart-always) first, before the services they restart, and hold anything that redeploys.
 2. **Back it up online and check the copy.** For SQLite, use the [online backup](https://www.sqlite.org/backup.html) (`sqlite3 db ".backup copy"`) and run [`PRAGMA integrity_check`](https://www.sqlite.org/pragma.html#pragma_integrity_check) and `PRAGMA foreign_key_check` on the copy. For PostgreSQL, [`pg_dump -Fc`](https://www.postgresql.org/docs/current/app-pgdump.html) and a test restore. Keep it outside any backup rotation.
-3. **Count the rows and refuse a mismatch.** Pass the expected count explicitly (`expect_rows` below), read it from the backup in this window rather than from an earlier note, and check that every old name is present and none is newer than the old leaf.
+3. **Count the rows and refuse a mismatch.** Pass the expected count explicitly (`expect_rows` below), read it from the backup in this window rather than from an earlier note, and pass the full set of old names (`expect_names`) so a missing name, or one newer than the old leaf, is refused too. An installation with its own local migrations of the app beyond the shared leaf is refused, and rightly: the squash has to cover every migration any installation applied. Merge those migrations into the shared history first, rebuild the squash, and start again.
 4. **Diff the live schema against the schema the new migration produces**, as in 7.9.2: columns, indexes and constraints, 0 differences, column order ignored. On a difference, stop. Fix the drift with an ordinary migration on the old history and rebuild the squash, rather than editing the squash to match one database.
 5. **Rehearse the whole procedure on a copy of the backup**: the rewrite, the checks with the new code, and the rollback.
 6. **Rewrite in one transaction**, writing the rows to a rollback file before deleting them:
@@ -71,17 +73,23 @@ Django's own commands do not fit here. Once another app's applied migration depe
        pass
 
 
-   def rewrite_migration_rows(db: Path, app: str, new_name: str, *, expect_rows: int, rollback_file: Path) -> None:
+   def rewrite_migration_rows(
+       db: Path, app: str, new_names: list[str], *, expect_rows: int, expect_names: set[str], rollback_file: Path
+   ) -> None:
        conn = sqlite3.connect(db, autocommit=True)
        try:
            conn.execute("BEGIN IMMEDIATE")
            rows = conn.execute(
                "SELECT id, app, name, applied FROM django_migrations WHERE app = ? ORDER BY id", (app,)
            ).fetchall()
-           if len(rows) != expect_rows:
-               raise RewriteRefused(f"{len(rows)} rows for {app!r}, expected {expect_rows}")
-           if new_name in {name for _, _, name, _ in rows}:
-               raise RewriteRefused(f"{new_name!r} is already an old migration name")
+           names = {name for _, _, name, _ in rows}
+           if present := names & set(new_names):
+               raise RewriteRefused(f"{sorted(present)} already present for {app!r}")
+           if len(rows) != expect_rows or names != expect_names:
+               raise RewriteRefused(
+                   f"{len(rows)} rows for {app!r}, expected {expect_rows}; "
+                   f"missing {sorted(expect_names - names)}, unexpected {sorted(names - expect_names)}"
+               )
 
            with os.fdopen(os.open(rollback_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as fh:
                fh.writelines("\t".join(map(str, row)) + "\n" for row in rows)
@@ -89,11 +97,12 @@ Django's own commands do not fit here. Once another app's applied migration depe
                os.fsync(fh.fileno())
 
            deleted = conn.execute("DELETE FROM django_migrations WHERE app = ?", (app,)).rowcount
-           conn.execute(
-               "INSERT INTO django_migrations (app, name, applied) VALUES (?, ?, CURRENT_TIMESTAMP)", (app, new_name)
+           conn.executemany(
+               "INSERT INTO django_migrations (app, name, applied) VALUES (?, ?, CURRENT_TIMESTAMP)",
+               [(app, name) for name in new_names],
            )
-           after = conn.execute("SELECT name FROM django_migrations WHERE app = ?", (app,)).fetchall()
-           if deleted != expect_rows or after != [(new_name,)]:
+           after = sorted(name for (name,) in conn.execute("SELECT name FROM django_migrations WHERE app = ?", (app,)))
+           if deleted != expect_rows or after != sorted(new_names):
                raise RewriteRefused(f"unexpected result: deleted {deleted}, now {after}")
            conn.execute("COMMIT")
        finally:
@@ -102,10 +111,10 @@ Django's own commands do not fit here. Once another app's applied migration depe
            conn.close()
    ```
 
-   On PostgreSQL the same shape is `BEGIN; LOCK TABLE django_migrations IN EXCLUSIVE MODE; ... COMMIT;`. Rows of other apps are never touched.
+   `autocommit=` needs Python 3.12+; on older versions pass `isolation_level=None` instead. On PostgreSQL the same shape is `BEGIN; LOCK TABLE django_migrations IN EXCLUSIVE MODE; ... COMMIT;`. Rows of other apps are never touched.
 7. **Check with the new code before starting it**: `migrate --plan` prints "No planned migration operations.", [`migrate --check`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-migrate-check) exits 0, and [`makemigrations --check`](https://docs.djangoproject.com/en/6.1/ref/django-admin/#cmdoption-makemigrations-check) is clean. Then start it.
 8. **Never run the old code's `migrate` against a rewritten database.** Plain `migrate` stopped before changing anything in our tests (`InconsistentMigrationHistory`, or "table already exists"), but that is luck, not a guarantee. On SQLite, the old code's `migrate --fake-initial` faked its first migration, re-ran its `AddField` migrations, and the table rebuild reset the existing values of those columns to their defaults.
-9. **Rollback**: stop everything again, then either restore the backup (anything written since is lost) or, right after a failed start, delete the new row and re-insert the saved rows with their original ids in one transaction. Then go back to the old code. With SQLite, remove any leftover `-journal` or `-wal` file before putting the backup in place.
+9. **Rollback**: stop everything again, then either restore the backup (anything written since is lost) or, right after a failed start, delete the new rows and re-insert the saved rows with their original ids in one transaction. Then go back to the old code. With SQLite, remove any leftover `-journal`, `-wal` or `-shm` file before putting the backup in place.
 
 ### 7.9.4 Several installations
 
