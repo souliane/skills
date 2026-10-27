@@ -3,7 +3,7 @@ name: ac-writing-blog-posts
 description: Write blog articles and generate social media posts to promote them. Use when user says "blog", "article", "write post", "blog post", or wants to create/update a blog article or generate social media content.
 compatibility: Any agent that can read/write files.
 metadata:
-  version: 0.1.0
+  version: 0.1.1
   subagent_safe: true
 ---
 
@@ -40,39 +40,33 @@ When biographical or experiential context would improve the article, **ask the u
 
 Save user-provided biographical details as a `user` type memory with a descriptive title for reuse in future articles.
 
-**Pre-publish source audit (Non-Negotiable):** before assembling the final draft, walk every paragraph and identify, per load-bearing claim, the evidence source — `file:line` reference, commit hash, memory entry, or user-supplied detail in this conversation. Claims without a source are deleted or sent back to the user with a question. This applies to claims of any kind, not just biographical, and runs **before** the "Review Against Source Material" step in the workflow. The earlier review catches missing citations and limitations; this audit catches the silent fabrications that look like personal voice. Every first-person sentence goes through it too.
+**Pre-publish source audit (Non-Negotiable):** before assembling the final draft, walk every paragraph and identify, per load-bearing claim, the evidence source — `file:line` reference, commit hash, memory entry, or user-supplied detail in this conversation. Claims without a source are deleted or sent back to the user with a question. This applies to claims of any kind, not just biographical, and runs **before** the "Review Against Source Material" step in the workflow. The review step checks each claim against the code; this audit catches the silent fabrications that look like personal voice. Every first-person sentence goes through it too.
 
 ### First Person: Sparingly, and Never Invented (Non-Negotiable)
 
 A post with no first person at all reads like documentation, and one with it on every sentence reads self-important. Use "I" sparingly and let the thing described be the subject of most sentences: "The cache expires after five minutes", not "I made the cache expire".
 
-- **Where it goes.** Where the author states a decision or a plan, or admits a limit of their own: "tidyup caps a run at 100 deletions. I plan to make the cap configurable."
-- **How much.** A handful per post, in about one paragraph in three, and never two sentences with "I" in the same paragraph.
-- **The register reference sets the amount.** An approved post by the same author tells the right amount, and it differs by post type: a mechanism or tool explainer needs fewer than a story. Without a reference, stay on the low side.
+- **Where it goes.** Where the author states a decision, a plan or a limit of their own: "tidyup caps a run at 100 deletions. I plan to make the cap configurable." (code: `MAX_DELETIONS = 100`; ticket: "make the cap configurable"; tidyup is a made-up CLI)
+- **How much.** About one paragraph in three has an "I", "my" or "me". Fewer when the sources support fewer; never padded to reach the share. Hard limits never move, not even for the register reference or a voice profile: at most one such sentence per paragraph, a source for each (below), and at least one where the author gave a decision, plan or limit of their own. The reference may set the share of paragraphs, up to about half: an explainer needs fewer than a story.
 
-Test each sentence that has an "I": could the author, within a minute, point at a line of code, a commit, a ticket or a message in this conversation that makes it true?
-
-- **Yes: it may stay,** if it sits where a decision, plan or limit is stated and the count above holds.
-- **No: first person is forbidden.** No invented history ("my first version"), feelings, durations, experiments nobody ran, or motives nobody stated ("because I wanted…"). Ask the author one specific question, or cut the sentence. Keep the mechanical consequence the code shows ("so a long run delays the cleanup") and leave the motive out.
-- **Show the support.** The audit above lists each first-person sentence with its line, commit, ticket or message.
+Test each sentence that has an "I": could the author, within a minute, point at a line of code, a commit, a ticket or a message in this conversation that makes it true? If so, it may stay where a decision, plan or limit is stated, and the audit above records the source. If not, cut the claim in any person or ask the author one specific question. Keep the mechanical consequence the code shows ("so a long run delays the cleanup") and leave the motive out ("because I wanted…").
 
 ### Humble, Non-Pretentious Tone (Non-Negotiable)
 
 - Never position the author as smarter or more insightful than others.
 - Present learnings as personal takeaways, not corrections of others' work.
-- "I chose X" over "The right way to..."
-- "This works well for my workflow" over "This is the best approach"
-- Acknowledge limitations and experimental status honestly.
+- "tidyup does X" over "The right way to..."
+- A scoped fact about the tool ("this suits one machine, not a fleet") over "This is the best approach"
+- Acknowledge limitations honestly, as plain facts.
 - Avoid superlatives and marketing language.
 - The purpose is **sharing, not showing off.** The author is exploring and has
-  much left to learn — write from a learner's stance ("here's what I tried and
-  what I'm still figuring out"), never from a position of authority or mastery.
-- Never imply the author knows everything or has it all figured out. "I'm
-  scratching the surface" is closer to the truth than "here's how to do it."
+  much left to learn — write from a learner's stance ("here is what the setup
+  does and what is still open"), never from a position of authority or mastery.
+- Never imply the author knows everything or has it all figured out. State what
+  is open as a fact ("the cap is still fixed at 100"), not as a feeling.
 - It is fine — encouraged — to show unfinished thinking, dead ends, and open
   questions. That is what makes the post worth reading and worth trusting.
   The dead ends and open questions must be real (supplied, or in the history).
-  Humility lives in what the post claims, not in disclaimers about the post.
 
 ### Straight and Short, Not Prosaic (Non-Negotiable)
 
@@ -103,8 +97,8 @@ should be — write it, then cut it in half before showing the user.
 
 In that directory, profiles are layered on top of this skill:
 
-- **This skill** holds the universal rules (humble, honest, straight, sound-human, off-by-default) — they apply to every author and every voice, and are never repeated in a profile.
-- **A base profile** `<author>.md` holds the traits common to *all* of that author's voices — register, sentence mechanics, structural habits, dos and don'ts. It is derived from **real samples of the author's own writing** (their published work, not AI-assisted drafts), and is the concrete instance of the universal rules; where a profile and a universal rule both apply, the profile's specifics win.
+- **This skill** holds the universal rules (humble, honest, straight, sound-human, off-by-default, first-person) — they apply to every author and every voice, and are never repeated in a profile.
+- **A base profile** `<author>.md` holds the traits common to *all* of that author's voices — register, sentence mechanics, structural habits, dos and don'ts. It is derived from **real samples of the author's own writing** (their published work, not AI-assisted drafts), and is the concrete instance of the universal rules; where a profile and a universal rule both apply, the profile's specifics win, except for the hard limits in "First Person".
 - **Optional voice variants** `<author>-<voice>.md` hold **only the deltas** for a topic or audience (e.g. a drier reference voice, a punchier opinion voice). A variant extends its base and never repeats base traits.
 
 **Ask which voice first (before Phase A).** Resolve `styles_dir`, then scan it. If a single base profile exists, confirm it. If variants exist, ask the user which voice fits this post's topic and audience, then load the base **plus** the chosen variant. If no profile exists, offer to derive one from samples.
@@ -113,7 +107,7 @@ In that directory, profiles are layered on top of this skill:
 
 Every profile encodes *how the author writes*, not *what they write about*, and obeys "Off by Default" (below): never the author's private life, emotions, or opinions. If a sample reveals something personal, it stays out of the profile unless the author approved it — when unsure, ask.
 
-**Use a post the author likes as the register reference.** If the author names one (ideally their own), it is the target for register, alongside the profile. Before drafting, measure it: first-person forms per 1,000 words, how paragraphs open, sentence length (average and longest), how terms are defined, heading style, how sections end. Write to those measurements, measure the draft the same way, and show the user both sets. Copy its rhythm and first-person pattern, not its facts, which may be stale. A brief to a sub-agent carries the measurements and the "First Person" rule, and never tells it to strip the first person or to "describe each thing and nothing more".
+**Use a post the author likes as the register reference.** If the author names one (ideally their own), it is the target for register, alongside the profile. Before drafting, measure it: the share of paragraphs with an "I", "my" or "me", how paragraphs open, sentence length (average and longest), how terms are defined, heading style, how sections end. Write to those measurements, measure the draft the same way, and show the user both sets. Copy its rhythm and first-person pattern within the hard limits in "First Person", not its facts, which may be stale. A brief to a sub-agent carries the measurements and the "First Person" rule, and never tells it to strip the first person or to "describe each thing and nothing more".
 
 ### Sound Human, Not AI-Generated (Non-Negotiable)
 
@@ -137,17 +131,18 @@ and readers should never get the "this is AI slop" feeling.
   voice ("I found no X", "I looked and", "it turns out", "the author"): the
   author does not search their own project. State the fact or the design. "I
   looked" and "I found" are right only for outside things the author
-  researched, such as another project's spec or issue.
-  Bad: `I looked through tidyup's options and found no way to skip hidden files. It turns out the author never added one.`
-  Good: `tidyup deletes hidden files too and has no skip option. Keep a hidden folder out of the target path.`
+  researched or supplied, such as another project's spec or issue; research
+  done in this conversation is stated as a fact, without "I".
+  - Bad: `I looked through tidyup's options and found no way to skip hidden files. It turns out the author never added one.`
+  - Good: `tidyup deletes hidden files too and has no skip option. Keep a hidden folder out of the target path.`
 - Headings are plain statements or the reader's own question ("Does tidyup
-  delete hidden files?"), not noun labels ("Behaviour") or keynote titles
-  ("Rethinking Cleanup"). Define a term on first use in one clause ("I call this
-  list the keeplist: paths tidyup never deletes"), not by enumeration or a long
-  parenthesis.
-- Close with a question or an offer ("Do you skip hidden files or delete them?
-  I'd like to hear which."), never a generic appeal ("you may find it useful to
-  compare with your own setup"), a summary or a teaser.
+  delete hidden files?"), not noun labels ("Behavior") or keynote titles
+  ("Rethinking Cleanup"). Define a term on first use in one clause ("The
+  keeplist is the list of paths tidyup never deletes"), not by enumeration or a
+  long parenthesis.
+- Close with a question or an offer ("Do you skip hidden files or delete them?"),
+  never a generic appeal ("you may find it useful to compare with your own
+  setup"), a summary or a teaser. An offer only when the author states it.
 - Em-dash and emoji discipline: sparingly, as a human would, not as decoration.
 - Final self-check before assembly: read it aloud in your head — if a paragraph
   sounds like a model being helpful rather than a person thinking, rewrite it.
@@ -160,9 +155,9 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **No false paternity.** Don't claim to have invented concepts, patterns, or terms that exist independently. If the author built on existing ideas, acknowledge that.
 - **No inflated language.** Avoid "open standard" (unless formally standardized), "framework" (for what's really a collection of scripts), "enables" (marketing speak), "game-changer", "revolutionary", etc.
 - **Verify claims before publishing.** Count the files, check the versions, test the commands. Don't write "15 scripts" without counting. Don't say "supported across most agents" without evidence.
-- **State each limit once, as a plain fact, where it matters.** Attach it to the thing it limits, say what the reader can do about it, and keep the tone of the sentences around it. Put it early only when it decides whether the reader should read on. No label lines ("Limits:", "Uncovered:"), no section or opening paragraph made of limits, no double-negative disclaimers ("replaces none of it"), no self-undermining ("I haven't measured", "not a prescription"). A limit is a fact about the tool, not a verdict on the post.
-  Bad: `Limits: tidyup is not a backup tool and replaces none of your cleanup scripts. I haven't measured it on large folders.`
-  Good: `tidyup only cleans local folders. For a cloud folder, sync it to a local path first and run tidyup there.`
+- **State each limit once, as a plain fact, where it matters.** Attach it to the thing it limits, name what is covered rather than what was not checked, say what the reader can do about it if the source shows a way, and keep the tone of the sentences around it. Put it early only when it decides whether the reader should read on. No label lines ("Limits:", "Uncovered:"), no section or opening paragraph made of limits, no double-negative disclaimers ("replaces none of it"), no "I haven't measured", no "not a prescription".
+  - Bad: `Limits: tidyup only cleans local folders. I haven't tested it on cloud folders.`
+  - Good: `tidyup only cleans local folders, the only kind I run it on.` (source: the author's setup notes, "used on local folders only")
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
 
 ### The Author's Private Life and Feelings: Off by Default (Non-Negotiable)
@@ -179,7 +174,7 @@ When personal context would genuinely strengthen the post, **ask** — quote the
 
 ### No Repeated Disclaimers (Non-Negotiable)
 
-When a caveat or qualification is already stated in one place (e.g., "tested most with Claude Code" in the intro), do not add variations of it elsewhere (prerequisites, Get Started, etc.). State it once, trust the reader, stop. When the user gives iterative feedback to simplify, apply the simplification fully in one pass rather than introducing a new hedge that needs another correction round.
+When a caveat or qualification is already stated in one place (e.g., "tested most with `<agent>`"), do not add variations of it elsewhere (prerequisites, Get Started, etc.). State it once, trust the reader, stop. When the user gives iterative feedback to simplify, apply the simplification fully in one pass rather than introducing a new hedge that needs another correction round.
 
 ### Source-Grounded Claims Only (Non-Negotiable)
 
@@ -232,16 +227,16 @@ Before Phase A, run the voice check from "Match the Author's Voice": pick the vo
 
 One turn per bullet:
 
-- **Outline**: offer 4-8 *full outlines*, each a short list of sections with a one-line description per section. Each outline should embody a real structural choice (chronological / problem-solution / thesis-and-evidence / compare-and-contrast / Q&A / walkthrough / annotated example / retrospective timeline / how-I-got-here / etc.), not just reshuffled titles.
+- **Outline**: offer 4-8 *full outlines*, each a short list of sections with a one-line description per section. Each outline should embody a real structural choice (chronological / problem-solution / thesis-and-evidence / compare-and-contrast / Q&A / walkthrough / annotated example / retrospective timeline / etc.), not just reshuffled titles.
 - **Title**: 4-8 title candidates derived from the chosen outline and takeaway sentence.
-- **Opening paragraph**: 4-8 actual prose openers spanning real angles (anecdote / direct thesis / question / scene-setting / quote / definition / observation / confession), not outlines. Whatever the angle, the first two sentences still deliver the point.
+- **Opening paragraph**: 4-8 actual prose openers spanning real angles (direct thesis / question / quote / definition / observation / a one-line anecdote from the source material), not outlines. Whatever the angle, the first two sentences still deliver the point.
 
 #### Phase C — Drafting, section by section
 
 For each section in the chosen outline:
 
 1. Restate the section's job in one sentence (from the outline).
-2. Offer 4-8 *full draft paragraphs* (or multi-paragraph blocks) for the section. Drafts must span real angles — one might open with an anecdote, another with a definition, another with a direct claim, another with a question, another with a code example and minimal framing.
+2. Offer 4-8 *full draft paragraphs* (or multi-paragraph blocks) for the section. Drafts must span real angles — one might open with a one-line anecdote from the source material, another with a definition, another with a direct claim, another with a question, another with a code example and minimal framing.
 3. User picks, edits inline, asks for more variants, or asks you to merge two. Iterate until they accept.
 4. Move to the next section.
 
@@ -262,7 +257,7 @@ Use first person sparingly (see "First Person"), short paragraphs (3-5 sentences
 After assembling the draft, verify:
 
 - [ ] Every technical claim matches the actual codebase (counts, versions, commands)
-- [ ] No biographical details were invented
+- [ ] No biographical details, durations, experiments or motives were invented
 - [ ] No undisclosed personal events or feelings (see "Off by Default")
 - [ ] Tightened — roughly half the natural draft length, no filler sentences
 - [ ] Tone is humble and non-pretentious
@@ -270,19 +265,21 @@ After assembling the draft, verify:
 - [ ] All links are valid
 - [ ] Code examples are correct and runnable
 
-### 2b. Voice Check Before Showing a Draft
+### 2b. Voice Check Before Showing the Assembled Draft
 
-Answer yes to every item before showing a draft, and again after each rewrite:
+Answer yes to every item before showing the assembled draft, and again after each rewrite:
+
+For the openers and paragraphs offered in Phases B and C, items 1, 3 and 5 are the quick check; skip item 9 when there is no register reference.
 
 - [ ] Do the first two sentences deliver a point (a rule, an answer, what the reader can do), with no "this post covers"?
-- [ ] Is the first person sparing: a handful per post, in about one paragraph in three, never two sentences with "I" in one paragraph, each placed where a decision, plan or limit is stated?
+- [ ] Is the first person sparing (about one paragraph in three, or the register reference's share; never two sentences with "I", "my" or "me" in one paragraph), each placed where a decision, plan or limit of the author's own is stated?
 - [ ] Can I name the line, commit, ticket or message behind every first-person sentence?
-- [ ] Is the draft free of invented history, feelings, durations, experiments and motives?
-- [ ] Is the author's own system described as its builder would, with no "I found no", "I looked", "it turns out" or "the author"?
-- [ ] Is each limit one plain fact in the sentence it limits, with what the reader can do about it, and no label line, limits paragraph, double negative or "I haven't measured"?
+- [ ] If the author gave a decision, plan or limit of their own, does at least one sentence state it with "I"?
+- [ ] Is the author's own system described as its builder would, with no "I found no", "I looked", "it turns out" or "the author" (outside things excepted)?
+- [ ] Is every limit the reader needs stated once, as a plain fact in the sentence it limits and naming what is covered (no label line, limits paragraph, double negative or "I haven't measured")?
 - [ ] Are headings plain statements or the reader's question, with each term defined in one clause on first use?
-- [ ] Does the close ask a question or make an offer, not a generic appeal, summary or teaser?
-- [ ] If a register reference exists, do the draft's measurements match it?
+- [ ] Does the close ask a question or make an offer the author stated, not a generic appeal, summary or teaser?
+- [ ] If a register reference exists, do the draft's measurements match it (the hard limits in "First Person" still apply)?
 
 ### 3. Final Full-Draft Review
 
@@ -384,7 +381,7 @@ Save answers as `user` type memories with descriptive titles for future use.
 
 Approved promotion drafts are cached in `${XDG_DATA_HOME:-$HOME/.local/share}/ac-writing-blog-posts/` with one file per article:
 
-- `promotion-<post-filename>.md` — mirrors the post's filename (e.g., `promotion-20260309-introducing-teatree.md` for `posts/20260309-introducing-teatree.md`). Contains all outlet drafts for that article, plus metadata (dev.to ID, URLs, tags, generation date).
+- `promotion-<post-filename>.md` — mirrors the post's filename (e.g., `promotion-20260309-my-project-intro.md` for `posts/20260309-my-project-intro.md`). Contains all outlet drafts for that article, plus metadata (dev.to ID, URLs, tags, generation date).
 
 ### When to use the cache
 
@@ -423,9 +420,9 @@ After the user submits (or skips) an outlet, update the status line in the cache
 
 ## File Conventions
 
-- Blog posts go in the project's `blog/` directory.
-- Filename format: `YYYYMMDD-slug.md` (e.g., `20260310-introducing-teatree.md`).
-- Images go in `blog/assets/` or alongside the post.
+- Blog posts go in the project's `posts/` directory.
+- Filename format: `YYYYMMDD-slug.md` (e.g., `20260310-my-project-intro.md`).
+- Images go in `posts/assets/` or alongside the post.
 
 ## Publishing to dev.to
 

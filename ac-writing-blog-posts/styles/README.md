@@ -8,7 +8,7 @@ The skill reads profiles from the directory set as `styles_dir` in `~/.ac-writin
 
 ## File convention (three layers)
 
-- The **skill** holds the universal rules (humble, honest, straight, sound-human, off-by-default) — they apply to everyone and are never repeated in a profile.
+- The **skill** holds the universal rules (humble, honest, straight, sound-human, off-by-default, first-person) — they apply to everyone and are never repeated in a profile.
 - `<author>.md` — the author's **base voice**: traits common to all their voices.
 - `<author>-<voice>.md` — optional **variants** for a topic or audience, holding **only the deltas** on top of the base.
 
