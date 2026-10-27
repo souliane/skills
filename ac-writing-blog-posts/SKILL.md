@@ -3,7 +3,7 @@ name: ac-writing-blog-posts
 description: Write blog articles and generate social media posts to promote them. Use when user says "blog", "article", "write post", "blog post", or wants to create/update a blog article or generate social media content.
 compatibility: Any agent that can read/write files.
 metadata:
-  version: 0.0.1
+  version: 0.1.0
   subagent_safe: true
 ---
 
@@ -34,17 +34,33 @@ This skill is published in a public repository. It must **never** contain user-s
 - **Past states of the author's system** ("the file used to be 600 lines", "my first version had X", "after a few weeks I had ten of them"). Verify against `git log -S` / `git blame` / the actual current state of the file before claiming a "before" picture, or ask.
 - **Code snippets attributed to the author's codebase.** Copy from the actual file via `Read`. Never reconstruct from a remembered description of what the function does — the reconstruction will be plausible-shaped and wrong.
 
+A design choice that the code, a commit or a ticket shows is not an opinion, so it may be stated; "First Person" below says when to say "I".
+
 When biographical or experiential context would improve the article, **ask the user** with a specific question. Example: "The intro would benefit from context about how you noticed the bug — can you share a sentence or two about what tipped you off?"
 
 Save user-provided biographical details as a `user` type memory with a descriptive title for reuse in future articles.
 
-**Pre-publish source audit (Non-Negotiable):** before assembling the final draft, walk every paragraph and identify, per load-bearing claim, the evidence source — `file:line` reference, commit hash, memory entry, or user-supplied detail in this conversation. Claims without a source are deleted or sent back to the user with a question. This applies to claims of any kind, not just biographical, and runs **before** the "Review Against Source Material" step in the workflow. The earlier review catches missing citations and limitations; this audit catches the silent fabrications that look like personal voice.
+**Pre-publish source audit (Non-Negotiable):** before assembling the final draft, walk every paragraph and identify, per load-bearing claim, the evidence source — `file:line` reference, commit hash, memory entry, or user-supplied detail in this conversation. Claims without a source are deleted or sent back to the user with a question. This applies to claims of any kind, not just biographical, and runs **before** the "Review Against Source Material" step in the workflow. The earlier review catches missing citations and limitations; this audit catches the silent fabrications that look like personal voice. Every first-person sentence goes through it too.
+
+### First Person: Sparingly, and Never Invented (Non-Negotiable)
+
+A post with no first person at all reads like documentation, and one with it on every sentence reads self-important. Use "I" sparingly and let the thing described be the subject of most sentences: "The cache expires after five minutes", not "I made the cache expire".
+
+- **Where it goes.** Where the author states a decision or a plan, or admits a limit of their own: "tidyup caps a run at 100 deletions. I plan to make the cap configurable."
+- **How much.** A handful per post, in about one paragraph in three, and never two sentences with "I" in the same paragraph.
+- **The register reference sets the amount.** An approved post by the same author tells the right amount, and it differs by post type: a mechanism or tool explainer needs fewer than a story. Without a reference, stay on the low side.
+
+Test each sentence that has an "I": could the author, within a minute, point at a line of code, a commit, a ticket or a message in this conversation that makes it true?
+
+- **Yes: it may stay,** if it sits where a decision, plan or limit is stated and the count above holds.
+- **No: first person is forbidden.** No invented history ("my first version"), feelings, durations, experiments nobody ran, or motives nobody stated ("because I wanted…"). Ask the author one specific question, or cut the sentence. Keep the mechanical consequence the code shows ("so a long run delays the cleanup") and leave the motive out.
+- **Show the support.** The audit above lists each first-person sentence with its line, commit, ticket or message.
 
 ### Humble, Non-Pretentious Tone (Non-Negotiable)
 
 - Never position the author as smarter or more insightful than others.
 - Present learnings as personal takeaways, not corrections of others' work.
-- "I found that..." over "The right way to..."
+- "I chose X" over "The right way to..."
 - "This works well for my workflow" over "This is the best approach"
 - Acknowledge limitations and experimental status honestly.
 - Avoid superlatives and marketing language.
@@ -55,6 +71,8 @@ Save user-provided biographical details as a `user` type memory with a descripti
   scratching the surface" is closer to the truth than "here's how to do it."
 - It is fine — encouraged — to show unfinished thinking, dead ends, and open
   questions. That is what makes the post worth reading and worth trusting.
+  The dead ends and open questions must be real (supplied, or in the history).
+  Humility lives in what the post claims, not in disclaimers about the post.
 
 ### Straight and Short, Not Prosaic (Non-Negotiable)
 
@@ -71,8 +89,9 @@ should be — write it, then cut it in half before showing the user.
   are voice tics — keep at most one or two per post, not one per section. (An
   author's own recurring asides, if any, belong in their `styles/` voice
   profile, not in this generic rule.)
-- **Get to the point in the first two sentences.** Don't warm up. The opener
-  says what the post is about and why it's worth reading; the body delivers it.
+- **The first two sentences deliver the point:** a rule, an answer, or what the
+  reader can do. Don't warm up, and never announce the post ("this post covers",
+  "in this post we'll"). The body then backs it up.
 - **Tighten before you assemble.** After the sections are drafted, do one
   explicit compression pass: per paragraph, ask "what does this add?" — merge or
   delete anything that fails. Compare word count before and after; if it didn't
@@ -94,6 +113,8 @@ In that directory, profiles are layered on top of this skill:
 
 Every profile encodes *how the author writes*, not *what they write about*, and obeys "Off by Default" (below): never the author's private life, emotions, or opinions. If a sample reveals something personal, it stays out of the profile unless the author approved it — when unsure, ask.
 
+**Use a post the author likes as the register reference.** If the author names one (ideally their own), it is the target for register, alongside the profile. Before drafting, measure it: first-person forms per 1,000 words, how paragraphs open, sentence length (average and longest), how terms are defined, heading style, how sections end. Write to those measurements, measure the draft the same way, and show the user both sets. Copy its rhythm and first-person pattern, not its facts, which may be stale. A brief to a sub-agent carries the measurements and the "First Person" rule, and never tells it to strip the first person or to "describe each thing and nothing more".
+
 ### Sound Human, Not AI-Generated (Non-Negotiable)
 
 The post must read as written by a person, not produced by a model. Reviewers
@@ -109,8 +130,24 @@ and readers should never get the "this is AI slop" feeling.
   scalable") unless each adjective earns its place.
 - Concrete specifics over abstract claims: a real command, a real diff, a real
   number the agent measured — not "significantly improved performance".
-- Keep contractions and a natural first-person voice. Let opinions be opinions;
-  do not neutralize them into balanced both-sides prose.
+- Keep contractions. Use the first person as "First Person" above allows,
+  sparingly. Let stated opinions be opinions; do not neutralize them into
+  balanced both-sides prose.
+- Describe the author's own system as its builder would. Never in research-audit
+  voice ("I found no X", "I looked and", "it turns out", "the author"): the
+  author does not search their own project. State the fact or the design. "I
+  looked" and "I found" are right only for outside things the author
+  researched, such as another project's spec or issue.
+  Bad: `I looked through tidyup's options and found no way to skip hidden files. It turns out the author never added one.`
+  Good: `tidyup deletes hidden files too and has no skip option. Keep a hidden folder out of the target path.`
+- Headings are plain statements or the reader's own question ("Does tidyup
+  delete hidden files?"), not noun labels ("Behaviour") or keynote titles
+  ("Rethinking Cleanup"). Define a term on first use in one clause ("I call this
+  list the keeplist: paths tidyup never deletes"), not by enumeration or a long
+  parenthesis.
+- Close with a question or an offer ("Do you skip hidden files or delete them?
+  I'd like to hear which."), never a generic appeal ("you may find it useful to
+  compare with your own setup"), a summary or a teaser.
 - Em-dash and emoji discipline: sparingly, as a human would, not as decoration.
 - Final self-check before assembly: read it aloud in your head — if a paragraph
   sounds like a model being helpful rather than a person thinking, rewrite it.
@@ -123,7 +160,9 @@ Content must be accurate, verifiable, and down-to-earth. The goal is to share ge
 - **No false paternity.** Don't claim to have invented concepts, patterns, or terms that exist independently. If the author built on existing ideas, acknowledge that.
 - **No inflated language.** Avoid "open standard" (unless formally standardized), "framework" (for what's really a collection of scripts), "enables" (marketing speak), "game-changer", "revolutionary", etc.
 - **Verify claims before publishing.** Count the files, check the versions, test the commands. Don't write "15 scripts" without counting. Don't say "supported across most agents" without evidence.
-- **Acknowledge limitations prominently.** Every tool has rough edges. State them near the beginning, not buried at the end.
+- **State each limit once, as a plain fact, where it matters.** Attach it to the thing it limits, say what the reader can do about it, and keep the tone of the sentences around it. Put it early only when it decides whether the reader should read on. No label lines ("Limits:", "Uncovered:"), no section or opening paragraph made of limits, no double-negative disclaimers ("replaces none of it"), no self-undermining ("I haven't measured", "not a prescription"). A limit is a fact about the tool, not a verdict on the post.
+  Bad: `Limits: tidyup is not a backup tool and replaces none of your cleanup scripts. I haven't measured it on large folders.`
+  Good: `tidyup only cleans local folders. For a cloud folder, sync it to a local path first and run tidyup there.`
 - **No "insight" or "key takeaway" framing.** Just state what works and what doesn't. The reader can draw their own conclusions.
 
 ### The Author's Private Life and Feelings: Off by Default (Non-Negotiable)
@@ -195,7 +234,7 @@ One turn per bullet:
 
 - **Outline**: offer 4-8 *full outlines*, each a short list of sections with a one-line description per section. Each outline should embody a real structural choice (chronological / problem-solution / thesis-and-evidence / compare-and-contrast / Q&A / walkthrough / annotated example / retrospective timeline / how-I-got-here / etc.), not just reshuffled titles.
 - **Title**: 4-8 title candidates derived from the chosen outline and takeaway sentence.
-- **Opening paragraph**: 4-8 actual prose openers spanning real angles (anecdote / direct thesis / question / scene-setting / quote / definition / observation / confession), not outlines.
+- **Opening paragraph**: 4-8 actual prose openers spanning real angles (anecdote / direct thesis / question / scene-setting / quote / definition / observation / confession), not outlines. Whatever the angle, the first two sentences still deliver the point.
 
 #### Phase C — Drafting, section by section
 
@@ -216,7 +255,7 @@ draft: true
 ---
 ```
 
-Use first person when sharing personal experience, short paragraphs (3-5 sentences max), code blocks with language annotations, and links to source repos and referenced projects.
+Use first person sparingly (see "First Person"), short paragraphs (3-5 sentences max), code blocks with language annotations, and links to source repos and referenced projects.
 
 ### 2. Review Against Source Material
 
@@ -230,7 +269,20 @@ After assembling the draft, verify:
 - [ ] No over-selling, inflated language, or false paternity claims
 - [ ] All links are valid
 - [ ] Code examples are correct and runnable
-- [ ] Limitations are honestly stated (near the beginning, not buried)
+
+### 2b. Voice Check Before Showing a Draft
+
+Answer yes to every item before showing a draft, and again after each rewrite:
+
+- [ ] Do the first two sentences deliver a point (a rule, an answer, what the reader can do), with no "this post covers"?
+- [ ] Is the first person sparing: a handful per post, in about one paragraph in three, never two sentences with "I" in one paragraph, each placed where a decision, plan or limit is stated?
+- [ ] Can I name the line, commit, ticket or message behind every first-person sentence?
+- [ ] Is the draft free of invented history, feelings, durations, experiments and motives?
+- [ ] Is the author's own system described as its builder would, with no "I found no", "I looked", "it turns out" or "the author"?
+- [ ] Is each limit one plain fact in the sentence it limits, with what the reader can do about it, and no label line, limits paragraph, double negative or "I haven't measured"?
+- [ ] Are headings plain statements or the reader's question, with each term defined in one clause on first use?
+- [ ] Does the close ask a question or make an offer, not a generic appeal, summary or teaser?
+- [ ] If a register reference exists, do the draft's measurements match it?
 
 ### 3. Final Full-Draft Review
 
